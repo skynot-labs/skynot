@@ -1,0 +1,19 @@
+{
+  "name": "skynot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A dev shop of AI agents: a Manager runs per-project teams that deliver software.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}
