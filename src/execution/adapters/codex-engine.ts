@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok, type Result } from "../../kernel";
 import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine } from "../domain";
-import { TIMED_OUT, exec, type Exec } from "./exec";
+import { TIMED_OUT, exec, type Exec } from "../../kernel/process";
 
 export function codexArgs(request: EngineRequest, files: { schema?: string; out: string }): string[] {
   return [

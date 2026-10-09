@@ -21,6 +21,7 @@ export const PolicySchema = z
       actions_per_order_per_day: z.number().int().positive(),
       actions_per_day: z.number().int().positive(),
       max_parallel: z.number().int().positive(),
+      max_rounds: z.number().int().min(1).max(5),
     }),
     run_budget: z.object({
       timeout_seconds: z.number().positive(),

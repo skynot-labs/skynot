@@ -12,7 +12,7 @@ import {
   toEngineSchema,
   type EngineRequest,
 } from "../../src/execution";
-import type { Exec, ExecResult } from "../../src/execution/adapters/exec";
+import type { Exec, ExecResult } from "../../src/kernel/process";
 
 const base: EngineRequest = { prompt: "hello", cwd: "/work", access: "read", timeoutMs: 1000 };
 

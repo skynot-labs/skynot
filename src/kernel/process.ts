@@ -17,6 +17,15 @@ export const TIMED_OUT = 124;
 
 export type Exec = (command: string, args: string[], options?: ExecOptions) => Promise<ExecResult>;
 
+export async function run(execute: Exec, command: string, args: string[], options?: ExecOptions): Promise<string> {
+  const result = await execute(command, args, options);
+  if (result.code !== 0) {
+    const detail = (result.stderr || result.stdout).trim().slice(-600);
+    throw new Error(`${command} ${args.slice(0, 3).join(" ")} failed (${result.code}): ${detail}`);
+  }
+  return result.stdout;
+}
+
 export const exec: Exec = (command, args, options = {}) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, {

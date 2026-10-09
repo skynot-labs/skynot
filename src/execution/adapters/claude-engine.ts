@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "../../kernel";
 import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine } from "../domain";
-import { TIMED_OUT, exec, type Exec } from "./exec";
+import { TIMED_OUT, exec, type Exec } from "../../kernel/process";
 
 const READ_TOOLS = ["Read", "Grep", "Glob"];
 const WRITE_TOOLS = ["Read", "Edit", "Write", "Grep", "Glob"];
