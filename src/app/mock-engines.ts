@@ -1,0 +1,53 @@
+import { FakeEngine, type FakeAnswer } from "../execution";
+
+const MARKER = "## New message from the director\n";
+
+export function createMockManager(): FakeEngine {
+  const answer: FakeAnswer = (request) => {
+    const message = request.prompt.split(MARKER).at(-1)?.trim() ?? "";
+    const idea = firstIdea(request.prompt, message);
+
+    if (message.startsWith("Answer to ")) {
+      return { structured: { message: "That settles it. Filing the order.", question: null, options: [], order: mockOrder(idea) } };
+    }
+    if (message.toLowerCase().startsWith("/ping")) {
+      return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], order: null } };
+    }
+    return {
+      structured: {
+        message: "One thing before I write it up.",
+        question: `Keep "${shorten(idea, 40)}" small, or cover the edge cases too?`,
+        options: ["Keep it small", "Cover edge cases"],
+        order: null,
+      },
+    };
+  };
+  return new FakeEngine(answer);
+}
+
+export function createMockDeveloper(): FakeEngine {
+  return new FakeEngine(async () => ({ text: "Criterion 1: covered by the new test. Criterion 2: the negative case is tested.", costUsd: 0.31 }));
+}
+
+function firstIdea(prompt: string, current: string): string {
+  const conversation = prompt.split("## Conversation so far, oldest first\n")[1]?.split("\n\n## New message")[0] ?? "";
+  const first = conversation.split("\n").find((line) => line.startsWith("director: ") && !line.includes("Answer to "));
+  return (first?.slice("director: ".length) ?? current).trim();
+}
+
+function mockOrder(idea: string) {
+  const title = shorten(idea, 60);
+  return {
+    title,
+    objective: `Deliver what the director asked for: ${shorten(idea, 200)}.`,
+    acceptanceCriteria: [
+      { statement: "The requested behavior works end to end", verification: { kind: "test", detail: "a new test covers the happy path" } },
+      { statement: "Existing behavior does not change", verification: { kind: "command", detail: "npm test passes" } },
+    ],
+    outOfScope: ["Anything not named in the request"],
+    risk: "low",
+    likelyFiles: ["src/feature.txt"],
+  };
+}
+
+const shorten = (text: string, length: number): string => (text.length <= length ? text : `${text.slice(0, length - 1).trimEnd()}…`);

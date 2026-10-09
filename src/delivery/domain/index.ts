@@ -4,6 +4,7 @@ export type {
   DeliveryRules,
   IssueRef,
   NewPullRequest,
+  PullRequestState,
   RepoRules,
   Vcs,
   WorkerRunner,

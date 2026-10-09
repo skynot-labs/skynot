@@ -40,6 +40,14 @@ describe("gh vcs", () => {
     );
   });
 
+  it("tells open, merged and closed pull requests apart", async () => {
+    const state = (body: object) => new GhVcs(recordingExec(JSON.stringify(body)).execute).pullRequestState("a/b", 9);
+
+    expect(await state({ state: "open", merged_at: null })).toBe("open");
+    expect(await state({ state: "closed", merged_at: "2026-10-09T12:00:00Z" })).toBe("merged");
+    expect(await state({ state: "closed", merged_at: null })).toBe("closed");
+  });
+
   it("fails loudly with gh's own message when the API refuses", async () => {
     const { execute } = recordingExec("", 1);
 

@@ -1,4 +1,4 @@
-import type { IssueRef, NewPullRequest, Vcs } from "../domain";
+import type { IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
 
 export interface FakeIssue {
   repo: string;
@@ -18,11 +18,20 @@ export class FakeVcs implements Vcs {
   readonly issues: FakeIssue[] = [];
   readonly pullRequests: FakePullRequest[] = [];
   private nextNumber = 1;
+  private readonly states = new Map<string, PullRequestState>();
 
   async createIssue(repo: string, title: string, body: string): Promise<IssueRef> {
     const number = this.nextNumber++;
     this.issues.push({ repo, number, title, body, labels: [] });
     return { number, url: `https://github.com/${repo}/issues/${number}` };
+  }
+
+  async pullRequestState(repo: string, number: number): Promise<PullRequestState> {
+    return this.states.get(`${repo}#${number}`) ?? "open";
+  }
+
+  setPullRequestState(repo: string, number: number, state: PullRequestState): void {
+    this.states.set(`${repo}#${number}`, state);
   }
 
   async addLabel(repo: string, issue: number, label: string): Promise<void> {

@@ -1,5 +1,5 @@
 import { exec, run, type Exec } from "../../kernel/process";
-import type { IssueRef, NewPullRequest, Vcs } from "../domain";
+import type { IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
 
 interface Created {
   number: number;
@@ -11,6 +11,12 @@ export class GhVcs implements Vcs {
 
   async createIssue(repo: string, title: string, body: string): Promise<IssueRef> {
     return this.create(`repos/${repo}/issues`, { title, body });
+  }
+
+  async pullRequestState(repo: string, number: number): Promise<PullRequestState> {
+    const pull = JSON.parse(await this.api([`repos/${repo}/pulls/${number}`])) as { state: string; merged_at: string | null };
+    if (pull.merged_at) return "merged";
+    return pull.state === "open" ? "open" : "closed";
   }
 
   async addLabel(repo: string, issue: number, label: string): Promise<void> {
