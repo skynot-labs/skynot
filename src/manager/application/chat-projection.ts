@@ -34,7 +34,13 @@ export class ChatProjection implements Projection {
         this.chat.push({ id: event.payload.messageId, author: "manager", text: event.payload.text, at: stored.occurredAt, orderId: event.payload.orderId, decisionId: event.payload.decisionId });
         break;
       case "manager.decision_asked":
-        this.decisionsById.set(event.payload.decisionId, { ...event.payload, id: event.payload.decisionId, askedAt: stored.occurredAt, answer: null });
+        this.decisionsById.set(event.payload.decisionId, {
+          id: event.payload.decisionId,
+          question: event.payload.question,
+          options: event.payload.options,
+          askedAt: stored.occurredAt,
+          answer: null,
+        });
         break;
       case "manager.decision_answered": {
         const decision = this.decisionsById.get(event.payload.decisionId);

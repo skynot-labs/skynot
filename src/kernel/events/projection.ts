@@ -5,6 +5,14 @@ export interface Projection {
   apply(event: StoredEvent): void;
 }
 
+export class LastSequence implements Projection {
+  value = 0;
+
+  apply(event: StoredEvent): void {
+    this.value = event.sequence;
+  }
+}
+
 export async function attachProjection(log: EventLog, projection: Projection): Promise<() => void> {
   let lastApplied = 0;
   let replaying = true;

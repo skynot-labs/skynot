@@ -17,7 +17,7 @@ import {
 } from "../execution";
 import { ActionBudget, ActionCounts, type Policy } from "../governance";
 import { systemClock, type Clock } from "../kernel";
-import { attachProjection, EventLog, JsonlEventStore, type StoredEvent } from "../kernel/events";
+import { attachProjection, EventLog, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection } from "../orders";
 import { ActivityProjection } from "./activity";
@@ -52,6 +52,7 @@ export interface Shop {
   manager: ManagerService;
   flow: OrderFlow;
   watcher: MergeWatcher;
+  cursor: LastSequence;
   repo: string;
   stop(): void;
 }
@@ -69,7 +70,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const runs = new RunsProjection();
   const activity = new ActivityProjection();
   const counts = new ActionCounts();
-  for (const projection of [orders, chat, runs, activity, counts]) await attachProjection(log, projection);
+  const cursor = new LastSequence();
+  for (const projection of [orders, chat, runs, activity, counts, cursor]) await attachProjection(log, projection);
 
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel);
@@ -118,6 +120,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     manager,
     flow,
     watcher,
+    cursor,
     repo,
     stop() {
       stopFlow();
