@@ -1,0 +1,185 @@
+import { mkdtemp, readlink, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { z } from "zod";
+import {
+  ClaudeEngine,
+  CodexEngine,
+  claudeArgs,
+  codexArgs,
+  parseClaude,
+  toEngineSchema,
+  type EngineRequest,
+} from "../../src/execution";
+import type { Exec, ExecResult } from "../../src/execution/adapters/exec";
+
+const base: EngineRequest = { prompt: "hello", cwd: "/work", access: "read", timeoutMs: 1000 };
+
+const flagValue = (args: string[], flag: string) => args[args.indexOf(flag) + 1];
+
+const execReturning = (result: Partial<ExecResult>): Exec => async () => ({ stdout: "", stderr: "", code: 0, ...result });
+
+describe("claude arguments", () => {
+  it("gives a read-only run only the read tools and no shell", () => {
+    const args = claudeArgs(base);
+    expect(flagValue(args, "--tools")).toBe("Read,Grep,Glob");
+    expect(args).toContain("--restricted");
+    expect(args.join(" ")).not.toContain("Bash");
+  });
+
+  it("gives a writing run the edit tools plus exactly the allowed commands", () => {
+    const args = claudeArgs({ ...base, access: "write", allowedCommands: ["npm test", "git diff *"] });
+    expect(flagValue(args, "--tools")).toBe("Read,Edit,Write,Grep,Glob,Bash");
+    expect(flagValue(args, "--allowedTools")).toBe("Read Edit Write Grep Glob Bash(npm test) Bash(git diff *)");
+  });
+
+  it("gives a writing run no shell when no command is allowed", () => {
+    expect(flagValue(claudeArgs({ ...base, access: "write" }), "--tools")).toBe("Read,Edit,Write,Grep,Glob");
+  });
+
+  it("passes the schema, model and budget only when given", () => {
+    expect(claudeArgs(base)).not.toContain("--json-schema");
+    const args = claudeArgs({ ...base, schema: { type: "object" }, model: "sonnet", maxUsd: 2 });
+    expect([flagValue(args, "--json-schema"), flagValue(args, "--model"), flagValue(args, "--max-budget-usd")]).toEqual([
+      '{"type":"object"}',
+      "sonnet",
+      "2",
+    ]);
+  });
+});
+
+describe("claude output", () => {
+  it("reads text, structured output, cost and model", () => {
+    const stdout = JSON.stringify({
+      subtype: "success",
+      result: "done",
+      structured_output: { a: 1 },
+      total_cost_usd: 0.12,
+      num_turns: 3,
+      modelUsage: { "claude-sonnet": {} },
+    });
+    expect(parseClaude(stdout)).toEqual({
+      ok: true,
+      value: { text: "done", structured: { a: 1 }, costUsd: 0.12, turns: 3, model: "claude-sonnet" },
+    });
+  });
+
+  it("turns a stopped run and non-JSON output into failures", () => {
+    expect(parseClaude(JSON.stringify({ is_error: true, subtype: "error_max_budget_usd" }))).toMatchObject({ ok: false });
+    expect(parseClaude("Segmentation fault")).toMatchObject({ ok: false, error: { kind: "failed" } });
+  });
+});
+
+describe("claude engine", () => {
+  it("reports a timeout as a timeout", async () => {
+    const engine = new ClaudeEngine(execReturning({ code: 124 }));
+    expect(await engine.run(base)).toMatchObject({ ok: false, error: { kind: "timeout" } });
+  });
+
+  it("reports empty output with the exit code and stderr", async () => {
+    const engine = new ClaudeEngine(execReturning({ code: 1, stderr: "not logged in" }));
+    expect(await engine.run(base)).toMatchObject({ ok: false, error: { message: expect.stringContaining("not logged in") } });
+  });
+
+  it("checks the login without sending a prompt", async () => {
+    expect(await new ClaudeEngine(execReturning({ stdout: '{"loggedIn":true}' })).loginStatus()).toMatchObject({ loggedIn: true });
+    expect(await new ClaudeEngine(execReturning({ stdout: '{"loggedIn":false}' })).loginStatus()).toMatchObject({ loggedIn: false });
+    const missing: Exec = async () => {
+      throw new Error("ENOENT");
+    };
+    expect(await new ClaudeEngine(missing).loginStatus()).toMatchObject({ loggedIn: false });
+  });
+});
+
+describe("codex arguments", () => {
+  const files = { out: "/tmp/out.txt" };
+
+  it("uses the read-only sandbox for read access and workspace-write for write access", () => {
+    expect(flagValue(codexArgs(base, files), "-s")).toBe("read-only");
+    expect(flagValue(codexArgs({ ...base, access: "write" }, files), "-s")).toBe("workspace-write");
+  });
+
+  it("ignores the user's config and rules and reads the prompt from stdin", () => {
+    const args = codexArgs(base, files);
+    expect(args).toEqual(expect.arrayContaining(["--ignore-user-config", "--ignore-rules", "--ephemeral"]));
+    expect(args.at(-1)).toBe("-");
+  });
+
+  it("adds the output schema only when there is one", () => {
+    expect(codexArgs(base, files)).not.toContain("--output-schema");
+    expect(flagValue(codexArgs(base, { ...files, schema: "/tmp/s.json" }), "--output-schema")).toBe("/tmp/s.json");
+  });
+});
+
+describe("codex engine", () => {
+  let realHome: string;
+  const previousHome = process.env.CODEX_HOME;
+
+  beforeEach(async () => {
+    realHome = await mkdtemp(path.join(tmpdir(), "skynot-codex-home-"));
+    await writeFile(path.join(realHome, "auth.json"), "{}");
+    await writeFile(path.join(realHome, "config.toml"), "personal = true");
+    process.env.CODEX_HOME = realHome;
+  });
+
+  afterEach(async () => {
+    if (previousHome === undefined) delete process.env.CODEX_HOME;
+    else process.env.CODEX_HOME = previousHome;
+    await rm(realHome, { recursive: true, force: true });
+  });
+
+  it("answers with the last message and runs with a home that holds only the login", async () => {
+    let homeSeen: { dir: string; files: string[]; authTarget: string } | undefined;
+    const execute: Exec = async (_command, args, options) => {
+      const dir = options!.env!.CODEX_HOME!;
+      homeSeen = { dir, files: await readdir(dir), authTarget: await readlink(path.join(dir, "auth.json")) };
+      await writeFile(flagValue(args, "-o")!, '{"verdict":"ok"}');
+      return { stdout: "", stderr: "model: gpt-test", code: 0 };
+    };
+
+    const result = await new CodexEngine(execute).run({ ...base, schema: { type: "object" } });
+
+    expect(result).toEqual({
+      ok: true,
+      value: { text: '{"verdict":"ok"}', structured: { verdict: "ok" }, costUsd: 0, turns: 0, model: "gpt-test" },
+    });
+    expect(homeSeen?.dir).not.toBe(realHome);
+    expect(homeSeen?.files).toEqual(["auth.json"]);
+    expect(homeSeen?.authTarget).toBe(path.join(realHome, "auth.json"));
+  });
+
+  it("removes its temporary home afterwards", async () => {
+    let dir = "";
+    const execute: Exec = async (_command, args, options) => {
+      dir = path.dirname(options!.env!.CODEX_HOME!);
+      await writeFile(flagValue(args, "-o")!, "text");
+      return { stdout: "", stderr: "", code: 0 };
+    };
+
+    await new CodexEngine(execute).run(base);
+
+    await expect(readdir(dir)).rejects.toThrow();
+  });
+
+  it("fails when the CLI exits non-zero or writes nothing", async () => {
+    expect(await new CodexEngine(execReturning({ code: 1, stderr: "boom" })).run(base)).toMatchObject({ ok: false, error: { kind: "failed" } });
+    expect(await new CodexEngine(execReturning({ code: 124 })).run(base)).toMatchObject({ ok: false, error: { kind: "timeout" } });
+  });
+
+  it("checks the login from the CLI's own status command", async () => {
+    expect(await new CodexEngine(execReturning({ stdout: "Logged in using ChatGPT" })).loginStatus()).toMatchObject({ loggedIn: true });
+    expect(await new CodexEngine(execReturning({ code: 1, stdout: "Not logged in" })).loginStatus()).toMatchObject({ loggedIn: false });
+  });
+});
+
+describe("engine schema", () => {
+  it("drops the constraints strict structured output rejects and keeps the structure", () => {
+    const schema = toEngineSchema(z.object({ title: z.string().min(3).max(20), tags: z.array(z.string()).max(2), risk: z.enum(["low", "high"]) }));
+
+    const text = JSON.stringify(schema);
+    expect(text).not.toMatch(/minLength|maxLength|maxItems|\$schema/);
+    expect(schema).toMatchObject({ type: "object", required: ["title", "tags", "risk"] });
+    expect(text).toContain('"enum":["low","high"]');
+  });
+});
