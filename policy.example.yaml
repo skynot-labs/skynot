@@ -1,0 +1,26 @@
+version: 1
+
+repos:
+  - name: OWNER/REPO
+    base_branch: main
+    setup_command: npm ci
+    verify_commands: ["npm run typecheck", "npm test"]
+    protected_paths: [".github/", ".claude/", ".mcp.json", "AGENTS.md", "CLAUDE.md", "vitest.config*"]
+
+branch_prefix: "taller/"
+
+labels:
+  prefix: "taller:"
+  trigger: "taller:implement"
+
+limits:
+  actions_per_order_per_day: 12
+  actions_per_day: 60
+  max_parallel: 4
+
+run_budget:
+  timeout_seconds: 900
+  max_usd: 3.00
+
+memory:
+  max_memory_chars: 6000
