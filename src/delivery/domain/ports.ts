@@ -35,6 +35,7 @@ export interface Workspace {
 
 export interface WorkerRunner {
   work(input: {
+    orderId: string;
     prompt: string;
     cwd: string;
     allowedCommands: string[];

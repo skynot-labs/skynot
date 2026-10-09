@@ -19,6 +19,7 @@ export interface GitWorkspaceOptions {
 export class GitWorkspace implements Workspace {
   private readonly execute: Exec;
   private readonly cloneRepo: (repo: string, dir: string) => Promise<void>;
+  private readonly queues = new Map<string, Promise<unknown>>();
 
   constructor(private readonly options: GitWorkspaceOptions) {
     this.execute = options.execute ?? exec;
@@ -26,13 +27,15 @@ export class GitWorkspace implements Workspace {
       options.clone ?? (async (repo, dir) => void (await run(this.execute, "gh", ["repo", "clone", repo, dir, "--", "--quiet"])));
   }
 
-  async prepare(repo: string, baseBranch: string, branch: string): Promise<string> {
-    const source = await this.refresh(repo, baseBranch);
-    const dir = join(this.options.root, "worktrees", repo, branch.replaceAll("/", "-"));
-    await rm(dir, { recursive: true, force: true });
-    await this.git(source, "worktree", "prune");
-    await this.git(source, "worktree", "add", "-B", branch, dir, `origin/${baseBranch}`);
-    return dir;
+  prepare(repo: string, baseBranch: string, branch: string): Promise<string> {
+    return this.exclusive(repo, async () => {
+      const source = await this.refresh(repo, baseBranch);
+      const dir = join(this.options.root, "worktrees", repo, branch.replaceAll("/", "-"));
+      await rm(dir, { recursive: true, force: true });
+      await this.git(source, "worktree", "prune");
+      await this.git(source, "worktree", "add", "-B", branch, dir, `origin/${baseBranch}`);
+      return dir;
+    });
   }
 
   async changes(dir: string): Promise<FileChange[]> {
@@ -52,14 +55,22 @@ export class GitWorkspace implements Workspace {
     await this.git(dir, "push", "--force-with-lease", "-u", "origin", `${branch}:${branch}`);
   }
 
-  async drop(repo: string, dir: string): Promise<void> {
-    await this.git(this.readingCopy(repo), "worktree", "remove", "--force", dir).catch(() => rm(dir, { recursive: true, force: true }));
+  drop(repo: string, dir: string): Promise<void> {
+    return this.exclusive(repo, async () => {
+      await this.git(this.readingCopy(repo), "worktree", "remove", "--force", dir).catch(() => rm(dir, { recursive: true, force: true }));
+    });
   }
 
   async run(dir: string, command: string, timeoutMs: number): Promise<CommandOutcome> {
     const result = await this.execute("sh", ["-c", command], { cwd: dir, timeoutMs });
     const output = `${result.stdout}${result.stderr}`.trim();
     return { ok: result.code === 0, output: result.code === TIMED_OUT ? `timed out: ${output}` : output };
+  }
+
+  private exclusive<T>(repo: string, task: () => Promise<T>): Promise<T> {
+    const result = (this.queues.get(repo) ?? Promise.resolve()).then(task);
+    this.queues.set(repo, result.catch(() => undefined));
+    return result;
   }
 
   private readingCopy(repo: string): string {

@@ -68,6 +68,21 @@ describe("git workspace", () => {
     expect(await readFile(path.join(second, "src/later.txt"), "utf8")).toBe("later\n");
   });
 
+  it("prepares two branches of the same repo at once, each in its own worktree", async () => {
+    const [first, second] = await Promise.all([
+      workspace.prepare("acme/widgets", "main", "taller/wo-0001"),
+      workspace.prepare("acme/widgets", "main", "taller/wo-0002"),
+    ]);
+
+    expect(first).not.toBe(second);
+    expect((await git(first, "rev-parse", "--abbrev-ref", "HEAD")).trim()).toBe("taller/wo-0001");
+    expect((await git(second, "rev-parse", "--abbrev-ref", "HEAD")).trim()).toBe("taller/wo-0002");
+
+    await Promise.all([workspace.drop("acme/widgets", first), workspace.drop("acme/widgets", second)]);
+    await expect(stat(first)).rejects.toThrow();
+    await expect(stat(second)).rejects.toThrow();
+  });
+
   it("removes the worktree when dropped", async () => {
     const dir = await workspace.prepare("acme/widgets", "main", "taller/wo-0001");
 
