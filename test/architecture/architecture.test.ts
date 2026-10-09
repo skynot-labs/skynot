@@ -68,6 +68,23 @@ describe("architecture rules", () => {
     expect(checkArchitecture(files)).toHaveLength(1);
   });
 
+  it("lets the app layer import the public index of a context", () => {
+    const files = [
+      file("src/app/order-desk.ts", `import { OrderService } from "../orders";\nimport { Desk } from "../manager/index";`),
+    ];
+    expect(checkArchitecture(files)).toEqual([]);
+  });
+
+  it("rejects the app layer reaching into a context's internals", () => {
+    const files = [file("src/app/order-desk.ts", `import { sign } from "../orders/domain/work-order";`)];
+    expect(checkArchitecture(files)).toHaveLength(1);
+  });
+
+  it("rejects a context importing the app layer", () => {
+    const files = [file("src/orders/application/sign.ts", `import { wire } from "../../app/wire";`)];
+    expect(checkArchitecture(files)).toHaveLength(1);
+  });
+
   it("catches dynamic imports too", () => {
     const files = [file("src/orders/domain/order.ts", `const store = await import("../adapters/store");`)];
     expect(checkArchitecture(files)).toHaveLength(1);

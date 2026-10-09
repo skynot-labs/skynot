@@ -43,6 +43,8 @@ function violationsIn(file: SourceFile): Violation[] {
 function forbiddenReason(from: Location, to: Location): string | null {
   if (to.context === "kernel") return null;
   if (from.context === "kernel") return "the kernel must not import a context";
+  if (from.context === "app") return to.layer === null ? null : "the app layer may only import a context's public index";
+  if (to.context === "app") return "contexts must not import the app layer";
   if (from.context !== to.context) return "contexts must not import each other's internals";
   if (from.layer === "domain" && to.layer !== "domain") return "the domain must not import application or adapters";
   if (from.layer === "application" && to.layer === "adapters") return "application must not import adapters";
