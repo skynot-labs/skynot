@@ -45,6 +45,7 @@ export function issueBody(item: WorkItem): string {
     "## Likely files",
     files,
     "",
+    ...(item.ticket ? [`<sub>Taken from ticket #${item.ticket}.</sub>`, ""] : []),
     `<sub>Work order ${item.id}, written by the Manager and signed by the director.</sub>`,
   ].join("\n");
 }
@@ -52,6 +53,7 @@ export function issueBody(item: WorkItem): string {
 export function pullRequestBody(item: WorkItem, issue: number, report: string): string {
   return [
     `Closes #${issue}`,
+    ...(item.ticket ? [`Closes #${item.ticket}`] : []),
     "",
     "```",
     item.card,

@@ -21,6 +21,20 @@ describe("gh vcs", () => {
     expect(calls[0]).toEqual(["gh", "api", "-X", "POST", "repos/a/b/issues", "-f", "title=WO-0001 Title", "-f", "body=body text"]);
   });
 
+  it("lists the open issues with a label, leaving out pull requests, and encodes the label", async () => {
+    const { execute, calls } = recordingExec(
+      JSON.stringify([
+        { number: 7, title: "Dark mode", body: null, html_url: "https://github.com/a/b/issues/7" },
+        { number: 8, title: "A pull request", body: "x", html_url: "https://github.com/a/b/pull/8", pull_request: {} },
+      ]),
+    );
+
+    const tickets = await new GhVcs(execute).listTickets("a/b", "taller:ready");
+
+    expect(tickets).toEqual([{ number: 7, title: "Dark mode", body: "", url: "https://github.com/a/b/issues/7" }]);
+    expect(calls[0]).toEqual(["gh", "api", "repos/a/b/issues?state=open&per_page=30&labels=taller%3Aready"]);
+  });
+
   it("adds a label to an issue", async () => {
     const { execute, calls } = recordingExec("[]");
 

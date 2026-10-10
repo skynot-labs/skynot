@@ -1,4 +1,4 @@
-import type { ChecksState, IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
+import type { ChecksState, IssueRef, Ticket, NewPullRequest, PullRequestState, Vcs } from "../domain";
 
 export interface FakeIssue {
   repo: string;
@@ -17,6 +17,7 @@ export interface FakePullRequest extends NewPullRequest {
 export class FakeVcs implements Vcs {
   readonly issues: FakeIssue[] = [];
   readonly pullRequests: FakePullRequest[] = [];
+  readonly tickets: Array<Ticket & { repo: string; label: string }> = [];
   readonly comments: Array<{ repo: string; number: number; text: string }> = [];
   diff = "diff --git a/src/feature.txt b/src/feature.txt\n+feature\n";
   private nextNumber = 1;
@@ -36,6 +37,10 @@ export class FakeVcs implements Vcs {
 
   async pullRequestConflicts(repo: string, number: number): Promise<boolean> {
     return this.conflicting.has(`${repo}#${number}`);
+  }
+
+  async listTickets(repo: string, label: string): Promise<Ticket[]> {
+    return this.tickets.filter((ticket) => ticket.repo === repo && ticket.label === label);
   }
 
   async pullRequestDiff(): Promise<string> {

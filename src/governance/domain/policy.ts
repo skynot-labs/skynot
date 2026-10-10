@@ -16,6 +16,7 @@ export const PolicySchema = z
     labels: z.object({
       prefix: z.string().min(1),
       trigger: z.string().min(1),
+      intake: z.string().min(1).optional(),
     }),
     limits: z.object({
       actions_per_order_per_day: z.number().int().positive(),
@@ -35,6 +36,9 @@ export const PolicySchema = z
   .superRefine((policy, context) => {
     if (!policy.labels.trigger.startsWith(policy.labels.prefix)) {
       context.addIssue({ code: "custom", path: ["labels", "trigger"], message: `must start with "${policy.labels.prefix}"` });
+    }
+    if (policy.labels.intake && !policy.labels.intake.startsWith(policy.labels.prefix)) {
+      context.addIssue({ code: "custom", path: ["labels", "intake"], message: `must start with "${policy.labels.prefix}"` });
     }
     const names = policy.repos.map((repo) => repo.name);
     const duplicate = names.find((name, index) => names.indexOf(name) !== index);
