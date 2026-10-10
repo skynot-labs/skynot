@@ -113,6 +113,17 @@ describe("git workspace", () => {
     );
   });
 
+  it("reports paths git would quote, such as spaces and accents, exactly as they are", async () => {
+    const dir = await workspace.prepare("acme/widgets", "main", "taller/wo-0001");
+    await addFiles(dir, { ".github/workflows/a b.yml": "x\n", ".github/workflows/é.yml": "x\n" });
+    await rm(path.join(dir, "test/app.test.txt"));
+    await git(dir, "mv", "src/app.txt", "src/renamed file.txt");
+
+    const paths = (await workspace.changes(dir)).map((change) => change.path);
+
+    expect(paths).toEqual(expect.arrayContaining([".github/workflows/a b.yml", ".github/workflows/é.yml", "test/app.test.txt", "src/renamed file.txt", "src/app.txt"]));
+  });
+
   it("commits and pushes the branch without touching main", async () => {
     const dir = await workspace.prepare("acme/widgets", "main", "taller/wo-0001");
     await addFiles(dir, { "src/feature.txt": "feature\n" });

@@ -2,16 +2,28 @@ import { describe, expect, it } from "vitest";
 import { blockersOf, evolve, propose, type OrderStatus, type WorkOrder, type WorkOrderSpec } from "../../src/orders";
 import { validSpec } from "./fixtures";
 
-function order(number: number, status: OrderStatus, spec: Partial<WorkOrderSpec> = {}): WorkOrder {
+function order(number: number, status: OrderStatus, spec: Partial<WorkOrderSpec> = {}, signedAt: string | null = "2026-10-10T10:00:00.000Z"): WorkOrder {
   const id = `WO-${String(number).padStart(4, "0")}` as WorkOrder["id"];
   const proposed = evolve(null, propose(id, validSpec(spec)), "2026-10-10T10:00:00.000Z")!;
-  return { ...proposed, status };
+  return { ...proposed, status, signedAt: status === "awaiting_signature" ? null : signedAt };
 }
 
 describe("blockersOf", () => {
   it("waits for an earlier open order that touches the same file", () => {
     const earlier = order(1, "in_review");
     expect(blockersOf(order(2, "signed"), [earlier, order(2, "signed")])).toEqual(["WO-0001"]);
+  });
+
+  it("goes by the order of signing, not by the number of the order", () => {
+    const early = order(2, "on_bench", {}, "2026-10-10T10:00:00.000Z");
+    const late = order(1, "signed", {}, "2026-10-10T11:00:00.000Z");
+
+    expect(blockersOf(late, [late, early])).toEqual(["WO-0002"]);
+    expect(blockersOf(early, [late, early])).toEqual([]);
+  });
+
+  it("does not wait for an order that nobody has signed yet", () => {
+    expect(blockersOf(order(2, "signed"), [order(1, "awaiting_signature")])).toEqual([]);
   });
 
   it("treats a folder and a file inside it as the same place", () => {

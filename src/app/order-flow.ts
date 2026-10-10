@@ -104,7 +104,7 @@ export class OrderFlow {
     if (order.status !== "in_review" || order.pullRequest === null) return err({ kind: "invalid_transition", message: `${orderId} has no open pull request to review` });
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
 
-    this.launch(orderId, (signal) => this.review(orderId, signal));
+    this.launch(orderId, (signal) => this.review(orderId, signal, false));
     return ok(order);
   }
 
@@ -213,14 +213,14 @@ export class OrderFlow {
     this.inFlight.add(run);
   }
 
-  private async review(orderId: string, signal: AbortSignal): Promise<void> {
+  private async review(orderId: string, signal: AbortSignal, mayRequestChanges = true): Promise<void> {
     const { reviewer, findOrder, progressOf, repo, log } = this.deps;
     const order = findOrder(orderId);
     if (!reviewer || order?.status !== "in_review" || order.pullRequest === null || signal.aborted) return;
 
     const { reviews, issue } = progressOf(orderId);
     const outcome = await reviewer.run(toWorkItem(order), repo, order.pullRequest, reviews + 1, signal);
-    if (!outcome.ok || outcome.value.verdict === "approved" || reviews >= AUTOMATIC_ROUNDS || signal.aborted || issue === null) return;
+    if (!outcome.ok || !mayRequestChanges || outcome.value.verdict === "approved" || reviews >= AUTOMATIC_ROUNDS || signal.aborted || issue === null) return;
 
     const instruction = followUpFromReview(outcome.value);
     await log.record([{ type: "delivery.follow_up_requested", payload: { orderId, instruction } }]);

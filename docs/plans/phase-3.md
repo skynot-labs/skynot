@@ -76,6 +76,16 @@ the card here.
   changes who gets the next run (retry or follow-up) and is refused while the order is being worked: stop it first.
 - A run's role in the log and the presence is the worker's name, so cost per worker can be read from the runs.
 
+## Known limits
+
+- `codex` reports no cost, so its runs show $0 and never count toward `max_usd_per_day`. A team whose developer
+  runs on `codex` is not protected by the cap. Runs that fail, are stopped or time out record no cost either.
+- "Ready to merge" waits for the first CI read after every push, up to one poll (30 s). If GitHub has not
+  registered the workflow run yet, that read can say "none" for a moment before it says "pending".
+- An order that is blocked or left in `on_bench` holds every later order that shares files with it, until the
+  director uses Start now or discards it.
+- Stopping an order whose run is still queued does nothing until the shop resumes or a slot frees up.
+
 ## Not in phase 3
 
 Priorities and reordering, per-project rosters (phase 4), curated memory and retrospectives (phase 5),

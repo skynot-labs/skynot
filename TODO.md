@@ -26,13 +26,12 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 
 ## State on 2026-10-10
 
-- Repository: `rodacato/skynot` (private). `main` holds phase 1. Phase 2 slices 1 and 2 are on the
-  branch `feat/advisors`, in one pull request. A local hook blocks agents from pushing or merging into
+- Repository: `rodacato/skynot` (private). `main` holds phases 1 to 3. A local hook blocks agents from pushing or merging into
   `main`, on purpose; the director merges.
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (332 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (347 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates

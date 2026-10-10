@@ -143,14 +143,15 @@ describe("checks on the pull request", () => {
     const ready = () => readState(shop).orders.find((order) => order.id === id)?.ready;
     const changes = () => shop.activity.recent(50).filter((entry) => entry.text.startsWith("checks:")).map((entry) => entry.text);
 
+    expect(ready()).toBe(false);
     await shop.watcher.poll();
-    expect(changes()).toEqual([]);
+    expect(changes()).toEqual(["checks: none"]);
     expect(ready()).toBe(true);
 
     vcs.setChecks(shop.repo, 2, "pending");
     await shop.watcher.poll();
     await shop.watcher.poll();
-    expect(changes()).toEqual(["checks: pending"]);
+    expect(changes()).toEqual(["checks: pending", "checks: none"]);
     expect(ready()).toBe(false);
 
     vcs.setChecks(shop.repo, 2, "failing");
@@ -159,7 +160,7 @@ describe("checks on the pull request", () => {
 
     vcs.setChecks(shop.repo, 2, "passing");
     await shop.watcher.poll();
-    expect(changes()).toEqual(["checks: passing", "checks: failing", "checks: pending"]);
+    expect(changes()).toEqual(["checks: passing", "checks: failing", "checks: pending", "checks: none"]);
     expect(ready()).toBe(true);
   });
 });
