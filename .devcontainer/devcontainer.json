@@ -1,0 +1,40 @@
+{
+  "name": "skynot-dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspaces/skynot",
+
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/stuartleeks/dev-container-features/shell-history:0": {},
+    "ghcr.io/devcontainers/features/node:2": { "version": "24" }
+  },
+
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+
+  "forwardPorts": [4747, 5173],
+  "portsAttributes": {
+    "4747": {
+      "label": "Console (API and built client)",
+      "requireLocalPort": true
+    },
+    "5173": { "label": "Console (Vite dev)", "onAutoForward": "silent" }
+  },
+
+  // Runs on the host before every start: writes .host.env (GITHUB_*, no credential) for compose's env_file.
+  "initializeCommand": "sh .devcontainer/initialize.sh || exit 0",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "waitFor": "postCreateCommand",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["anthropic.claude-code", "vitest.explorer", "eamodio.gitlens"],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  }
+}

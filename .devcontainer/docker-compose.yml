@@ -1,0 +1,31 @@
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    # tini as PID 1: `sleep infinity` never reaps, so git and node zombies pile up.
+    init: true
+    volumes:
+      - ..:/workspaces/skynot:cached
+      # Linux binaries must not overwrite the host's node_modules, and the reverse.
+      - node-modules:/workspaces/skynot/node_modules
+      # The shop's event log and its clones of managed repositories stay inside the container.
+      - shop-data:/workspaces/skynot/data
+      # Agent CLI logins survive a rebuild without ever touching the host's own homes.
+      - claude-home:/home/vscode/.claude
+      - codex-home:/home/vscode/.codex
+      - commandhistory:/dc/shellhistory
+    # .host.env comes from initialize.sh, local.env from you; the later file wins. See README.md.
+    env_file:
+      - path: .host.env
+        required: false
+      - path: local.env
+        required: false
+    command: sleep infinity
+
+volumes:
+  node-modules:
+  shop-data:
+  claude-home:
+  codex-home:
+  commandhistory:

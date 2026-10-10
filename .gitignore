@@ -6,6 +6,8 @@ data/
 .env.*
 !.env.example
 policy.yaml
+.devcontainer/.host.env
+.devcontainer/local.env
 *.log
 .DS_Store
 
