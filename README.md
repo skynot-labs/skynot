@@ -23,13 +23,14 @@ This spends your `claude` subscription quota and writes to the repository named 
 1. Log in to `claude` (and `codex` if you use it) and to `gh`.
 2. `cp policy.example.yaml policy.yaml` and set your repository. `policy.yaml` is yours and untracked;
    only you edit it.
-3. `npm run build:console`, then `npm run start`.
+3. `cp team.example.yaml team.yaml` and choose the engine, and optionally the model, of each role. Also
+   untracked and yours. A typo stops the service at startup, before anything runs.
+4. `npm run build:console`, then `npm run start`.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `SKYNOT_MANAGER_ENGINE` | `claude` | engine for the Manager: `claude` or `codex` |
-| `SKYNOT_WORKER_ENGINE` | `claude` | engine for the worker |
 | `SKYNOT_POLICY` | `policy.yaml` | path to the policy |
+| `SKYNOT_TEAM` | `team.yaml` | path to the team |
 | `SKYNOT_DATA` | `data/shop` | event log and workspaces |
 | `PORT` | `4747` | console port |
 

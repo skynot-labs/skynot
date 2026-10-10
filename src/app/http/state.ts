@@ -1,4 +1,5 @@
 import { renderCard } from "../../orders";
+import { describeRoles } from "../../team";
 import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
@@ -25,6 +26,7 @@ export function readState(shop: Shop) {
     })),
     chat: shop.chat.messages(),
     decisions: shop.chat.openDecisions(),
+    team: describeRoles(shop.team),
     presence: presence(shop),
     activity: shop.activity.recent(ACTIVITY_LIMIT),
   };

@@ -20,6 +20,7 @@ import { systemClock, type Clock } from "../kernel";
 import { attachProjection, EventLog, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection } from "../orders";
+import type { RoleSetup, Team } from "../team";
 import { ActivityProjection } from "./activity";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
@@ -31,8 +32,7 @@ import { createWorkerRunner } from "./worker-runner";
 export interface ShopConfig {
   policy: Policy;
   dataDir: string;
-  managerEngine: EngineName;
-  workerEngine: EngineName;
+  team: Team;
   engines?: Partial<Record<EngineName, RoleEngine>>;
   vcs?: Vcs;
   workspace?: Workspace;
@@ -41,7 +41,10 @@ export interface ShopConfig {
   reportError?: (error: unknown, event: StoredEvent) => void;
 }
 
+const withModel = ({ model }: RoleSetup) => (model ? { model } : {});
+
 export interface Shop {
+  team: Team;
   log: EventLog;
   orders: OrdersProjection;
   chat: ChatProjection;
@@ -84,7 +87,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     log,
     chat,
     runner: createManagerRunner(scheduler, {
-      engine: config.managerEngine,
+      engine: config.team.roles.manager.engine,
+      ...withModel(config.team.roles.manager),
       cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
       timeoutMs: MANAGER_TIMEOUT_MS,
       maxUsd: policy.run_budget.max_usd,
@@ -100,7 +104,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       log,
       vcs,
       workspace,
-      worker: createWorkerRunner(scheduler, { engine: config.workerEngine }),
+      worker: createWorkerRunner(scheduler, { engine: config.team.roles.developer.engine, ...withModel(config.team.roles.developer) }),
       rules,
     }),
     repo,
@@ -112,6 +116,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo });
 
   return {
+    team: config.team,
     log,
     orders,
     chat,
