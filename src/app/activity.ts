@@ -4,6 +4,7 @@ export interface ActivityEntry {
   readonly sequence: number;
   readonly at: string;
   readonly orderId: string | null;
+  readonly projectId: string;
   readonly kind: "order" | "delivery" | "run" | "advice";
   readonly text: string;
   readonly url: string | null;
@@ -32,23 +33,37 @@ export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
   private readonly links = new Map<string, OrderLinks>();
   private readonly runOrders = new Map<string, { role: string; orderId: string | null }>();
+  private readonly orderProjects = new Map<string, string>();
+  private readonly runProjects = new Map<string, string>();
+
+  constructor(private readonly firstProject = "default") {}
 
   apply(event: StoredEvent): void {
     const payload = event.payload as Payload;
+    if (event.type === "orders.proposed") this.orderProjects.set(payload.orderId as string, typeof payload.projectId === "string" ? payload.projectId : this.firstProject);
+    if (event.type === "execution.run_requested") this.runProjects.set(payload.runId as string, this.projectOf(payload));
     const entry = this.describe(event, payload);
-    if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, ...entry });
+    if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, projectId: this.projectOf(payload), ...entry });
     this.trackLinks(event.type, payload);
   }
 
-  recent(count: number): readonly ActivityEntry[] {
-    return this.entries.slice(-count).reverse();
+  recent(count: number, projectId?: string): readonly ActivityEntry[] {
+    const entries = projectId ? this.entries.filter((entry) => entry.projectId === projectId) : this.entries;
+    return entries.slice(-count).reverse();
+  }
+
+  private projectOf(payload: Payload): string {
+    if (typeof payload.runId === "string" && this.runProjects.has(payload.runId)) return this.runProjects.get(payload.runId)!;
+    if (typeof payload.projectId === "string") return payload.projectId;
+    if (typeof payload.orderId === "string") return this.orderProjects.get(payload.orderId) ?? this.firstProject;
+    return this.firstProject;
   }
 
   linksFor(orderId: string): OrderLinks {
     return this.links.get(orderId) ?? NO_LINKS;
   }
 
-  private describe(event: StoredEvent, payload: Payload): Omit<ActivityEntry, "sequence" | "at"> | null {
+  private describe(event: StoredEvent, payload: Payload): Omit<ActivityEntry, "sequence" | "at" | "projectId"> | null {
     const orderId = typeof payload.orderId === "string" ? payload.orderId : null;
     const order = (text: string, url: string | null = null) => ({ orderId, kind: "order" as const, text, url });
     const delivery = (text: string, url: string | null = null) => ({ orderId, kind: "delivery" as const, text, url });
@@ -127,7 +142,7 @@ export class ActivityProjection implements Projection {
     }
   }
 
-  private runEntry(payload: Payload, text: string): Omit<ActivityEntry, "sequence" | "at"> | null {
+  private runEntry(payload: Payload, text: string): Omit<ActivityEntry, "sequence" | "at" | "projectId"> | null {
     const run = this.runOrders.get(payload.runId as string);
     return run ? { orderId: run.orderId, kind: "run", text: `${run.role} run ${text}`, url: null } : null;
   }

@@ -20,9 +20,9 @@ import {
 } from "../execution";
 import { ActionBudget, ActionCounts, type Policy } from "../governance";
 import { systemClock, type Clock } from "../kernel";
-import { attachProjection, EventLog, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
+import { attachProjection, EventLog, inProject, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService } from "../manager";
-import { OrderService, OrdersProjection } from "../orders";
+import { OrderService, OrdersProjection, type WorkOrder } from "../orders";
 import type { BriefingStore, Project } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import type { Finding } from "./readiness";
@@ -44,7 +44,9 @@ import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
 export interface ShopConfig {
   policy: Policy;
   dataDir: string;
+  // The team of every project that has none of its own in `teams`.
   team: Team;
+  teams?: Record<string, Team>;
   engines?: Partial<Record<EngineName, RoleEngine>>;
   vcs?: Vcs;
   workspace?: Workspace;
@@ -57,19 +59,35 @@ export interface ShopConfig {
 
 const withModel = ({ model }: RoleSetup) => (model ? { model } : {});
 
-export interface Shop {
+// What belongs to one project: its team, its conversation with the Manager and the Manager itself.
+export interface ProjectDesk {
+  project: Project;
   team: Team;
   roster: RosterProjection;
   teamService: TeamService;
+  chat: ChatProjection;
+  manager: ManagerService;
+  reviewer: PullRequestReview | undefined;
+  workers: string[];
+}
+
+export interface Shop {
+  desks: ProjectDesk[];
+  desk(projectId: string): ProjectDesk | undefined;
+  deskOf(order: WorkOrder): ProjectDesk;
+  // the first project, for what has one answer per shop
+  team: Team;
+  roster: RosterProjection;
+  teamService: TeamService;
+  chat: ChatProjection;
+  manager: ManagerService;
   log: EventLog;
   orders: OrdersProjection;
-  chat: ChatProjection;
   runs: RunsProjection;
   scheduler: RunScheduler;
   control: ShopControl;
   activity: ActivityProjection;
   orderService: OrderService;
-  manager: ManagerService;
   flow: OrderFlow;
   watcher: MergeWatcher;
   cursor: LastSequence;
@@ -87,20 +105,17 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const { policy, dataDir } = config;
   const clock = config.clock ?? systemClock;
   const projects = config.projects ?? projectsFromPolicy(policy);
-  const project = projects[0];
-  if (!project) throw new Error("the shop needs at least one project");
-  const repo = project.repo;
+  const first = projects[0];
+  if (!first) throw new Error("the shop needs at least one project");
 
   const log = new EventLog(new JsonlEventStore(join(dataDir, "events.jsonl")), clock, config.reportError);
-  const orders = new OrdersProjection();
-  const chat = new ChatProjection();
-  const runs = new RunsProjection();
-  const activity = new ActivityProjection();
+  const orders = new OrdersProjection(first.id);
+  const runs = new RunsProjection(first.id);
+  const activity = new ActivityProjection(first.id);
   const counts = new ActionCounts();
   const cursor = new LastSequence();
-  const roster = new RosterProjection(config.team);
   const control = new ShopControl(log);
-  for (const projection of [orders, chat, runs, activity, counts, cursor, roster, control]) await attachProjection(log, projection);
+  for (const projection of [orders, runs, activity, counts, cursor, control]) await attachProjection(log, projection);
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
@@ -108,47 +123,54 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const vcs = config.vcs ?? new GhVcs();
   const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces") });
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
-
   const orderService = new OrderService(log, orders);
-  const teamService = new TeamService(log, roster);
-  const manager = new ManagerService({
-    log,
-    chat,
-    runner: createManagerRunner(scheduler, {
-      engine: config.team.roles.manager.engine,
-      ...withModel(config.team.roles.manager),
-      cwd: async () => workspace.readingCopy(repo, project.baseBranch),
-      timeoutMs: MANAGER_TIMEOUT_MS,
-      maxUsd: policy.run_budget.max_usd,
-    }),
-    desk: createOrderDesk(orderService, orders),
-    ...(config.briefing && { briefing: { read: () => config.briefing!.read(project.id) } }),
-    team: createTeamDesk(teamService, roster),
-    advisors: createAdvisorBench(scheduler, () => roster.members(), {
-      cwd: async () => workspace.readingCopy(repo, project.baseBranch),
-      timeoutMs: MANAGER_TIMEOUT_MS,
-      maxUsd: policy.run_budget.max_usd,
-    }),
-  });
 
-  const workers = (): Record<string, RoleSetup> => ({ [DEFAULT_WORKER]: config.team.roles.developer, ...config.team.workers });
-  const reviewerRole = config.team.roles.code_reviewer;
-  const reviewer = reviewerRole
-    ? new PullRequestReview({
-        log,
-        vcs,
-        reviewer: createCodeReviewer(scheduler, {
-          engine: reviewerRole.engine,
-          ...withModel(reviewerRole),
-          cwd: async () => workspace.readingCopy(repo, project.baseBranch),
-          timeoutMs: MANAGER_TIMEOUT_MS,
-          maxUsd: policy.run_budget.max_usd,
-        }),
-      })
-    : undefined;
+  const desks = new Map<string, ProjectDesk>();
+  for (const [index, project] of projects.entries()) {
+    const team = config.teams?.[project.id] ?? config.team;
+    const scope = { id: project.id, isFirst: index === 0 };
+    const roster = new RosterProjection(team, scope);
+    const chat = new ChatProjection(scope);
+    for (const projection of [roster, chat]) await attachProjection(log, projection);
+
+    const scoped = inProject(log, project.id);
+    const teamService = new TeamService(scoped, roster);
+    const reading = { cwd: async () => workspace.readingCopy(project.repo, project.baseBranch), timeoutMs: MANAGER_TIMEOUT_MS, maxUsd: policy.run_budget.max_usd, projectId: project.id };
+    const reviewerRole = team.roles.code_reviewer;
+    desks.set(project.id, {
+      project,
+      team,
+      roster,
+      teamService,
+      chat,
+      manager: new ManagerService({
+        log: scoped,
+        chat,
+        runner: createManagerRunner(scheduler, { engine: team.roles.manager.engine, ...withModel(team.roles.manager), ...reading }),
+        desk: createOrderDesk(orderService, orders, project.id),
+        ...(config.briefing && { briefing: { read: () => config.briefing!.read(project.id) } }),
+        team: createTeamDesk(teamService, roster),
+        advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
+      }),
+      reviewer: reviewerRole
+        ? new PullRequestReview({ log, vcs, reviewer: createCodeReviewer(scheduler, { engine: reviewerRole.engine, ...withModel(reviewerRole), ...reading }) })
+        : undefined,
+      workers: [DEFAULT_WORKER, ...Object.keys(team.workers ?? {})],
+    });
+  }
+  const firstDesk = desks.get(first.id)!;
+  const deskOf = (order: WorkOrder): ProjectDesk => desks.get(order.projectId) ?? firstDesk;
+  const deskOfOrder = (orderId: string): ProjectDesk => {
+    const order = orders.get(orderId);
+    return order ? deskOf(order) : firstDesk;
+  };
+  const workersOf = (orderId: string): Record<string, RoleSetup> => {
+    const { team } = deskOfOrder(orderId);
+    return { [DEFAULT_WORKER]: team.roles.developer, ...team.workers };
+  };
 
   const flow = new OrderFlow({
-    ...(reviewer && { reviewer }),
+    reviewerFor: (order) => deskOf(order).reviewer,
     log,
     orders: orderService,
     filer: new IssueFiler({ log, vcs, rules }),
@@ -156,13 +178,13 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       log,
       vcs,
       workspace,
-      worker: createWorkerRunner(scheduler, { workers, assigneeOf: (id) => activity.linksFor(id).worker }),
+      worker: createWorkerRunner(scheduler, { workers: workersOf, assigneeOf: (id) => activity.linksFor(id).worker, projectOf: (id) => deskOfOrder(id).project.id }),
       rules,
     }),
-    repo,
+    repoOf: (order) => deskOf(order).project.repo,
     findOrder: (id) => orders.get(id),
     listOrders: () => orders.list(),
-    workers: () => Object.keys(workers()),
+    workersOf: (order) => deskOf(order).workers,
     ...(config.reportError && { onError: config.reportError }),
     progressOf: (id) => activity.linksFor(id),
   });
@@ -174,14 +196,11 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     maxUsdPerDay: policy.run_budget.max_usd_per_day,
     ...(config.reportError && { onError: config.reportError }),
   }).start();
-  const stopReviewNotice = new ReviewNotice({
-    log,
-    say: (text, orderId) => manager.tell(text, { orderId }),
-    ...(config.reportError && { onError: config.reportError }),
-  }).start();
+  const say = (text: string, orderId: string) => deskOfOrder(orderId).manager.tell(text, { orderId });
+  const stopReviewNotice = new ReviewNotice({ log, say, ...(config.reportError && { onError: config.reportError }) }).start();
   const stopNotice = new BlockedNotice({
     log,
-    say: (text, orderId) => manager.tell(text, { orderId }),
+    say,
     findOrder: (id) => orders.get(id),
     protectedPathsOf: (id) => activity.linksFor(id).protectedPaths,
     ...(config.reportError && { onError: config.reportError }),
@@ -197,28 +216,31 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     },
   };
 
-  const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo, flow, progressOf: (id) => activity.linksFor(id) });
+  const watcher = new MergeWatcher({ log, vcs, orders, orderService, repoOf: (order) => deskOf(order).project.repo, flow, progressOf: (id) => activity.linksFor(id) });
 
   return {
-    team: config.team,
-    roster,
-    teamService,
+    desks: [...desks.values()],
+    desk: (projectId) => desks.get(projectId),
+    deskOf,
+    team: firstDesk.team,
+    roster: firstDesk.roster,
+    teamService: firstDesk.teamService,
+    chat: firstDesk.chat,
+    manager: firstDesk.manager,
     log,
     orders,
-    chat,
     runs,
     scheduler,
     control,
     activity,
     orderService,
-    manager,
     flow,
     watcher,
     cursor,
-    repo,
-    reviewing: reviewer !== undefined,
+    repo: first.repo,
+    reviewing: firstDesk.reviewer !== undefined,
     readiness,
-    workers: Object.keys(workers()),
+    workers: firstDesk.workers,
     maxUsdPerDay: policy.run_budget.max_usd_per_day,
     stop() {
       stopFlow();

@@ -1,6 +1,6 @@
 import type { Vcs } from "../delivery";
 import type { EventLog } from "../kernel/events";
-import type { OrderService, OrdersProjection } from "../orders";
+import type { OrderService, OrdersProjection, WorkOrder } from "../orders";
 import type { OrderFlow } from "./order-flow";
 
 export interface MergeWatcherDependencies {
@@ -8,7 +8,7 @@ export interface MergeWatcherDependencies {
   vcs: Vcs;
   orders: OrdersProjection;
   orderService: OrderService;
-  repo: string;
+  repoOf(order: WorkOrder): string;
   flow: Pick<OrderFlow, "followUp">;
   progressOf(id: string): { blocked: string | null; checks: string | null };
 }
@@ -34,14 +34,14 @@ export class MergeWatcher {
   }
 
   async poll(): Promise<void> {
-    const { orders, vcs, repo, orderService, log, progressOf } = this.deps;
+    const { orders, vcs, repoOf, orderService, log, progressOf } = this.deps;
     const inReview = orders.list().filter((order) => order.status === "in_review" && order.pullRequest !== null);
 
     for (const order of inReview) {
       try {
-        const state = await vcs.pullRequestState(repo, order.pullRequest!);
+        const state = await vcs.pullRequestState(repoOf(order), order.pullRequest!);
         if (state === "merged") await orderService.deliver(order.id);
-        if (state === "open") await this.reportChecks(order.id, order.pullRequest!);
+        if (state === "open") await this.reportChecks(order, order.pullRequest!);
         if (state === "closed" && progressOf(order.id).blocked !== CLOSED_UNMERGED) {
           await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: CLOSED_UNMERGED } }]);
         }
@@ -52,22 +52,25 @@ export class MergeWatcher {
     await this.syncConflicting();
   }
 
-  private async reportChecks(orderId: string, pullRequest: number): Promise<void> {
-    const { vcs, repo, log, progressOf } = this.deps;
-    const state = await vcs.pullRequestChecks(repo, pullRequest);
+  private async reportChecks(order: WorkOrder, pullRequest: number): Promise<void> {
+    const { vcs, repoOf, log, progressOf } = this.deps;
+    const orderId = order.id;
+    const state = await vcs.pullRequestChecks(repoOf(order), pullRequest);
     if (state !== progressOf(orderId).checks) await log.record([{ type: "delivery.checks_changed", payload: { orderId, state } }]);
   }
 
   // Once per merge: a worker that cannot resolve the conflict blocks the order and the director takes over.
   private async syncConflicting(): Promise<void> {
-    const { orders, vcs, repo, flow, progressOf } = this.deps;
-    const merges = orders.list().filter((order) => order.status === "delivered").length;
+    const { orders, vcs, repoOf, flow, progressOf } = this.deps;
+    // a merge only moves the base of its own project
+    const mergesIn = (projectId: string) => orders.list().filter((order) => order.status === "delivered" && order.projectId === projectId).length;
     const open = orders.list().filter((order) => order.status === "in_review" && order.pullRequest !== null);
 
     for (const order of open) {
+      const merges = mergesIn(order.projectId);
       if ((this.syncedAt.get(order.id) ?? 0) >= merges || progressOf(order.id).blocked !== null) continue;
       try {
-        if (!(await vcs.pullRequestConflicts(repo, order.pullRequest!))) continue;
+        if (!(await vcs.pullRequestConflicts(repoOf(order), order.pullRequest!))) continue;
         const started = await flow.followUp(order.id, CONFLICT_INSTRUCTION);
         if (started.ok) this.syncedAt.set(order.id, merges);
       } catch {

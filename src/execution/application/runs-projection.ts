@@ -4,11 +4,13 @@ import { asRunEvent, evolve, type Run, type RunId } from "../domain";
 export class RunsProjection implements Projection {
   private readonly runs = new Map<RunId, Run>();
 
+  constructor(private readonly firstProject = "default") {}
+
   apply(stored: StoredEvent): void {
     const event = asRunEvent(stored);
     if (!event) return;
 
-    const next = evolve(this.runs.get(event.payload.runId) ?? null, event, stored.occurredAt);
+    const next = evolve(this.runs.get(event.payload.runId) ?? null, event, stored.occurredAt, this.firstProject);
     if (next) this.runs.set(next.id, next);
   }
 
@@ -27,6 +29,10 @@ export class RunsProjection implements Projection {
   // A day is the UTC day, like the daily action budget.
   spentOn(day: string): number {
     return sum(this.list().filter((run) => run.finishedAt?.startsWith(day)));
+  }
+
+  spentByProject(projectId: string): number {
+    return sum(this.list().filter((run) => run.projectId === projectId));
   }
 
   spentOnOrder(orderId: string): number {

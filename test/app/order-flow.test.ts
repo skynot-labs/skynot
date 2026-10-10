@@ -75,15 +75,15 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   };
 
   const flow = new OrderFlow({
-    ...(options.reviews && { reviewer: new PullRequestReview({ log, vcs, reviewer }) }),
+    ...(options.reviews && { reviewerFor: () => new PullRequestReview({ log, vcs, reviewer }) }),
     log,
     orders: orderService,
     filer: new IssueFiler({ log, vcs, rules }),
     implementer: new Implementer({ log, vcs, workspace, worker, rules }),
-    repo: options.repo ?? "acme/widgets",
+    repoOf: () => options.repo ?? "acme/widgets",
     findOrder: (id) => orders.get(id),
     listOrders: () => orders.list(),
-    workers: () => Object.keys(WORKERS),
+    workersOf: () => Object.keys(WORKERS),
     progressOf: (id) => activity.linksFor(id),
   });
   flow.start();

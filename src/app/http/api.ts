@@ -16,6 +16,7 @@ export interface ApiOptions {
 
 const text = z.string().trim().min(1).max(4000);
 const orderId = z.string().regex(/^WO-\d{4}$/);
+const projectId = z.string().regex(/^[a-z][a-z0-9-]{1,39}$/);
 const bucket = z.enum(["lt5", "5-15", "15-30", "gt30"]);
 
 const STATUS_FOR: Record<OrderError["kind"], 400 | 404 | 409> = {
@@ -41,7 +42,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     await next();
   });
 
-  api.get("/api/state", (context) => context.json({ ...readState(shop), simulated: Boolean(options.devTools) }));
+  api.get("/api/state", (context) => context.json({ ...readState(shop, context.req.query("project")), simulated: Boolean(options.devTools) }));
 
   api.get("/api/events", (context) => {
     const after = Number(context.req.query("after") ?? context.req.header("last-event-id") ?? 0) || 0;
@@ -73,10 +74,12 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   api.post("/api/commands/send-message", async (context) => {
-    const body = z.object({ text }).safeParse(await context.req.json().catch(() => null));
+    const body = z.object({ text, project: projectId.optional() }).safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "text is required" }, 400);
+    const desk = body.data.project ? shop.desk(body.data.project) : shop.desks[0];
+    if (!desk) return context.json({ error: `no project ${body.data.project}` }, 404);
 
-    void shop.manager.handleMessage(body.data.text).catch((error) => options.onError?.(error));
+    void desk.manager.handleMessage(body.data.text).catch((error) => options.onError?.(error));
     return context.json({ accepted: true }, 202);
   });
 
@@ -84,11 +87,12 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     const body = z.object({ decisionId: z.string().min(1), answer: text }).safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "decisionId and answer are required" }, 400);
 
-    const decision = shop.chat.decision(body.data.decisionId);
-    if (!decision) return context.json({ error: `no question ${body.data.decisionId}` }, 404);
+    const desk = shop.desks.find((candidate) => candidate.chat.decision(body.data.decisionId));
+    const decision = desk?.chat.decision(body.data.decisionId);
+    if (!desk || !decision) return context.json({ error: `no question ${body.data.decisionId}` }, 404);
     if (decision.answer !== null) return context.json({ error: "that question was already answered" }, 409);
 
-    void shop.manager.answerDecision(body.data.decisionId, body.data.answer).catch((error) => options.onError?.(error));
+    void desk.manager.answerDecision(body.data.decisionId, body.data.answer).catch((error) => options.onError?.(error));
     return context.json({ accepted: true }, 202);
   });
 
@@ -152,8 +156,9 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
         : context.json({ error: result.error.message }, result.error.kind === "not_found" ? 404 : 409);
     });
 
-  teamCommand("sign-team-change", (id) => shop.teamService.sign(id));
-  teamCommand("discard-team-change", (id) => shop.teamService.discard(id));
+  const serviceOf = (id: string) => (shop.desks.find((desk) => desk.roster.change(id)) ?? shop.desks[0]!).teamService;
+  teamCommand("sign-team-change", (id) => serviceOf(id).sign(id));
+  teamCommand("discard-team-change", (id) => serviceOf(id).discard(id));
 
   if (options.devTools) {
     const { mergePullRequest } = options.devTools;

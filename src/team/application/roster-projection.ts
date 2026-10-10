@@ -1,4 +1,4 @@
-import type { Projection, StoredEvent } from "../../kernel/events";
+import { inScope, type Projection, type ProjectScope, type StoredEvent } from "../../kernel/events";
 import { asTeamEvent, type Advisor, type ChangeId, type Team, type TeamChange } from "../domain";
 
 export interface RoleSummary {
@@ -12,14 +12,17 @@ export class RosterProjection implements Projection {
   private readonly onTeam: Set<string>;
   private readonly changes = new Map<ChangeId, TeamChange>();
 
-  constructor(team: Pick<Team, "advisors" | "library">) {
+  constructor(
+    team: Pick<Team, "advisors" | "library">,
+    private readonly scope?: ProjectScope,
+  ) {
     this.known = { ...team.library, ...team.advisors };
     this.onTeam = new Set(Object.keys(team.advisors));
   }
 
   apply(stored: StoredEvent): void {
     const event = asTeamEvent(stored);
-    if (!event) return;
+    if (!event || !inScope(stored, this.scope)) return;
 
     const { changeId } = event.payload;
     switch (event.type) {

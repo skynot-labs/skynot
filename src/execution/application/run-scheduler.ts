@@ -6,6 +6,7 @@ export interface RunSubmission {
   role: string;
   engine: EngineName;
   orderId: string | null;
+  projectId?: string;
   request: EngineRequest;
 }
 
@@ -48,6 +49,7 @@ export class RunScheduler {
           engine: submission.engine,
           access: submission.request.access,
           orderId: submission.orderId,
+          ...(submission.projectId && { projectId: submission.projectId }),
         },
       },
     ]);

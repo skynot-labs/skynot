@@ -13,7 +13,7 @@ export interface OrderOverview {
 
 export interface OrderDesk {
   readonly specSchema: z.ZodType;
-  propose(spec: unknown): Promise<Result<{ id: string; card: string }, string>>;
+  propose(spec: unknown, link?: { ticket?: number }): Promise<Result<{ id: string; card: string }, string>>;
   overview(): OrderOverview[];
 }
 

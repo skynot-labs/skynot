@@ -2,18 +2,16 @@ import { ClaudeEngine, CodexEngine } from "../execution";
 import { exec } from "../kernel/process";
 import { readPolicy, readTeam } from "./config";
 import { readProjects } from "./projects";
-import { checkReadiness, engineUsage } from "./readiness";
+import { checkShopReadiness } from "./readiness";
 
 const policy = await readPolicy(false);
-const [project] = await readProjects(policy);
-const team = await readTeam(false, project!.id);
+const projects = await readProjects(policy);
+const teams = await Promise.all(projects.map(async (project) => ({ project, team: await readTeam(false, project.id) })));
 
-const findings = await checkReadiness({
+const findings = await checkShopReadiness({
   exec,
   engines: { claude: new ClaudeEngine(), codex: new CodexEngine() },
-  usage: engineUsage(team),
-  repo: project!.repo,
-  baseBranch: project!.baseBranch,
+  teams,
   dataDir: process.env.SKYNOT_DATA ?? "data/shop",
 });
 

@@ -1,5 +1,5 @@
 import { err, newId, ok, type Result } from "../../kernel";
-import type { EventLog } from "../../kernel/events";
+import type { EventRecorder } from "../../kernel/events";
 import {
   NO_ADVISORS,
   NO_TEAM_DESK,
@@ -25,7 +25,7 @@ const MAX_ATTEMPTS = 3;
 const CONVERSATION_WINDOW = 20;
 
 export interface ManagerDependencies {
-  log: EventLog;
+  log: EventRecorder;
   chat: ChatProjection;
   runner: ModelRunner;
   desk: OrderDesk;

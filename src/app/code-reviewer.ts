@@ -8,6 +8,7 @@ export interface CodeReviewerOptions {
   timeoutMs: number;
   model?: string;
   maxUsd?: number;
+  projectId?: string;
 }
 
 export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewerOptions): CodeReviewer {
@@ -24,6 +25,7 @@ export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewe
         role: "code_reviewer",
         engine: options.engine,
         orderId: item.id,
+        ...(options.projectId && { projectId: options.projectId }),
         request: {
           prompt: reviewPrompt(item, diff),
           system: REVIEW_SYSTEM,

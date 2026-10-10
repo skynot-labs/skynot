@@ -13,11 +13,11 @@ export interface OrderFlowDependencies {
   orders: OrderService;
   filer: IssueFiler;
   implementer: Implementer;
-  reviewer?: Pick<PullRequestReview, "run">;
-  repo: string;
+  reviewerFor?(order: WorkOrder): Pick<PullRequestReview, "run"> | undefined;
+  repoOf(order: WorkOrder): string;
   findOrder(id: string): WorkOrder | undefined;
   listOrders(): WorkOrder[];
-  workers(): string[];
+  workersOf(order: WorkOrder): string[];
   onError?: (error: unknown, event: StoredEvent) => void;
   progressOf(id: string): {
     issue: number | null;
@@ -89,7 +89,7 @@ export class OrderFlow {
   async reassign(orderId: string, worker: string): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
     if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
-    if (!this.deps.workers().includes(worker)) return err({ kind: "invalid_transition", message: `there is no worker ${worker}` });
+    if (!this.deps.workersOf(order).includes(worker)) return err({ kind: "invalid_transition", message: `there is no worker ${worker}` });
     if (!["signed", "on_bench", "in_review"].includes(order.status)) return err({ kind: "invalid_transition", message: `${orderId} is ${order.status}` });
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is being worked: stop it first` });
 
@@ -100,7 +100,7 @@ export class OrderFlow {
   requestReview(orderId: string): Result<WorkOrder, OrderError> {
     const order = this.deps.findOrder(orderId);
     if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
-    if (!this.deps.reviewer) return err({ kind: "invalid_transition", message: "the team has no code reviewer" });
+    if (!this.deps.reviewerFor?.(order)) return err({ kind: "invalid_transition", message: "the team has no code reviewer" });
     if (order.status !== "in_review" || order.pullRequest === null) return err({ kind: "invalid_transition", message: `${orderId} has no open pull request to review` });
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
 
@@ -214,12 +214,13 @@ export class OrderFlow {
   }
 
   private async review(orderId: string, signal: AbortSignal, mayRequestChanges = true): Promise<void> {
-    const { reviewer, findOrder, progressOf, repo, log } = this.deps;
+    const { findOrder, progressOf, repoOf, log } = this.deps;
     const order = findOrder(orderId);
+    const reviewer = order && this.deps.reviewerFor?.(order);
     if (!reviewer || order?.status !== "in_review" || order.pullRequest === null || signal.aborted) return;
 
     const { reviews, issue } = progressOf(orderId);
-    const outcome = await reviewer.run(toWorkItem(order), repo, order.pullRequest, reviews + 1, signal);
+    const outcome = await reviewer.run(toWorkItem(order), repoOf(order), order.pullRequest, reviews + 1, signal);
     if (!outcome.ok || !mayRequestChanges || outcome.value.verdict === "approved" || reviews >= AUTOMATIC_ROUNDS || signal.aborted || issue === null) return;
 
     const instruction = followUpFromReview(outcome.value);
@@ -228,9 +229,9 @@ export class OrderFlow {
   }
 
   private async runFollowUp(order: WorkOrder, issue: number, instruction: string, signal: AbortSignal): Promise<void> {
-    const { implementer, repo, log } = this.deps;
+    const { implementer, repoOf, log } = this.deps;
     try {
-      const updated = await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
+      const updated = await implementer.followUp(toWorkItem(order), repoOf(order), issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
       if (updated.ok) await this.review(order.id, signal);
     } catch (error) {
       await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: (error as Error).message } }]);
@@ -238,7 +239,7 @@ export class OrderFlow {
   }
 
   private async run(orderId: string, signal: AbortSignal): Promise<void> {
-    const { orders, filer, implementer, repo, findOrder, progressOf, log } = this.deps;
+    const { orders, filer, implementer, repoOf, findOrder, progressOf, log } = this.deps;
     try {
       const order = findOrder(orderId);
       if (!order) return;
@@ -246,7 +247,7 @@ export class OrderFlow {
 
       let issue = progressOf(orderId).issue;
       if (issue === null) {
-        const filed = await filer.file(item, repo);
+        const filed = await filer.file(item, repoOf(order));
         if (!filed.ok) return;
         issue = filed.value.number;
       }
@@ -261,7 +262,7 @@ export class OrderFlow {
         return;
       }
 
-      const pullRequest = await implementer.implement(item, repo, issue, progressOf(orderId).approvedPaths, signal);
+      const pullRequest = await implementer.implement(item, repoOf(order), issue, progressOf(orderId).approvedPaths, signal);
       if (!pullRequest.ok) return;
 
       await orders.openPullRequest(orderId, pullRequest.value.number);

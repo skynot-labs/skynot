@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { checkReadiness, engineUsage, type Finding } from "../../src/app/readiness";
+import { checkReadiness, checkShopReadiness, engineUsage, type Finding } from "../../src/app/readiness";
 import type { Exec, ExecResult } from "../../src/kernel/process";
 import type { Team } from "../../src/team";
 
@@ -96,5 +96,23 @@ describe("readiness", () => {
     const refused: Exec = async (command, args, options) =>
       command === "git" && args.includes("push") ? done("", 128, "remote: Permission denied") : world()(command, args, options);
     expect(problems(await readiness(refused))).toEqual(["fail push access"]);
+  });
+});
+
+describe("readiness of several projects", () => {
+  const project = (id: string, repo: string) => ({ id, repo, baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [] });
+
+  it("checks the tools once and the repository of each project, naming the project that has the problem", async () => {
+    const exec = world({ "gh api repos/acme/blog": done("", 1, "HTTP 404") });
+    const teams = [
+      { project: project("widgets", "acme/widgets"), team: team() },
+      { project: project("blog", "acme/blog"), team: team() },
+    ];
+
+    const findings = await checkShopReadiness({ exec, engines: { claude: loggedIn, codex: loggedIn }, teams, dataDir });
+
+    expect(problems(findings)).toEqual(["fail blog: github repository"]);
+    expect(findings.filter((finding) => finding.check === "git")).toHaveLength(1);
+    expect(findings.some((finding) => finding.check === "widgets: github repository" && finding.level === "ok")).toBe(true);
   });
 });

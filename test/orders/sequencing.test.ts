@@ -22,6 +22,13 @@ describe("blockersOf", () => {
     expect(blockersOf(early, [late, early])).toEqual([]);
   });
 
+  it("never chains orders of different projects, even on the same paths", () => {
+    const mine = order(2, "signed");
+    const other = { ...order(1, "in_review"), projectId: "other" };
+
+    expect(blockersOf(mine, [other, mine])).toEqual([]);
+  });
+
   it("does not wait for an order that nobody has signed yet", () => {
     expect(blockersOf(order(2, "signed"), [order(1, "awaiting_signature")])).toEqual([]);
   });

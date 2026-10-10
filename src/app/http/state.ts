@@ -4,14 +4,19 @@ import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
 
-export function readState(shop: Shop) {
+export function readState(shop: Shop, projectId?: string) {
+  const desk = (projectId ? shop.desk(projectId) : undefined) ?? shop.desks[0]!;
+  const { project } = desk;
+  const reviewing = desk.reviewer !== undefined;
   return {
-    repo: shop.repo,
-    reviewing: shop.reviewing,
+    project: { id: project.id, repo: project.repo },
+    projects: shop.desks.map((entry) => summary(shop, entry)),
+    repo: project.repo,
+    reviewing,
     readiness: shop.readiness.findings(),
-    workers: shop.workers,
+    workers: desk.workers,
     cursor: shop.cursor.value,
-    orders: shop.orders.list().map((order) => ({
+    orders: shop.orders.listFor(project.id).map((order) => ({
       id: order.id,
       title: order.spec.title,
       objective: order.spec.objective,
@@ -21,28 +26,43 @@ export function readState(shop: Shop) {
       status: order.status,
       card: renderCard(order),
       pullRequest: order.pullRequest,
+      ticket: order.ticket,
       minutes: order.minutes,
       proposedAt: order.proposedAt,
       signedAt: order.signedAt,
       deliveredAt: order.deliveredAt,
       spentUsd: shop.runs.spentOnOrder(order.id),
       ...shop.activity.linksFor(order.id),
-      ready: isReady(shop.activity.linksFor(order.id), shop.reviewing),
+      ready: isReady(shop.activity.linksFor(order.id), reviewing),
     })),
-    chat: shop.chat.messages(),
-    decisions: shop.chat.openDecisions(),
-    team: describeRoles({ roles: shop.team.roles, ...(shop.team.workers && { workers: shop.team.workers }), advisors: shop.roster.members() }),
-    teamChanges: shop.roster.pending(),
-    hireable: shop.roster.hireable(),
+    chat: desk.chat.messages(),
+    decisions: desk.chat.openDecisions(),
+    team: describeRoles({ roles: desk.team.roles, ...(desk.team.workers && { workers: desk.team.workers }), advisors: desk.roster.members() }),
+    teamChanges: desk.roster.pending(),
+    hireable: desk.roster.hireable(),
     paused: shop.control.paused(),
-    costs: { today: shop.runs.spentOn(new Date().toISOString().slice(0, 10)), total: shop.runs.spentTotal(), cap: shop.maxUsdPerDay ?? null },
-    presence: presence(shop),
-    activity: shop.activity.recent(ACTIVITY_LIMIT),
+    costs: {
+      today: shop.runs.spentOn(new Date().toISOString().slice(0, 10)),
+      total: shop.runs.spentTotal(),
+      cap: shop.maxUsdPerDay ?? null,
+      project: shop.runs.spentByProject(project.id),
+    },
+    presence: presence(shop, project.id),
+    activity: shop.activity.recent(ACTIVITY_LIMIT, project.id),
   };
 }
 
-function presence(shop: Shop) {
-  const runs = shop.runs.list();
+// What the selector shows for a project: how much waits on the director.
+function summary(shop: Shop, desk: Shop["desks"][number]) {
+  const orders = shop.orders.listFor(desk.project.id);
+  const blocked = orders.filter((order) => ["signed", "on_bench", "in_review"].includes(order.status) && shop.activity.linksFor(order.id).blocked !== null).length;
+  const awaiting = orders.filter((order) => order.status === "awaiting_signature").length;
+  const questions = desk.chat.openDecisions().length;
+  return { id: desk.project.id, repo: desk.project.repo, awaitingSignature: awaiting, blocked, questions, needsYou: awaiting + blocked + questions };
+}
+
+function presence(shop: Shop, projectId: string) {
+  const runs = shop.runs.list().filter((run) => run.projectId === projectId);
   return {
     working: runs
       .filter((run) => run.status === "running")
