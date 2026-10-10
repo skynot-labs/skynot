@@ -33,7 +33,7 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (182 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (195 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` exists locally (untracked) and points at `rodacato/taller-todo`. The tracked template
@@ -51,7 +51,7 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 | 6 | Manager | Done |
 | 7 | Delivery (worktree, verification, PR) | Done |
 | 8 | Console (API, SSE, web client) | Done, walked through in a browser with simulated engines |
-| 9 | Real run against the pilot repo | **Done once** (WO-0001, PR #2 merged); minutes still to record in the console |
+| 9 | Real run against the pilot repo | **Done**: three orders delivered, each under 5 minutes of the director's time |
 | Extra | Devcontainer for autonomous work (ADR 0001) | Written. The run happened inside a devcontainer, but the ADR's security model (scoped token, hook, branch protection) was not audited |
 
 Phase 1 is finished when step 9 works once: from the console, an idea becomes a signed order, a real
@@ -75,14 +75,34 @@ Surprises, all fixed and committed on `feat/event-log`:
 - A blocked order had no way out. There is now a `retry-order` command and a Retry button; it reuses the
   issue and does not start the work twice.
 
-Still to do for step 9: record the minutes bucket in the console, and decide whether one task is enough
-evidence. Branch protection (pull request required) is still not set on either repo: the token has no
+Results of the pilot, all with the `claude` worker:
+
+| Order | What | Outcome | Director minutes |
+|---|---|---|---|
+| WO-0001 | `done <id>` validation and confirmation | PR #2 merged | under 5 |
+| WO-0002 | `undo <id>` | PR #5 merged | under 5 |
+| WO-0003 | change `package.json` script and add a workflow | Blocked on purpose by `protected_paths`; left on the bench | none |
+| WO-0004 | optional due date | PR #7 conflicted with #5, then merged | under 5 |
+
+More things the real run exposed, all fixed on `feat/event-log`:
+
+- A blocked order that already started could not be discarded. A blocked order with no worker on it can
+  now be discarded (`abandon`).
+- A pull request that conflicts with `main` had no way to be fixed. There is now a `follow-up` command
+  and form: the branch is squashed onto the current base (`git merge --squash`), the worker resolves
+  conflicts and applies the director's text, and one commit is force-pushed to the same PR. Tested only
+  with local repos and a fake engine, **never against GitHub or the real `claude`**.
+
+Branch protection (pull request required) is still not set on either repo: the token has no
 Administration permission on purpose, so the director sets it in GitHub settings.
 
 ## Known gaps and limits
 
 - `claude` has run once through this code (WO-0001). `codex` never has; its flags were only checked
   against `--help` and unit-tested with a fake process.
+- The "needs the director's signature" message for a protected path suggests an approval that does not
+  exist: the director has to make that change by hand on GitHub. Either build the approval or reword it.
+- A follow-up squashes the branch, so per-commit history is lost; today each order is one commit anyway.
 - The worker's model is whatever the `claude` CLI picks; there is no per-role model setting yet.
 - Rate limits of the subscriptions are not handled: no backoff, and nobody knows yet what the error
   looks like. `max_parallel` in the policy is the only brake.
