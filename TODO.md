@@ -144,6 +144,13 @@ and Resume in the header, today's cost against the cap, and what each order has 
 `run_budget.max_usd_per_day` in `policy.yaml` (optional; a day is the UTC day). Stopping blocks the order
 as "stopped by the director", so it can be retried or discarded.
 
+## Readiness
+
+`npm run check` (and the banner in the console) lists what is missing: CLI logins, the `codex` sandbox, token
+permissions, push access and branch protection. Write access to issues and pull requests cannot be probed
+without writing, so it is only found on first use. Known in this devcontainer: the Docker seccomp profile blocks
+the user namespaces `codex` needs, so its reviewer reads the diff but cannot run tests.
+
 ## Blocked orders
 
 A blocked order is announced by the Manager in the chat, with what to do next. When the worker touches

@@ -24,6 +24,7 @@ import { attachProjection, EventLog, JsonlEventStore, LastSequence, type StoredE
 import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection } from "../orders";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
+import type { Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { BlockedNotice } from "./blocked-notice";
@@ -47,6 +48,7 @@ export interface ShopConfig {
   workspace?: Workspace;
   clock?: Clock;
   repo?: string;
+  readiness?: () => Promise<Finding[]>;
   reportError?: (error: unknown, event: StoredEvent) => void;
 }
 
@@ -69,6 +71,7 @@ export interface Shop {
   watcher: MergeWatcher;
   cursor: LastSequence;
   repo: string;
+  readiness: { findings(): readonly Finding[]; refresh(): Promise<void> };
   reviewing: boolean;
   workers: string[];
   maxUsdPerDay: number | undefined;
@@ -180,6 +183,14 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
 
   await flow.recover();
 
+  let findings: readonly Finding[] = [];
+  const readiness = {
+    findings: () => findings,
+    async refresh() {
+      findings = config.readiness ? await config.readiness().catch((error) => [{ check: "readiness", level: "fail" as const, detail: (error as Error).message }]) : [];
+    },
+  };
+
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo, flow, progressOf: (id) => activity.linksFor(id) });
 
   return {
@@ -200,6 +211,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     cursor,
     repo,
     reviewing: reviewer !== undefined,
+    readiness,
     workers: Object.keys(workers()),
     maxUsdPerDay: policy.run_budget.max_usd_per_day,
     stop() {

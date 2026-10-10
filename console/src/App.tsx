@@ -44,6 +44,25 @@ export function App() {
         </div>
       )}
 
+      {state.readiness.some((finding) => finding.level !== "ok") && (
+        <details class="notice readiness" open={state.readiness.some((finding) => finding.level === "fail")}>
+          <summary>
+            Setup: {state.readiness.filter((finding) => finding.level === "fail").length} failing, {state.readiness.filter((finding) => finding.level === "warn").length} to review
+          </summary>
+          <ul>
+            {state.readiness
+              .filter((finding) => finding.level !== "ok")
+              .map((finding) => (
+                <li key={finding.check}>
+                  <strong>{finding.level === "fail" ? "Failing" : "Review"}: {finding.check}.</strong> {finding.detail}
+                  {finding.fix && <div>To fix: {finding.fix}</div>}
+                </li>
+              ))}
+          </ul>
+          <button type="button" onClick={() => void send("/api/commands/recheck", {})}>check again</button>
+        </details>
+      )}
+
       {notice && (
         <div class="notice" role="alert">
           {notice}
