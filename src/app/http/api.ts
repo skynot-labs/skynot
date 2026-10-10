@@ -104,10 +104,18 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
 
   orderCommand("sign-order", (id) => shop.orderService.sign(id));
   orderCommand("retry-order", (id) => shop.flow.retry(id));
+  orderCommand("stop-order", async (id) => shop.flow.stop(id));
   orderCommand("approve-protected-paths", (id) => shop.flow.approveProtected(id));
   orderCommand("follow-up", (id, body) => shop.flow.followUp(id, (body as { text: string }).text), { text });
   orderCommand("discard-order", (id) => shop.flow.discard(id));
   orderCommand("record-minutes", (id, body) => shop.orderService.recordMinutes(id, (body as { bucket: z.infer<typeof bucket> }).bucket), { bucket });
+
+  api.post("/api/commands/stop-run", async (context) => {
+    const body = z.object({ runId: z.string().regex(/^run_[0-9a-f-]+$/) }).safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: "invalid request" }, 400);
+
+    return (await shop.scheduler.cancel(body.data.runId)) ? context.json({ stopped: true }) : context.json({ error: "that run is not live" }, 409);
+  });
 
   const changeId = z.string().regex(/^chg_[0-9a-f-]+$/);
   const teamCommand = (path: string, run: (id: string) => Promise<Result<TeamChange, TeamError>>) =>

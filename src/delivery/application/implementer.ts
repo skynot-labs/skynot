@@ -16,6 +16,7 @@ import {
 
 const COMMAND_TIMEOUT_MS = 600_000;
 const ALWAYS_ALLOWED = ["git status", "git diff *"];
+const STOPPED = "stopped by the director";
 
 export interface ImplementerDependencies {
   log: EventLog;
@@ -33,6 +34,7 @@ interface Job {
   branch: string;
   dir: string;
   approved: readonly string[];
+  signal: AbortSignal | undefined;
 }
 
 type Verified = Job & { report: string };
@@ -40,8 +42,8 @@ type Verified = Job & { report: string };
 export class Implementer {
   constructor(private readonly deps: ImplementerDependencies) {}
 
-  async implement(item: WorkItem, repoName: string, issue: number, approved: readonly string[] = []): Promise<Result<IssueRef, string>> {
-    const outcome = await this.attempt(item, repoName, issue, undefined, approved, async (job) => {
+  async implement(item: WorkItem, repoName: string, issue: number, approved: readonly string[] = [], signal?: AbortSignal): Promise<Result<IssueRef, string>> {
+    const outcome = await this.attempt(item, repoName, issue, undefined, approved, signal, async (job) => {
       const pushed = await this.commitAndPush(job);
       if (!pushed.ok) return pushed;
       return ok(
@@ -60,8 +62,8 @@ export class Implementer {
     return outcome;
   }
 
-  async followUp(item: WorkItem, repoName: string, issue: number, pullRequest: number, instruction: string, approved: readonly string[] = []): Promise<Result<void, string>> {
-    const outcome = await this.attempt(item, repoName, issue, instruction, approved, (job) => this.commitAndPush(job));
+  async followUp(item: WorkItem, repoName: string, issue: number, pullRequest: number, instruction: string, approved: readonly string[] = [], signal?: AbortSignal): Promise<Result<void, string>> {
+    const outcome = await this.attempt(item, repoName, issue, instruction, approved, signal, (job) => this.commitAndPush(job));
     const event = outcome.ok
       ? { type: "delivery.pull_request_updated", payload: { orderId: item.id, number: pullRequest } }
       : { type: "delivery.work_blocked", payload: { orderId: item.id, reason: outcome.error } };
@@ -75,6 +77,7 @@ export class Implementer {
     issue: number,
     followUp: string | undefined,
     approved: readonly string[],
+    signal: AbortSignal | undefined,
     publish: (job: Verified) => Promise<Result<T, string>>,
   ): Promise<Result<T, string>> {
     const { rules, workspace } = this.deps;
@@ -93,7 +96,7 @@ export class Implementer {
     }
 
     try {
-      const job = { item, repoName, issue, repo: repo.value, branch: branch.value, dir, approved };
+      const job = { item, repoName, issue, repo: repo.value, branch: branch.value, dir, approved, signal };
       const report = await this.work(job, followUp);
       return report.ok ? await publish({ ...job, report: report.value }) : report;
     } catch (error) {
@@ -104,17 +107,19 @@ export class Implementer {
   }
 
   private async work(job: Job, followUp: string | undefined): Promise<Result<string, string>> {
-    const { item, repoName, issue, repo, dir, approved } = job;
+    const { item, repoName, issue, repo, dir, approved, signal } = job;
     const { rules, workspace, worker } = this.deps;
 
     if (repo.setupCommand) {
-      const setup = await workspace.run(dir, repo.setupCommand, COMMAND_TIMEOUT_MS);
+      const setup = await workspace.run(dir, repo.setupCommand, COMMAND_TIMEOUT_MS, signal);
+      if (signal?.aborted) return err(STOPPED);
       if (!setup.ok) return err(`setup failed: ${tail(setup.output)}`);
     }
 
     let failure: string | undefined;
     let report = "";
     for (let round = 1; round <= rules.maxRounds; round++) {
+      if (signal?.aborted) return err(STOPPED);
       const prompt = workerPrompt(item, issue, { protectedPaths: repo.protectedPaths, verifyCommands: repo.verifyCommands }, failure, followUp);
       const done = await worker.work({
         orderId: item.id,
@@ -123,7 +128,9 @@ export class Implementer {
         allowedCommands: [...repo.verifyCommands, ...ALWAYS_ALLOWED],
         timeoutMs: rules.workerTimeoutMs,
         maxUsd: rules.workerMaxUsd,
+        ...(signal && { signal }),
       });
+      if (signal?.aborted) return err(STOPPED);
       if (!done.ok) return err(`the worker failed: ${done.error}`);
       report = done.value.report.trim();
 
@@ -137,15 +144,17 @@ export class Implementer {
       const removed = deletedTest(changes);
       if (removed) return err(`it deletes the test ${removed}`);
 
-      failure = await this.verify(dir, repo, followUp !== undefined);
+      failure = await this.verify(dir, repo, followUp !== undefined, signal);
+      if (signal?.aborted) return err(STOPPED);
       if (!failure) break;
     }
     if (failure) return err(`verification still fails after ${rules.maxRounds} rounds: ${tail(failure)}`);
     return ok(report);
   }
 
-  private async commitAndPush({ item, issue, branch, dir }: Job): Promise<Result<void, string>> {
+  private async commitAndPush({ item, issue, branch, dir, signal }: Job): Promise<Result<void, string>> {
     const { rules, workspace } = this.deps;
+    if (signal?.aborted) return err(STOPPED);
     const spent = await rules.spend(item.id);
     if (!spent.ok) return spent;
     await workspace.commit(dir, `${item.id}: ${item.title}\n\nCloses #${issue}`);
@@ -153,14 +162,14 @@ export class Implementer {
     return ok(undefined);
   }
 
-  private async verify(dir: string, repo: RepoRules, checkConflictMarkers: boolean): Promise<string | undefined> {
+  private async verify(dir: string, repo: RepoRules, checkConflictMarkers: boolean, signal?: AbortSignal): Promise<string | undefined> {
     if (checkConflictMarkers) {
       // passes only when git grep exits 1, so an error in the check itself also counts as a failure
-      const markers = await this.deps.workspace.run(dir, "git grep --untracked -n -I -E '^(<<<<<<<|>>>>>>>) '; test $? -eq 1", COMMAND_TIMEOUT_MS);
+      const markers = await this.deps.workspace.run(dir, "git grep --untracked -n -I -E '^(<<<<<<<|>>>>>>>) '; test $? -eq 1", COMMAND_TIMEOUT_MS, signal);
       if (!markers.ok) return `unresolved conflict markers:\n${tail(markers.output, 1500)}`;
     }
     for (const command of repo.verifyCommands) {
-      const result = await this.deps.workspace.run(dir, command, COMMAND_TIMEOUT_MS);
+      const result = await this.deps.workspace.run(dir, command, COMMAND_TIMEOUT_MS, signal);
       if (!result.ok) return `$ ${command}\n${tail(result.output, 1500)}`;
     }
     return undefined;

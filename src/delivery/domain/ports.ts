@@ -35,7 +35,7 @@ export interface Workspace {
   commit(dir: string, message: string): Promise<void>;
   push(dir: string, branch: string): Promise<void>;
   drop(repo: string, dir: string): Promise<void>;
-  run(dir: string, command: string, timeoutMs: number): Promise<CommandOutcome>;
+  run(dir: string, command: string, timeoutMs: number, signal?: AbortSignal): Promise<CommandOutcome>;
 }
 
 export interface WorkerRunner {
@@ -46,6 +46,7 @@ export interface WorkerRunner {
     allowedCommands: string[];
     timeoutMs: number;
     maxUsd: number;
+    signal?: AbortSignal;
   }): Promise<Result<{ report: string; costUsd: number }, string>>;
 }
 

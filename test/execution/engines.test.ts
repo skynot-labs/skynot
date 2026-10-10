@@ -85,6 +85,24 @@ describe("claude engine", () => {
     expect(await engine.run(base)).toMatchObject({ ok: false, error: { kind: "timeout" } });
   });
 
+  it("reports a stopped run as cancelled, not as a failure or a timeout", async () => {
+    const engine = new ClaudeEngine(execReturning({ code: 125 }));
+    expect(await engine.run(base)).toMatchObject({ ok: false, error: { kind: "cancelled" } });
+  });
+
+  it("hands the signal to the process it starts", async () => {
+    const stop = new AbortController();
+    let seen: AbortSignal | undefined;
+    const engine = new ClaudeEngine(async (_command, _args, options) => {
+      seen = options?.signal;
+      return { stdout: "", stderr: "", code: 125 };
+    });
+
+    await engine.run({ ...base, signal: stop.signal });
+
+    expect(seen).toBe(stop.signal);
+  });
+
   it("reports empty output with the exit code and stderr", async () => {
     const engine = new ClaudeEngine(execReturning({ code: 1, stderr: "not logged in" }));
     expect(await engine.run(base)).toMatchObject({ ok: false, error: { message: expect.stringContaining("not logged in") } });

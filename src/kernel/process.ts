@@ -5,6 +5,7 @@ export interface ExecOptions {
   input?: string;
   timeoutMs?: number;
   env?: NodeJS.ProcessEnv;
+  signal?: AbortSignal;
 }
 
 export interface ExecResult {
@@ -14,6 +15,7 @@ export interface ExecResult {
 }
 
 export const TIMED_OUT = 124;
+export const CANCELLED = 125;
 
 export type Exec = (command: string, args: string[], options?: ExecOptions) => Promise<ExecResult>;
 
@@ -47,6 +49,13 @@ export const exec: Exec = (command, args, options = {}) =>
     let stderr = "";
     // Kill the whole group: a shell's grandchildren would otherwise keep the pipes open.
     const timer = options.timeoutMs ? setTimeout(() => killGroup(child.pid), options.timeoutMs) : undefined;
+    let cancelled = false;
+    const cancel = () => {
+      cancelled = true;
+      killGroup(child.pid);
+    };
+    if (options.signal?.aborted) cancel();
+    else options.signal?.addEventListener("abort", cancel, { once: true });
 
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
@@ -56,7 +65,8 @@ export const exec: Exec = (command, args, options = {}) =>
     });
     child.on("close", (code, signal) => {
       clearTimeout(timer);
-      resolve({ stdout, stderr, code: signal ? TIMED_OUT : (code ?? 1) });
+      options.signal?.removeEventListener("abort", cancel);
+      resolve({ stdout, stderr, code: cancelled ? CANCELLED : signal ? TIMED_OUT : (code ?? 1) });
     });
     child.stdin.on("error", () => undefined);
     child.stdin.end(options.input ?? "");

@@ -9,7 +9,7 @@ export interface WorkerEngineOptions {
 
 export function createWorkerRunner(scheduler: RunScheduler, options: WorkerEngineOptions): WorkerRunner {
   return {
-    async work({ orderId, prompt, cwd, allowedCommands, timeoutMs, maxUsd }) {
+    async work({ orderId, prompt, cwd, allowedCommands, timeoutMs, maxUsd, signal }) {
       const outcome = await scheduler.submit({
         role: "developer",
         engine: options.engine,
@@ -21,6 +21,7 @@ export function createWorkerRunner(scheduler: RunScheduler, options: WorkerEngin
           allowedCommands,
           timeoutMs,
           maxUsd,
+          ...(signal && { signal }),
           ...(options.model && { model: options.model }),
         },
       });

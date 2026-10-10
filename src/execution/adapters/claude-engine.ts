@@ -1,6 +1,6 @@
 import { err, ok, type Result } from "../../kernel";
 import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine } from "../domain";
-import { TIMED_OUT, exec, type Exec } from "../../kernel/process";
+import { CANCELLED, TIMED_OUT, exec, type Exec } from "../../kernel/process";
 
 const READ_TOOLS = ["Read", "Grep", "Glob"];
 const WRITE_TOOLS = ["Read", "Edit", "Write", "Grep", "Glob"];
@@ -71,7 +71,9 @@ export class ClaudeEngine implements RoleEngine {
       cwd: request.cwd,
       input: request.prompt,
       timeoutMs: request.timeoutMs,
+      ...(request.signal && { signal: request.signal }),
     });
+    if (result.code === CANCELLED) return err({ kind: "cancelled", message: "claude was stopped" });
     if (result.code === TIMED_OUT) return err({ kind: "timeout", message: "claude timed out" });
     if (!result.stdout.trim()) {
       return err({ kind: "failed", message: `claude failed (${result.code}): ${result.stderr.trim().slice(-400)}` });

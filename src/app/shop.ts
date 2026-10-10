@@ -54,6 +54,7 @@ export interface Shop {
   orders: OrdersProjection;
   chat: ChatProjection;
   runs: RunsProjection;
+  scheduler: RunScheduler;
   activity: ActivityProjection;
   orderService: OrderService;
   manager: ManagerService;
@@ -146,6 +147,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     orders,
     chat,
     runs,
+    scheduler,
     activity,
     orderService,
     manager,

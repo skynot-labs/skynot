@@ -5,7 +5,7 @@ import { createDeliveryRules } from "../../src/app/delivery-rules";
 import { OrderFlow } from "../../src/app/order-flow";
 import { createWorkerRunner } from "../../src/app/worker-runner";
 import { FakeVcs, GitWorkspace, Implementer, IssueFiler } from "../../src/delivery";
-import { FakeEngine, RunScheduler, RunsProjection } from "../../src/execution";
+import { FakeEngine, RunScheduler, RunsProjection, type EngineRequest } from "../../src/execution";
 import { ActionBudget, ActionCounts, type Policy } from "../../src/governance";
 import { fixedClock } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
@@ -39,7 +39,7 @@ function shopPolicy(limits: Partial<Policy["limits"]> = {}): Policy {
   };
 }
 
-type WorkerWork = (dir: string) => Promise<void>;
+type WorkerWork = (dir: string, request?: EngineRequest) => Promise<void>;
 
 async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string } = {}) {
   const policy = options.policy ?? shopPolicy();
@@ -52,7 +52,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   for (const projection of [orders, runs, counts, activity]) await attachProjection(log, projection);
 
   const engine = new FakeEngine(async (request) => {
-    await work(request.cwd);
+    await work(request.cwd, request);
     return { text: "evidence: test -f src/feature.txt" };
   });
   const scheduler = new RunScheduler({ claude: engine }, log, policy.limits.max_parallel);
@@ -454,6 +454,67 @@ describe("order flow", () => {
       expect(await shop.flow.approveProtected(id)).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
       expect(await shop.flow.approveProtected("WO-0099")).toMatchObject({ ok: false, error: { kind: "not_found" } });
       expect(shop.engine.requests).toHaveLength(1);
+    });
+  });
+
+  describe("stop", () => {
+    const untilStopped: WorkerWork = (_dir, request) => new Promise((resolve) => request?.signal?.addEventListener("abort", () => resolve()));
+
+    async function startHanging(work: WorkerWork = untilStopped) {
+      const shop = await createShop(work);
+      const proposed = await shop.orderService.propose(validSpec());
+      if (!proposed.ok) throw new Error("propose failed");
+      await shop.orderService.sign(proposed.value.id);
+      await vi.waitFor(() => expect(shop.engine.requests).toHaveLength(1));
+      return { shop, id: proposed.value.id };
+    }
+
+    it("stops the worker, blocks the order as stopped by the director, and lets it be retried", async () => {
+      const { shop, id } = await startHanging();
+
+      expect(shop.flow.stop(id)).toMatchObject({ ok: true });
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+      expect(shop.activity.linksFor(id).blocked).toBe("stopped by the director");
+      expect(shop.vcs.pullRequests).toEqual([]);
+      expect(shop.engine.requests[0]?.signal?.aborted).toBe(true);
+    });
+
+    it("works again from scratch after a stop, with a fresh signal", async () => {
+      let runs = 0;
+      const { shop, id } = await startHanging((dir, request) => (++runs === 1 ? untilStopped(dir, request) : createsFeature(dir)));
+      shop.flow.stop(id);
+      await shop.flow.idle();
+
+      await shop.flow.retry(id);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)).toMatchObject({ status: "in_review" });
+      expect(shop.engine.requests[1]?.signal?.aborted).toBe(false);
+    });
+
+    it("stops a follow-up and leaves the pull request as it was", async () => {
+      let runs = 0;
+      const shop = await createShop((dir, request) => (++runs === 1 ? createsFeature(dir) : untilStopped(dir, request)));
+      const id = await proposeAndSign(shop);
+      await shop.flow.followUp(id, "do more");
+      await vi.waitFor(() => expect(shop.engine.requests).toHaveLength(2));
+
+      shop.flow.stop(id);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+      expect(await shop.eventTypes()).not.toContain("delivery.pull_request_updated");
+      expect(shop.activity.linksFor(id).blocked).toBe("stopped by the director");
+    });
+
+    it("refuses an order nobody is working on, and one that does not exist", async () => {
+      const shop = await createShop(createsFeature);
+      const id = await proposeAndSign(shop);
+
+      expect(shop.flow.stop(id)).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
+      expect(shop.flow.stop("WO-0099")).toMatchObject({ ok: false, error: { kind: "not_found" } });
     });
   });
 });

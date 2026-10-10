@@ -14,6 +14,7 @@ export interface EngineRequest {
   maxUsd?: number;
   timeoutMs: number;
   allowedCommands?: string[];
+  signal?: AbortSignal;
 }
 
 export interface EngineResult {
@@ -25,7 +26,7 @@ export interface EngineResult {
 }
 
 export interface EngineFailure {
-  readonly kind: "timeout" | "failed" | "engine_unavailable";
+  readonly kind: "timeout" | "failed" | "engine_unavailable" | "cancelled";
   readonly message: string;
 }
 

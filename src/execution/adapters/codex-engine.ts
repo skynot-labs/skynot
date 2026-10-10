@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok, type Result } from "../../kernel";
 import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine } from "../domain";
-import { TIMED_OUT, exec, type Exec } from "../../kernel/process";
+import { CANCELLED, TIMED_OUT, exec, type Exec } from "../../kernel/process";
 
 export function codexArgs(request: EngineRequest, files: { schema?: string; out: string }): string[] {
   return [
@@ -46,7 +46,9 @@ export class CodexEngine implements RoleEngine {
         input: prompt,
         timeoutMs: request.timeoutMs,
         env: { ...process.env, CODEX_HOME: await isolatedHome(dir) },
+        ...(request.signal && { signal: request.signal }),
       });
+      if (result.code === CANCELLED) return err({ kind: "cancelled", message: "codex was stopped" });
       if (result.code === TIMED_OUT) return err({ kind: "timeout", message: "codex timed out" });
 
       const text = await readFile(out, "utf8").catch(() => "");

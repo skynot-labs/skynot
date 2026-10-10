@@ -19,6 +19,7 @@ export interface OrderFlowDependencies {
 export class OrderFlow {
   private readonly inFlight = new Set<Promise<void>>();
   private readonly running = new Set<string>();
+  private readonly stops = new Map<string, AbortController>();
 
   constructor(private readonly deps: OrderFlowDependencies) {}
 
@@ -62,7 +63,18 @@ export class OrderFlow {
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
 
     await this.claim(orderId, { type: "delivery.follow_up_requested", payload: { orderId, instruction } });
-    this.launch(orderId, () => this.runFollowUp(order, issue, instruction));
+    this.launch(orderId, (signal) => this.runFollowUp(order, issue, instruction, signal));
+    return ok(order);
+  }
+
+  // The order ends up blocked with "stopped by the director", so it can be retried or discarded.
+  stop(orderId: string): Result<WorkOrder, OrderError> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    const stop = this.stops.get(orderId);
+    if (!stop) return err({ kind: "invalid_transition", message: `${orderId} is not being worked on` });
+
+    stop.abort();
     return ok(order);
   }
 
@@ -112,25 +124,28 @@ export class OrderFlow {
     this.launch((event.payload as { orderId: string }).orderId);
   }
 
-  private launch(orderId: string, task: () => Promise<void> = () => this.run(orderId)): void {
+  private launch(orderId: string, task: (signal: AbortSignal) => Promise<void> = (signal) => this.run(orderId, signal)): void {
+    const stop = new AbortController();
     this.running.add(orderId);
-    const run = task().finally(() => {
+    this.stops.set(orderId, stop);
+    const run = task(stop.signal).finally(() => {
       this.inFlight.delete(run);
       this.running.delete(orderId);
+      this.stops.delete(orderId);
     });
     this.inFlight.add(run);
   }
 
-  private async runFollowUp(order: WorkOrder, issue: number, instruction: string): Promise<void> {
+  private async runFollowUp(order: WorkOrder, issue: number, instruction: string, signal: AbortSignal): Promise<void> {
     const { implementer, repo, log } = this.deps;
     try {
-      await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths);
+      await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
     } catch (error) {
       await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: (error as Error).message } }]);
     }
   }
 
-  private async run(orderId: string): Promise<void> {
+  private async run(orderId: string, signal: AbortSignal): Promise<void> {
     const { orders, filer, implementer, repo, findOrder, progressOf, log } = this.deps;
     try {
       const order = findOrder(orderId);
@@ -149,7 +164,12 @@ export class OrderFlow {
         if (!started.ok) return;
       }
 
-      const pullRequest = await implementer.implement(item, repo, issue, progressOf(orderId).approvedPaths);
+      if (signal.aborted) {
+        await log.record([{ type: "delivery.work_blocked", payload: { orderId, reason: "stopped by the director" } }]);
+        return;
+      }
+
+      const pullRequest = await implementer.implement(item, repo, issue, progressOf(orderId).approvedPaths, signal);
       if (!pullRequest.ok) return;
 
       await orders.openPullRequest(orderId, pullRequest.value.number);
