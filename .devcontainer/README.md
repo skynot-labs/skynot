@@ -1,7 +1,7 @@
 # Devcontainer
 
 A throwaway workspace where an agent can work with broad permissions: the worst case is a broken
-container, not the host. Derived from the Knotty devcontainer; the differences are listed at the end.
+container, not the host.
 
 **Status:** written and syntax-checked (`docker compose config`, `sh -n`, `bash -n`). The image has not
 been built or opened yet, so expect to fix small things on the first run.
@@ -67,13 +67,6 @@ Because `data/` is a volume, the clones the shop makes of managed repositories, 
   scoped token. The post-create step rewrites `git@github.com:` to HTTPS so pushes use the token, but
   that does not stop the forwarding. Keep the host agent empty while working here (`ssh-add -D`), or
   verify with `ssh-add -l` inside the container.
-
-## Differences from the Knotty devcontainer
-
-- Adds the `claude` and `codex` CLIs, and volumes for their logins.
-- Adds a `shop-data` volume and the console ports.
-- Drops the `sshd` feature and any use of the forwarded SSH agent for pushing.
-- Node 24, no Prettier or Tailwind extensions.
 
 ## Troubleshooting
 
