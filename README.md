@@ -52,6 +52,14 @@ answer, from the Manager or from a worker that stopped to ask, is listed under "
 | `SKYNOT_PROJECTS` | `projects` | folder with one folder per project |
 | `SKYNOT_DATA` | `data/shop` | event log and workspaces |
 | `PORT` | `4747` | console port |
+| `SKYNOT_GITHUB_APP_ID` | none | id of a GitHub App the shop acts as |
+| `SKYNOT_GITHUB_APP_KEY` | none | path to that App's private key, outside the repository |
+| `SKYNOT_GITHUB_APP_INSTALLATION` | the only one | installation to use when the App is installed in several accounts |
+
+Without the App variables the shop uses whoever `gh` is logged in as. With them it opens issues, pushes and opens
+pull requests as the App, with tokens that last an hour, so you can review and approve what it opens. The App needs
+Contents, Issues and Pull requests (read and write), Actions (read) and, for a board, organization Projects (read
+and write), and must be installed on every project's repository.
 
 The console binds to `127.0.0.1` and has no login. Do not expose it. To work with broad permissions
 without risking your machine, use the [devcontainer](.devcontainer/README.md).
