@@ -107,7 +107,7 @@ export class Implementer {
   }
 
   private async work(job: Job, followUp: string | undefined): Promise<Result<string, string>> {
-    const { item, repoName, issue, repo, dir, approved, signal } = job;
+    const { item, issue, repo, dir, signal } = job;
     const { rules, workspace, worker } = this.deps;
 
     if (repo.setupCommand) {
@@ -134,22 +134,33 @@ export class Implementer {
       if (!done.ok) return err(`the worker failed: ${done.error}`);
       report = done.value.report.trim();
 
-      const changes = await workspace.changes(dir);
-      if (changes.length === 0) return err("the worker changed nothing");
-      const touched = rules.protectedTouched(repoName, changes.map((change) => change.path)).filter((path) => !approved.includes(path));
-      if (touched.length > 0) {
-        await this.deps.log.record([{ type: "delivery.protected_paths_found", payload: { orderId: item.id, paths: touched } }]);
-        return err(`it touches ${touched.join(", ")}, which is protected`);
-      }
-      const removed = deletedTest(changes);
-      if (removed) return err(`it deletes the test ${removed}`);
+      const refused = await this.refusal(job);
+      if (refused) return err(refused);
 
       failure = await this.verify(dir, repo, followUp !== undefined, signal);
       if (signal?.aborted) return err(STOPPED);
-      if (!failure) break;
+      if (failure) continue;
+
+      // the verify commands run the worker's code, which can write what the first look did not see
+      const refusedAfterVerify = await this.refusal(job);
+      if (refusedAfterVerify) return err(refusedAfterVerify);
+      break;
     }
     if (failure) return err(`verification still fails after ${rules.maxRounds} rounds: ${tail(failure)}`);
     return ok(report);
+  }
+
+  private async refusal({ item, repoName, dir, approved }: Job): Promise<string | undefined> {
+    const { rules, workspace, log } = this.deps;
+    const changes = await workspace.changes(dir);
+    if (changes.length === 0) return "the worker changed nothing";
+    const touched = rules.protectedTouched(repoName, changes.map((change) => change.path)).filter((path) => !approved.includes(path));
+    if (touched.length > 0) {
+      await log.record([{ type: "delivery.protected_paths_found", payload: { orderId: item.id, paths: touched } }]);
+      return `it touches ${touched.join(", ")}, which is protected`;
+    }
+    const removed = deletedTest(changes);
+    return removed ? `it deletes the test ${removed}` : undefined;
   }
 
   private async commitAndPush({ item, issue, branch, dir, signal }: Job): Promise<Result<void, string>> {
