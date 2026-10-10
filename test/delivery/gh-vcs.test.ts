@@ -48,6 +48,31 @@ describe("gh vcs", () => {
     expect(await state({ state: "closed", merged_at: null })).toBe("closed");
   });
 
+  describe("checks", () => {
+    function checks(runs: Array<{ status: string; conclusion: string | null }>) {
+      const execute: Exec = async (_command, args) => ({
+        stdout: JSON.stringify(args.some((arg) => arg.includes("actions/runs")) ? { workflow_runs: runs } : { head: { sha: "abc" } }),
+        stderr: "",
+        code: 0,
+      });
+      return new GhVcs(execute).pullRequestChecks("a/b", 9);
+    }
+    const completed = (conclusion: string) => ({ status: "completed", conclusion });
+
+    it("passes only when every run succeeded, was skipped or is neutral", async () => {
+      expect(await checks([completed("success"), completed("skipped"), completed("neutral")])).toBe("passing");
+      expect(await checks([])).toBe("none");
+      expect(await checks([completed("success"), { status: "in_progress", conclusion: null }])).toBe("pending");
+    });
+
+    it("fails for any other conclusion, a workflow that could not start included", async () => {
+      for (const conclusion of ["failure", "cancelled", "timed_out", "action_required", "startup_failure", "stale"]) {
+        expect(await checks([completed("success"), completed(conclusion)])).toBe("failing");
+      }
+      expect(await checks([completed("startup_failure"), { status: "queued", conclusion: null }])).toBe("failing");
+    });
+  });
+
   it("fails loudly with gh's own message when the API refuses", async () => {
     const { execute } = recordingExec("", 1);
 
