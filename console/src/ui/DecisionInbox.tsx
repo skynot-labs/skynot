@@ -284,8 +284,17 @@ export function DecisionInbox({
     proposals.length +
     project.teamChanges.length +
     project.briefingChanges.length;
-  const [tab, setTab] = useState<"questions" | "signatures" | "answered">(() =>
-    project.inbox.length === 0 && signatures > 0 ? "signatures" : "questions",
+  const blocked = project.orders.filter((order) => order.blocked !== null);
+  const [tab, setTab] = useState<
+    "questions" | "signatures" | "blocked" | "answered"
+  >(() =>
+    project.inbox.length > 0
+      ? "questions"
+      : signatures > 0
+        ? "signatures"
+        : blocked.length > 0
+          ? "blocked"
+          : "questions",
   );
   const tabId = `director-${project.id}`;
   const askerName = (item: { from: string }) =>
@@ -300,7 +309,7 @@ export function DecisionInbox({
           <span class="eyebrow">YOUR SEAT IN THE STUDIO</span>
           <h2>Decision desk</h2>
         </div>
-        <span class="inbox-counter">{project.inbox.length + signatures}</span>
+        <span class="inbox-counter">{project.needsYou}</span>
       </div>
       <p class="inbox-intro">
         Questions, doubts and proposals. Your call gets the team moving.
@@ -310,6 +319,7 @@ export function DecisionInbox({
           [
             ["questions", "To decide", project.inbox.length],
             ["signatures", "To sign", signatures],
+            ["blocked", "Blocked", blocked.length],
             ["answered", "Answered", project.answered.length],
           ] as const
         ).map(([id, title, count]) => (
@@ -466,6 +476,36 @@ export function DecisionInbox({
               Work orders, team changes and briefing changes that need your
               signature will land here.
             </p>
+          </div>
+        )}
+      </div>
+      <div
+        class="director-tabpanel"
+        role="tabpanel"
+        id={`${tabId}-blocked-panel`}
+        aria-labelledby={`${tabId}-blocked`}
+        hidden={tab !== "blocked"}
+      >
+        {blocked.map((order) => (
+          <article class="inbox-proposal" key={order.id}>
+            <span class="eyebrow">{`BLOCKED · ${order.id}`}</span>
+            <h3>{order.title}</h3>
+            <p>{order.blocked}</p>
+            <button
+              type="button"
+              class="proposal-link"
+              onClick={() => onOrder(order)}
+            >
+              Open detail
+              <Icon name="arrow" />
+            </button>
+          </article>
+        ))}
+        {blocked.length === 0 && (
+          <div class="inbox-empty">
+            <Icon name="check" />
+            <h3>Nothing is blocked.</h3>
+            <p>An order that cannot go on without you will land here.</p>
           </div>
         )}
       </div>

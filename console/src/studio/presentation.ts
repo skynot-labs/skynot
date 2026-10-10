@@ -18,15 +18,6 @@ export function studioAgentAppearance(
         : ambientAvatar(base.avatar, settings),
   };
 }
-export function waitingOnDirector(project: Project) {
-  return (
-    project.inbox.length +
-    project.teamChanges.length +
-    project.briefingChanges.length +
-    project.orders.filter((order) => order.status === "awaiting_signature")
-      .length
-  );
-}
 export function studioScene(
   project: Project,
   appearance: Appearance,
@@ -37,7 +28,7 @@ export function studioScene(
     name: project.name,
     accent: project.accent,
     paused: shopPaused || Boolean(project.paused),
-    pending: waitingOnDirector(project),
+    pending: project.needsYou,
     settings,
     agents: project.agents.map((agent) => ({
       id: agent.id,

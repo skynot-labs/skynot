@@ -4,7 +4,6 @@ import type { Appearance } from "../application/appearance";
 import {
   studioAgentAppearance,
   studioScene,
-  waitingOnDirector,
 } from "../studio/presentation";
 import {
   defaultStudioPreferences,
@@ -64,7 +63,7 @@ export function StudioHero({
   const active = project.agents.filter(
     (agent) => agent.status === "working",
   ).length;
-  const pending = waitingOnDirector(project);
+  const pending = project.needsYou;
   const toggleShop = () =>
     void send({ name: paused ? "resume-shop" : "pause-shop", payload: {} });
   const toggleProject = () =>

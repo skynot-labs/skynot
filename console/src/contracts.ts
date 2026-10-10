@@ -62,6 +62,7 @@ export type Project = {
   answered: Answered[];
   spentUsd: number;
   tokens: TokenUsage | null;
+  needsYou: number;
 };
 
 export type Snapshot = {

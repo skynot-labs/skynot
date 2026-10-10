@@ -6,6 +6,7 @@ import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
 const RUNS_LIMIT = 50;
+const LIVE: readonly string[] = ["signed", "on_bench", "in_review"];
 
 export function readState(shop: Shop, projectId?: string) {
   const desk = (projectId ? shop.desk(projectId) : undefined) ?? shop.desks[0]!;
@@ -36,6 +37,7 @@ export function readState(shop: Shop, projectId?: string) {
       deliveredAt: order.deliveredAt,
       spentUsd: shop.runs.spentOnOrder(order.id),
       ...shop.activity.linksFor(order.id),
+      blocked: blockedReason(shop, order),
       ready: isReady(shop.activity.linksFor(order.id), reviewing),
     })),
     chat: desk.chat.messages(),
@@ -80,11 +82,17 @@ export function readState(shop: Shop, projectId?: string) {
 // What the selector shows for a project: how much waits on the director.
 function summary(shop: Shop, desk: Shop["desks"][number]) {
   const orders = shop.orders.listFor(desk.project.id);
-  const blocked = orders.filter((order) => ["signed", "on_bench", "in_review"].includes(order.status) && shop.activity.linksFor(order.id).blocked !== null).length;
+  const blocked = orders.filter((order) => blockedReason(shop, order) !== null).length;
   const awaiting = orders.filter((order) => order.status === "awaiting_signature").length;
   const questions = inboxOf(shop, desk.project.id).length;
   const { id, repo, name, description } = desk.project;
-  return { id, repo, name, description, paused: shop.control.projectPaused(id) !== null, awaitingSignature: awaiting, blocked, questions, needsYou: awaiting + blocked + questions };
+  const changes = desk.roster.pending().length + shop.briefingChanges.pendingFor(id).length;
+  return { id, repo, name, description, paused: shop.control.projectPaused(id) !== null, awaitingSignature: awaiting, changes, blocked, questions, needsYou: awaiting + changes + blocked + questions };
+}
+
+// A block stops mattering once the order is delivered or discarded, though its last reason stays in the log.
+function blockedReason(shop: Shop, order: { id: string; status: string }): string | null {
+  return LIVE.includes(order.status) ? shop.activity.linksFor(order.id).blocked : null;
 }
 
 function presence(shop: Shop, projectId: string) {

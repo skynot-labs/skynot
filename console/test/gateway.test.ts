@@ -52,9 +52,9 @@ function shopState(overrides: Partial<ShopState> = {}): ShopState {
   return {
     project: { id: "shop", repo: "skynot-labs/shop", name: null, description: null },
     projects: [
-      { id: "blog", repo: "skynot-labs/blog", name: null, description: null, paused: false, awaitingSignature: 1, blocked: 0, questions: 2, needsYou: 3 },
-      { id: "shop", repo: "skynot-labs/shop", name: null, description: null, paused: false, awaitingSignature: 0, blocked: 0, questions: 0, needsYou: 0 },
-      { id: "docs", repo: "skynot-labs/docs", name: null, description: null, paused: false, awaitingSignature: 0, blocked: 0, questions: 0, needsYou: 0 },
+      { id: "blog", repo: "skynot-labs/blog", name: null, description: null, paused: false, awaitingSignature: 1, changes: 0, blocked: 0, questions: 2, needsYou: 3 },
+      { id: "shop", repo: "skynot-labs/shop", name: null, description: null, paused: false, awaitingSignature: 0, changes: 0, blocked: 0, questions: 0, needsYou: 0 },
+      { id: "docs", repo: "skynot-labs/docs", name: null, description: null, paused: false, awaitingSignature: 0, changes: 0, blocked: 0, questions: 0, needsYou: 0 },
     ],
     repo: "skynot-labs/shop",
     reviewing: true,
@@ -119,6 +119,13 @@ function agent(state: ShopState, id: string) {
 }
 
 describe("mapState", () => {
+  it("takes what waits on the director from the service's count for the project on screen", () => {
+    const state = shopState({ project: { id: "blog", repo: "skynot-labs/blog", name: null, description: null } });
+
+    expect(mapState(state, ACCENTS).project.needsYou).toBe(3);
+    expect(mapState(shopState(), ACCENTS).project.needsYou).toBe(0);
+  });
+
   it("names projects after the repository and gives each a stable accent by position", () => {
     const snapshot = mapState(shopState(), ACCENTS);
 

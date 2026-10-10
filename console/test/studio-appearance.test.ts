@@ -64,6 +64,7 @@ const project: Project = {
   answered: [],
   spentUsd: 0,
   tokens: null,
+  needsYou: 0,
 };
 
 afterEach(() => vi.unstubAllGlobals());

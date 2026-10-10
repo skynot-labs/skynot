@@ -7,12 +7,13 @@ const DEBOUNCE_MS = 60;
 export function mapState(state: ShopState, accents: readonly string[] = config.accents): Snapshot {
   const accentAt = (index: number) => accents[Math.max(index, 0) % accents.length] ?? "";
   const projects: ProjectSummary[] = state.projects.map((summary, index) => ({ ...summary, name: summary.name || nameOf(summary.repo), accent: accentAt(index) }));
+  const current = state.projects.findIndex((summary) => summary.id === state.project.id);
   const project: Project = {
     id: state.project.id,
     name: state.project.name || nameOf(state.project.repo),
     description: state.project.description,
     repo: state.project.repo,
-    accent: accentAt(state.projects.findIndex((summary) => summary.id === state.project.id)),
+    accent: accentAt(current),
     paused: state.projectPaused,
     reviewing: state.reviewing,
     workers: state.workers,
@@ -30,6 +31,7 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     answered: state.answered,
     spentUsd: state.costs.project,
     tokens: state.costs.tokens,
+    needsYou: state.projects[current]?.needsYou ?? 0,
   };
   return {
     project,
