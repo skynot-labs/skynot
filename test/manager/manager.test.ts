@@ -254,6 +254,45 @@ describe("manager runner", () => {
   });
 });
 
+describe("rejected answers", () => {
+  const rejections = async (log: Awaited<ReturnType<typeof createManager>>["log"]) =>
+    (await log.readAfter(0)).filter((event) => event.type === "manager.answer_rejected").map((event) => event.payload);
+
+  it("records why each rejected answer was rejected, with its attempt number", async () => {
+    const { manager, chat, log } = await createManager([
+      say("Pick one.", { question: "Which?", options: ["a very long option that goes beyond the limit of forty characters"] }),
+      say("Still wrong.", { options: ["orphan"] }),
+      say("Fine."),
+    ]);
+
+    await manager.handleMessage("Do something");
+
+    expect(chat.messages().at(-1)?.text).toBe("Fine.");
+    expect(await rejections(log)).toEqual([
+      { attempt: 1, issues: expect.stringContaining("options.0: Too big") },
+      { attempt: 2, issues: expect.stringContaining("options: options are only allowed together with a question") },
+    ]);
+  });
+
+  it("records nothing when the first answer is valid", async () => {
+    const { manager, log } = await createManager([say("All good.")]);
+
+    await manager.handleMessage("Do something");
+
+    expect(await rejections(log)).toEqual([]);
+  });
+
+  it("records all three attempts when none is valid", async () => {
+    const wrong = () => say("x", { options: ["orphan"] });
+    const { manager, chat, log } = await createManager([wrong(), wrong(), wrong()]);
+
+    await manager.handleMessage("Do something");
+
+    expect((await rejections(log)).map((payload) => (payload as { attempt: number }).attempt)).toEqual([1, 2, 3]);
+    expect(chat.messages().at(-1)?.text).toContain("could not produce a valid answer");
+  });
+});
+
 describe("consulting advisors", () => {
   const roster = [
     { name: "architect", description: "how a change fits the code" },

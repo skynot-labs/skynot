@@ -73,6 +73,8 @@ export class ActivityProjection implements Projection {
         return delivery(`follow-up requested: ${payload.instruction}`);
       case "delivery.pull_request_updated":
         return delivery(`pull request #${payload.number} updated`);
+      case "manager.answer_rejected":
+        return { orderId: null, kind: "run" as const, text: `the Manager's answer was rejected (try ${payload.attempt}): ${String(payload.issues).replaceAll("\n", "; ").slice(0, 300)}`, url: null };
       case "manager.consulted":
         return advice(`the Manager asked ${payload.role}: ${payload.question}`);
       case "manager.advised":
