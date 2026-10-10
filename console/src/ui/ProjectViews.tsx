@@ -1,0 +1,628 @@
+import { useState } from "preact/hooks";
+import type {
+  Activity,
+  Agent,
+  Finding,
+  Order,
+  Project,
+  Send,
+  Snapshot,
+} from "../contracts";
+import type { Appearance } from "../application/appearance";
+import { studioAgentAppearance } from "../studio/presentation";
+import {
+  defaultStudioPreferences,
+  type StudioPreferences,
+} from "../studio/model";
+import { AvatarCanvas } from "./AvatarCanvas";
+import { Icon } from "./Icon";
+import { agentStatus, clock, orderStatus, usd } from "./format";
+import "./views.css";
+
+const STAGES: Array<{
+  name: string;
+  statuses: Order["status"][];
+  color: string;
+}> = [
+  {
+    name: "Needs your signature",
+    statuses: ["awaiting_signature"],
+    color: "var(--peach)",
+  },
+  {
+    name: "On the bench",
+    statuses: ["signed", "on_bench"],
+    color: "var(--lavender)",
+  },
+  { name: "In review", statuses: ["in_review"], color: "var(--blue)" },
+  { name: "Delivered", statuses: ["delivered"], color: "var(--mint)" },
+  { name: "Discarded", statuses: ["discarded"], color: "var(--muted)" },
+];
+
+const CHECKS_LABEL = {
+  none: "no checks",
+  pending: "checks running",
+  passing: "checks passing",
+  failing: "checks failing",
+} as const;
+
+function deliveryState(order: Order) {
+  return [
+    order.pullRequest !== null && `PR #${order.pullRequest}`,
+    order.checks && order.checks !== "none" && CHECKS_LABEL[order.checks],
+    order.review?.verdict === "approved" && "approved",
+    order.review?.verdict === "changes_requested" && "changes requested",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+export function OrdersView({
+  project,
+  onOrder,
+}: {
+  project: Project;
+  onOrder: (o: Order) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const orders = project.orders.filter((o) =>
+    (o.title + " " + o.id).toLowerCase().includes(search.toLowerCase()),
+  );
+  const discarded = project.orders.some((o) => o.status === "discarded");
+  const stages = STAGES.filter(
+    (stage) => discarded || !stage.statuses.includes("discarded"),
+  );
+  return (
+    <>
+      <div class="view-toolbar">
+        <div>
+          <h2>From idea to delivery.</h2>
+          <p>Signature, work, review and delivery. Every step leaves a trace.</p>
+        </div>
+        <input
+          type="search"
+          placeholder="Find an order…"
+          aria-label="Search work orders"
+          value={search}
+          onInput={(e) => setSearch(e.currentTarget.value)}
+        />
+      </div>
+      {project.orders.length === 0 ? (
+        <section class="panel">
+          <div class="empty-state">
+            No work orders yet. They appear here when the Manager files one.
+          </div>
+        </section>
+      ) : (
+        <div class={`kanban ${discarded ? "with-discarded" : ""}`}>
+          {stages.map((stage) => {
+            const list = orders.filter((o) => stage.statuses.includes(o.status));
+            return (
+              <section class="kanban-column" key={stage.name}>
+                <div class="kanban-heading">
+                  <span style={{ background: stage.color }} />
+                  <h3>{stage.name}</h3>
+                  <b>{list.length}</b>
+                </div>
+                {list.map((o) => (
+                  <OrderCard key={o.id} order={o} onOrder={onOrder} />
+                ))}
+                {list.length === 0 && (
+                  <div class="column-empty">Nothing here.</div>
+                )}
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+}
+
+function OrderCard({
+  order,
+  onOrder,
+}: {
+  order: Order;
+  onOrder: (o: Order) => void;
+}) {
+  const delivery = deliveryState(order);
+  return (
+    <button class="order-card" onClick={() => onOrder(order)}>
+      <div>
+        <span class="mono">
+          {order.id}
+          {order.ticket !== null && ` · ticket #${order.ticket}`}
+        </span>
+        <span class={`status-chip ${order.blocked ? "blocked" : order.status}`}>
+          {order.blocked ? "Blocked" : orderStatus[order.status]}
+        </span>
+      </div>
+      <h3>{order.title}</h3>
+      {order.blocked && <span class="order-blocked">{order.blocked}</span>}
+      {order.question && (
+        <span class="dependency">
+          <Icon name="help" />
+          The worker is asking
+        </span>
+      )}
+      {order.status === "signed" &&
+        order.waitingOn.length > 0 &&
+        !order.blocked && (
+          <span class="dependency">
+            <Icon name="link" />
+            Waiting for {order.waitingOn.join(", ")}
+          </span>
+        )}
+      {delivery && <span class="order-delivery">{delivery}</span>}
+      <footer>
+        <span>{order.worker ?? "developer"}</span>
+        <span>{usd(order.spentUsd)}</span>
+      </footer>
+      {order.ready && (
+        <span class="ready-mark">
+          <Icon name="check" />
+          Ready to merge
+        </span>
+      )}
+    </button>
+  );
+}
+
+const KIND_LABEL: Record<Agent["kind"], string> = {
+  manager: "Manager",
+  worker: "Worker",
+  advisor: "Advisor",
+};
+
+const TEAM_ACTION = { hire: "Hire", dismiss: "Dismiss", refocus: "Refocus" };
+
+export function AgentsView({
+  project,
+  appearance,
+  settings = defaultStudioPreferences,
+  onAgent,
+  send,
+  busy,
+}: {
+  project: Project;
+  appearance: Appearance;
+  settings?: StudioPreferences;
+  onAgent: (a: Agent) => void;
+  send: Send;
+  busy: boolean;
+}) {
+  return (
+    <>
+      <div class="section-heading">
+        <h2>One vision. Different talents.</h2>
+        <span>{project.agents.length} AGENTS ON THIS PROJECT</span>
+      </div>
+      <div class="people-grid">
+        {project.agents.map((a) => {
+          const visual = studioAgentAppearance(
+            project.id,
+            a,
+            appearance,
+            settings,
+          );
+          const runId =
+            a.status === "working" || a.status === "queued" ? a.runId : null;
+          return (
+            <article class="person-card" key={a.id}>
+              <div class="person-card-head">
+                <AvatarCanvas avatar={visual.avatar} name={visual.name} large />
+                <div>
+                  <span class={`status-chip ${a.status}`}>
+                    {agentStatus[a.status]}
+                    {a.queuePosition !== null && ` · number ${a.queuePosition}`}
+                  </span>
+                  <h3>{visual.name}</h3>
+                  {a.role !== visual.name && <p>{a.role}</p>}
+                </div>
+              </div>
+              <div class="agent-runtime">
+                <span>
+                  <Icon name="code" />
+                  {a.engine}
+                </span>
+                <span>{a.model ?? "default model"}</span>
+              </div>
+              <div class="person-stats">
+                <span>
+                  Kind
+                  <strong>{KIND_LABEL[a.kind]}</strong>
+                </span>
+                <span>
+                  Current order<strong>{a.orderId ?? "None"}</strong>
+                </span>
+              </div>
+              {runId !== null && (
+                <button
+                  class="danger-button agent-stop"
+                  disabled={busy}
+                  onClick={() =>
+                    void send({ name: "stop-run", payload: { runId } })
+                  }
+                >
+                  <Icon name="stop" />
+                  Stop
+                </button>
+              )}
+              <button class="secondary-button" onClick={() => onAgent(a)}>
+                <Icon name="edit" />
+                Customize avatar
+              </button>
+            </article>
+          );
+        })}
+      </div>
+      {project.teamChanges.length > 0 && (
+        <section class="panel team-proposals">
+          <div class="panel-heading">
+            <span class="panel-title">
+              <Icon name="shield" />
+              The team changes with your signature
+            </span>
+            <span class="pill">{project.teamChanges.length} TO SIGN</span>
+          </div>
+          {project.teamChanges.map((change) => (
+            <div class="team-proposal" key={change.id}>
+              <div>
+                <h3>
+                  {TEAM_ACTION[change.action]} {change.role}
+                </h3>
+                <p>{change.reason}</p>
+                {change.focus && <p>New focus: {change.focus}</p>}
+              </div>
+              <div class="proposal-actions">
+                <button
+                  class="secondary-button"
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: "discard-team-change",
+                      payload: { changeId: change.id },
+                    })
+                  }
+                >
+                  Discard
+                </button>
+                <button
+                  class="primary-button"
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: "sign-team-change",
+                      payload: { changeId: change.id },
+                    })
+                  }
+                >
+                  Sign
+                  <Icon name="check" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+      {project.hireable.length > 0 && (
+        <section class="panel hireable">
+          <div class="panel-heading">
+            <span class="panel-title">
+              <Icon name="team" />
+              Could be hired
+            </span>
+          </div>
+          {project.hireable.map((role) => (
+            <div class="team-proposal" key={role.name}>
+              <div>
+                <h3>{role.name}</h3>
+                <p>{role.description}</p>
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+      <p class="view-note">
+        <Icon name="shield" />
+        Role, engine and model come from the team file; hiring goes through the
+        Manager and your signature. The avatar is only how an agent looks here.
+      </p>
+    </>
+  );
+}
+
+export function UsageView({
+  project,
+  costs,
+}: {
+  project: Project;
+  costs: Snapshot["costs"];
+}) {
+  const ratio =
+    costs.cap === null ? null : Math.min(100, (costs.today / costs.cap) * 100);
+  const spenders = project.orders.filter((o) => o.spentUsd > 0);
+  return (
+    <>
+      <div class="usage-top">
+        <section class="panel budget-card">
+          <div class="panel-heading">
+            <span class="panel-title">Today, the whole shop</span>
+            <span class="pill">USD · UTC DAY</span>
+          </div>
+          <div class="budget-number">
+            {usd(costs.today)}
+            {costs.cap !== null && <small> / {usd(costs.cap)}</small>}
+          </div>
+          {ratio !== null && (
+            <div class="progress-track">
+              <div style={{ width: `${ratio}%`, background: "var(--mint)" }} />
+            </div>
+          )}
+          <p>
+            {ratio === null
+              ? "No daily cap is set."
+              : `${ratio.toFixed(0)}% of the daily cap.`}
+          </p>
+          <div class="budget-total">
+            <span>Shop total</span>
+            <strong>{usd(costs.total)}</strong>
+          </div>
+        </section>
+        <section class="panel budget-card">
+          <div class="panel-heading">
+            <span class="panel-title">This project</span>
+            <span class="pill">USD · ALL TIME</span>
+          </div>
+          <div class="budget-number">{usd(project.spentUsd)}</div>
+          <p>Everything the agents spent on {project.name}.</p>
+        </section>
+      </div>
+      <section class="panel cost-table">
+        <div class="panel-heading">
+          <span class="panel-title">Spent per work order</span>
+        </div>
+        {spenders.length > 0 ? (
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>ORDER</th>
+                  <th>STATUS</th>
+                  <th>WORKER</th>
+                  <th>USD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spenders.map((o) => (
+                  <tr key={o.id}>
+                    <td>
+                      <strong>{o.title}</strong>
+                      <small>{o.id}</small>
+                    </td>
+                    <td>
+                      <span class={`status-chip ${o.status}`}>
+                        {orderStatus[o.status]}
+                      </span>
+                    </td>
+                    <td>{o.worker ?? "developer"}</td>
+                    <td>{usd(o.spentUsd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div class="empty-state">No work order has spent anything yet.</div>
+        )}
+      </section>
+      <p class="view-note">
+        <Icon name="help" />
+        Cost as reported by the CLIs. It is not a subscription invoice.
+      </p>
+    </>
+  );
+}
+
+const FINDING_ICON: Record<Finding["level"], string> = {
+  ok: "check",
+  warn: "help",
+  fail: "close",
+};
+
+export function ContextView({
+  project,
+  readiness,
+  send,
+  busy,
+}: {
+  project: Project;
+  readiness: readonly Finding[];
+  send: Send;
+  busy: boolean;
+}) {
+  const repoUrl = /^[\w.-]+\/[\w.-]+$/.test(project.repo)
+    ? `https://github.com/${project.repo}`
+    : null;
+  return (
+    <div class="context-grid">
+      <div class="context-main">
+        {project.briefingChanges.map((change) => (
+          <section class="panel team-proposals" key={change.id}>
+            <div class="panel-heading">
+              <span class="panel-title">
+                <Icon name="shield" />
+                Proposed: new briefing
+              </span>
+              <span class="pill">TO SIGN</span>
+            </div>
+            <div class="briefing-change">
+              <p>{change.reason}</p>
+              <pre class="briefing-text">{change.text}</pre>
+              <div class="proposal-actions">
+                <button
+                  class="secondary-button"
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: "discard-briefing-change",
+                      payload: { changeId: change.id },
+                    })
+                  }
+                >
+                  Discard
+                </button>
+                <button
+                  class="primary-button"
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: "sign-briefing-change",
+                      payload: { changeId: change.id },
+                    })
+                  }
+                >
+                  Sign
+                  <Icon name="check" />
+                </button>
+              </div>
+            </div>
+          </section>
+        ))}
+        <section class="panel vision-card">
+          <div class="panel-heading">
+            <span class="panel-title">
+              <Icon name="star" />
+              The briefing every agent reads
+            </span>
+          </div>
+          <div class="vision-content">
+            <span class="eyebrow">
+              {project.briefing === null ? "NO BRIEFING YET" : "SIGNED BY YOU"}
+            </span>
+            <h2>{project.name}</h2>
+            <p>
+              {project.briefing ??
+                "No briefing has been signed for this project yet. Ask the Manager to propose one; it takes effect when you sign it."}
+            </p>
+          </div>
+          <div class="context-principle">
+            <Icon name="shield" />
+            <span>The LLM proposes. The code validates. The director decides.</span>
+          </div>
+        </section>
+      </div>
+      <div class="context-side">
+        <section class="panel repository-card">
+          <div class="panel-heading">
+            <span class="panel-title">Repository</span>
+            <Icon name="code" />
+          </div>
+          <h3>{project.repo}</h3>
+          {repoUrl && (
+            <a
+              class="secondary-button"
+              href={repoUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open on GitHub
+              <Icon name="arrow" />
+            </a>
+          )}
+        </section>
+        <section class="panel context-files">
+          <div class="panel-heading">
+            <span class="panel-title">Setup</span>
+            <button
+              class="text-button"
+              disabled={busy}
+              onClick={() => void send({ name: "recheck", payload: {} })}
+            >
+              Check again
+            </button>
+          </div>
+          {readiness.length === 0 && (
+            <div class="column-empty">No setup checks have run.</div>
+          )}
+          {readiness.map((finding) => (
+            <div class={`finding ${finding.level}`} key={finding.check}>
+              <Icon name={FINDING_ICON[finding.level]} />
+              <span>
+                {finding.check}
+                <small>{finding.detail}</small>
+                {finding.fix && <em>{finding.fix}</em>}
+              </span>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+const ACTIVITY_ICON: Record<Activity["kind"], string> = {
+  order: "orders",
+  delivery: "link",
+  run: "code",
+  advice: "chat",
+};
+
+export function ActivityView({ project }: { project: Project }) {
+  const [filter, setFilter] = useState<Activity["kind"] | "all">("all");
+  const activities = project.activity.filter(
+    (a) => filter === "all" || a.kind === filter,
+  );
+  return (
+    <section class="panel timeline-panel">
+      <div class="panel-heading">
+        <span class="panel-title">Work leaves a trace.</span>
+        <select
+          aria-label="Filter the logbook"
+          value={filter}
+          onChange={(e) =>
+            setFilter(e.currentTarget.value as Activity["kind"] | "all")
+          }
+        >
+          <option value="all">Everything</option>
+          <option value="order">Work orders</option>
+          <option value="delivery">Delivery</option>
+          <option value="run">Runs</option>
+          <option value="advice">Advice</option>
+        </select>
+      </div>
+      {activities.map((a) => (
+        <article class="timeline-entry" key={a.sequence}>
+          <span class="timeline-icon">
+            <Icon name={ACTIVITY_ICON[a.kind]} />
+          </span>
+          <time>{clock(a.at)}</time>
+          <div>
+            <p>
+              {a.url ? (
+                <a href={a.url} target="_blank" rel="noreferrer">
+                  {a.text}
+                </a>
+              ) : (
+                a.text
+              )}
+            </p>
+            <small>
+              {a.kind}
+              {a.orderId ? " · " + a.orderId : ""}
+            </small>
+          </div>
+          <span class="event-sequence">#{a.sequence}</span>
+        </article>
+      ))}
+      {activities.length === 0 && (
+        <div class="empty-state">
+          {project.activity.length === 0
+            ? "Nothing has happened yet."
+            : "Nothing of this kind yet."}
+        </div>
+      )}
+    </section>
+  );
+}

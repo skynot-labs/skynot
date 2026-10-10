@@ -1,0 +1,9 @@
+{
+  "name": "The knot",
+  "organization": "skynot-labs",
+  "mark": {
+    "viewBox": "0 0 64 64",
+    "path": "M12 44 L28 18 C36 6 48 18 37 27 C28 35 21 24 30 24 C37 24 44 34 52 44",
+    "strokeWidth": 4.5
+  }
+}

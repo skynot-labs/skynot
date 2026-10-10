@@ -1,0 +1,59 @@
+{
+  "version": "0.1.0",
+  "color": {
+    "canvas": "#191922",
+    "surface": "#22222d",
+    "scene": "#262634",
+    "border": "#353540",
+    "text": "#f1eee9",
+    "muted": "#9a99ac",
+    "mint": "#a5d7b8",
+    "lavender": "#bcabe6",
+    "peach": "#eeb88e",
+    "blue": "#93b7d5",
+    "rose": "#d6969c",
+    "paper": "#f1eee9",
+    "ink": "#191922"
+  },
+  "font": {
+    "sans": "Inter, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+    "mono": "ui-monospace, SFMono-Regular, Consolas, monospace"
+  },
+  "type": {
+    "caption": "12px",
+    "body": "16px",
+    "title": "24px",
+    "heading": "40px",
+    "display": "64px"
+  },
+  "space": {
+    "1": "4px",
+    "2": "8px",
+    "3": "12px",
+    "4": "16px",
+    "6": "24px",
+    "8": "32px",
+    "12": "48px",
+    "16": "64px"
+  },
+  "radius": {
+    "sm": "8px",
+    "md": "12px",
+    "lg": "16px",
+    "pill": "999px"
+  },
+  "motion": {
+    "fast": "160ms",
+    "normal": "240ms"
+  },
+  "semantic": {
+    "action": "color.mint",
+    "agent": "color.lavender",
+    "attention": "color.peach",
+    "context": "color.blue",
+    "success": "color.mint",
+    "danger": "color.rose",
+    "on-action": "color.ink",
+    "focus": "color.mint"
+  }
+}

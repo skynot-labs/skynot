@@ -1,9 +1,17 @@
-import "@fontsource/fraunces/400.css";
-import "@fontsource/fraunces/600.css";
-import "@fontsource/ibm-plex-mono/400.css";
-import "@fontsource/ibm-plex-mono/500.css";
+import "./design/tokens.css";
+import "./ui/styles.css";
+import "./ui/skynot.css";
+import "./ui/studio.css";
+import "./ui/avatar-editor.css";
+import "./ui/studio-customizer.css";
+import "./design/brand.css";
+import "./design/design-system.css";
 import { render } from "preact";
 import { App } from "./App";
-import "./styles.css";
+import { DesignSystem } from "./design/DesignSystem";
 
-render(<App />, document.getElementById("app")!);
+const designPage = /^\/design\/?$/.test(window.location.pathname);
+render(
+  designPage ? <DesignSystem /> : <App />,
+  document.getElementById("app")!,
+);
