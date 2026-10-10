@@ -50,6 +50,10 @@ export class ManagerService {
     return this.exclusive(() => this.takeTurn(text));
   }
 
+  tell(text: string, link: { orderId?: string } = {}): Promise<void> {
+    return this.exclusive(() => this.reply(text, link));
+  }
+
   answerDecision(decisionId: string, answer: string): Promise<Result<void, string>> {
     return this.exclusive(async () => {
       const decision = this.deps.chat.decision(decisionId);

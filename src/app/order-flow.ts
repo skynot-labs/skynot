@@ -12,7 +12,7 @@ export interface OrderFlowDependencies {
   implementer: Implementer;
   repo: string;
   findOrder(id: string): WorkOrder | undefined;
-  progressOf(id: string): { issue: number | null; blocked: string | null };
+  progressOf(id: string): { issue: number | null; blocked: string | null; protectedPaths: readonly string[]; approvedPaths: readonly string[] };
 }
 
 export class OrderFlow {
@@ -37,13 +37,7 @@ export class OrderFlow {
     }
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
 
-    this.running.add(orderId);
-    try {
-      await this.deps.log.record([{ type: "delivery.work_retried", payload: { orderId } }]);
-    } catch (error) {
-      this.running.delete(orderId);
-      throw error;
-    }
+    await this.claim(orderId, { type: "delivery.work_retried", payload: { orderId } });
     this.launch(orderId);
     return ok(order);
   }
@@ -57,14 +51,28 @@ export class OrderFlow {
     }
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
 
-    this.running.add(orderId);
-    try {
-      await this.deps.log.record([{ type: "delivery.follow_up_requested", payload: { orderId, instruction } }]);
-    } catch (error) {
-      this.running.delete(orderId);
-      throw error;
-    }
+    await this.claim(orderId, { type: "delivery.follow_up_requested", payload: { orderId, instruction } });
     this.launch(orderId, () => this.runFollowUp(order, issue, instruction));
+    return ok(order);
+  }
+
+  // The director signs the exact protected files the worker touched; the next run may touch those, no others.
+  async approveProtected(orderId: string): Promise<Result<WorkOrder, OrderError>> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    const { blocked, protectedPaths } = this.deps.progressOf(orderId);
+    if (!["signed", "on_bench", "in_review"].includes(order.status) || blocked === null || protectedPaths.length === 0) {
+      return err({ kind: "invalid_transition", message: `${orderId} is not waiting for protected paths to be approved` });
+    }
+    if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
+
+    const approval = { type: "delivery.protected_paths_approved", payload: { orderId, paths: [...protectedPaths] } } as const;
+    if (order.status === "in_review") {
+      await this.deps.log.record([approval]);
+      return ok(order);
+    }
+    await this.claim(orderId, approval);
+    this.launch(orderId);
     return ok(order);
   }
 
@@ -76,6 +84,16 @@ export class OrderFlow {
       return Promise.resolve(err({ kind: "invalid_transition", message: `${orderId} is being worked on: wait until it finishes or blocks` }));
     }
     return this.deps.orders.abandon(orderId);
+  }
+
+  private async claim(orderId: string, event: Parameters<EventLog["record"]>[0][number]): Promise<void> {
+    this.running.add(orderId);
+    try {
+      await this.deps.log.record([event]);
+    } catch (error) {
+      this.running.delete(orderId);
+      throw error;
+    }
   }
 
   private react(event: StoredEvent): void {
@@ -96,7 +114,7 @@ export class OrderFlow {
   private async runFollowUp(order: WorkOrder, issue: number, instruction: string): Promise<void> {
     const { implementer, repo, log } = this.deps;
     try {
-      await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction);
+      await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths);
     } catch (error) {
       await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: (error as Error).message } }]);
     }
@@ -121,7 +139,7 @@ export class OrderFlow {
         if (!started.ok) return;
       }
 
-      const pullRequest = await implementer.implement(item, repo, issue);
+      const pullRequest = await implementer.implement(item, repo, issue, progressOf(orderId).approvedPaths);
       if (!pullRequest.ok) return;
 
       await orders.openPullRequest(orderId, pullRequest.value.number);

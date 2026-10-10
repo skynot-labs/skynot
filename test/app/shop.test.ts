@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
@@ -281,6 +281,31 @@ describe("activity", () => {
       const { shop: restarted } = await openShop(new FakeVcs(), team);
 
       expect(Object.keys(restarted.roster.members())).toEqual(["architect", "designer"]);
+    });
+  });
+
+  describe("blocked orders", () => {
+    it("tells the director in the chat when an order cannot move", async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "skynot-notice-"));
+      const shop = await createShop({
+        policy: examplePolicy(),
+        dataDir: dir,
+        team: defaultTeam,
+        engines: { claude: createMockManager(), codex: createMockDeveloper() },
+        vcs: new FakeVcs(),
+        workspace: new FakeWorkspace(),
+        repo: "acme/not-in-the-policy",
+      });
+      shops.push(shop);
+
+      const id = await fileAnOrder(shop);
+      await shop.orderService.sign(id);
+      await shop.flow.idle();
+      await vi.waitFor(() => expect(shop.chat.messages().at(-1)?.text).toContain(`${id} is blocked:`));
+
+      expect(shop.chat.messages().at(-1)).toMatchObject({ author: "manager", orderId: id });
+      expect(shop.chat.messages().at(-1)?.text).toContain("Retry or discard it from its card.");
+      await rm(dir, { recursive: true, force: true });
     });
   });
 });
