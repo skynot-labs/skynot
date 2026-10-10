@@ -62,7 +62,7 @@ recorded.
 
 WO-0001 ("`done <id>`: confirmation and id validation") went from a chat idea to a merged pull request on
 `rodacato/taller-todo`. Manager and worker were both `claude`; the worker run took 26 s and cost $0.09
-(it ran on `claude-haiku-5-5`, which the director did not choose on purpose). CI passed.
+(the log said `claude-haiku-5-5`, but that was a parsing mistake: see the model note below). CI passed.
 
 Surprises, all fixed and committed on `feat/event-log`:
 
@@ -103,7 +103,8 @@ Administration permission on purpose, so the director sets it in GitHub settings
 - The "needs the director's signature" message for a protected path suggests an approval that does not
   exist: the director has to make that change by hand on GitHub. Either build the approval or reword it.
 - A follow-up squashes the branch, so per-commit history is lost; today each order is one commit anyway.
-- The worker's model is whatever the `claude` CLI picks; there is no per-role model setting yet.
+- The run log used to name the first model in the CLI's `modelUsage`, a small auxiliary one, so every
+  earlier run shows haiku. It now names the one that cost the most. Models are chosen per role in `team.yaml`.
 - Rate limits of the subscriptions are not handled: no backoff, and nobody knows yet what the error
   looks like. `max_parallel` in the policy is the only brake.
 - One repository per run: the flow uses the first repo in `policy.yaml` because orders do not belong to

@@ -157,10 +157,10 @@ describe("activity", () => {
   });
 
   describe("the team file", () => {
-    it("sends each role's model to its engine, and none when the role names none", async () => {
+    it("sends each role's own model to its engine", async () => {
       const manager = recording(createMockManager());
       const developer = recording(createMockDeveloper());
-      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex" } } };
+      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex", model: "developer-model" } } };
       const { shop } = await openShop(new FakeVcs(), team, { claude: manager.recorded, codex: developer.recorded });
 
       const id = await fileAnOrder(shop);
@@ -170,7 +170,7 @@ describe("activity", () => {
       expect(manager.requests.length).toBeGreaterThan(0);
       expect(manager.requests.every((request) => request.model === "manager-model")).toBe(true);
       expect(developer.requests).toHaveLength(1);
-      expect("model" in developer.requests[0]!).toBe(false);
+      expect(developer.requests[0]?.model).toBe("developer-model");
     });
 
     it("runs the developer on the engine the team names, not on the manager's", async () => {
