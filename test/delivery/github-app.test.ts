@@ -104,6 +104,23 @@ describe("running gh and git as the app", () => {
     expect(seen.at(-1)!.options!.env).toMatchObject({ GH_TOKEN: "secret-skynot-labs" });
   });
 
+  it("asks for no token to run a git command that is about no account, when the app is installed in several", async () => {
+    const { calls, options } = github([{ id: 1, account: { login: "acme" } }, { id: 2, account: { login: "other" } }]);
+    const several = asGithubApp(record, new GithubAppTokens(options));
+
+    await several("git", ["--version"]);
+    expect(seen.at(-1)).toEqual({ command: "git", options: {} });
+
+    await several("gh", ["api", "repos/other/site"]);
+    expect(seen.at(-1)!.options!.env).toMatchObject({ GH_TOKEN: "token-1" });
+    await several("git", ["push", "--dry-run", "https://github.com/acme/blog.git"]);
+    expect(seen.at(-1)!.options!.env).toMatchObject({ GH_TOKEN: "token-2" });
+    expect(calls.filter((call) => call.method === "POST").map((call) => call.path)).toEqual(["/app/installations/2/access_tokens", "/app/installations/1/access_tokens"]);
+
+    await expect(several("gh", ["auth", "status"])).rejects.toThrow("which account");
+    await expect(several("git", ["commit", "-m", "probe"], { cwd: "/not-a-clone" })).rejects.toThrow("which account");
+  });
+
   it("gives nothing to any other command, such as the project's own test run", async () => {
     await execute("sh", ["-c", "npm test"], { cwd: "/repo" });
 

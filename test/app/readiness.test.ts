@@ -1,8 +1,10 @@
+import { generateKeyPairSync } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { checkReadiness, checkShopReadiness, engineUsage, type Finding } from "../../src/app/readiness";
+import { GithubAppTokens, asGithubApp } from "../../src/delivery";
 import type { Exec, ExecResult } from "../../src/kernel/process";
 import type { Team } from "../../src/team";
 
@@ -114,5 +116,67 @@ describe("readiness of several projects", () => {
     expect(problems(findings)).toEqual(["fail blog: github repository"]);
     expect(findings.filter((finding) => finding.check === "git")).toHaveLength(1);
     expect(findings.some((finding) => finding.check === "widgets: github repository" && finding.level === "ok")).toBe(true);
+  });
+
+  describe("as a GitHub App installed in several accounts", () => {
+    const privateKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs1", format: "pem" }).toString();
+    const installed = (async (url: string | URL | Request) => {
+      const path = String(url).replace("https://api.github.com", "");
+      if (path.startsWith("/app/installations?")) return Response.json([{ id: 1, account: { login: "acme" } }, { id: 2, account: { login: "other" } }]);
+      return Response.json({ token: path.includes("/1/") ? "token-acme" : "token-other", expires_at: new Date(Date.now() + 3_600_000).toISOString() });
+    }) as typeof fetch;
+
+    const site = {
+      "gh api repos/other/site": done("other/site"),
+      "gh api repos/other/site/branches/main": done("true"),
+      "gh api repos/other/site/pulls?per_page=1": done("1"),
+      "gh api repos/other/site/issues?per_page=1": done("1"),
+      "gh api repos/other/site/commits/main": done("abc123"),
+      "gh api repos/other/site/actions/runs?head_sha=abc123": done("1"),
+    };
+
+    function shop() {
+      const ran: string[] = [];
+      const answer = world(site);
+      const recorded: Exec = (command, args, options) => {
+        const as = options?.env?.GH_TOKEN?.replace("token-", "") ?? "nobody";
+        ran.push(`${as}: ${command} ${args.filter((arg) => !arg.startsWith("user.") && arg !== "-c" && arg !== "-q").join(" ")}`);
+        return answer(command, args, options);
+      };
+      const tokens = new GithubAppTokens({ appId: "42", privateKey, fetch: installed });
+      return { ran, exec: asGithubApp(recorded, tokens), execFor: (account: string) => asGithubApp(recorded, tokens, account) };
+    }
+
+    const check = ({ exec, execFor }: ReturnType<typeof shop>, repos: Record<string, string>) =>
+      checkShopReadiness({
+        exec,
+        execFor,
+        engines: { claude: loggedIn, codex: loggedIn },
+        teams: Object.entries(repos).map(([id, repo]) => ({ project: project(id, repo), team: team() })),
+        dataDir,
+      });
+
+    it("checks each project as the account that owns its repository, and git itself as nobody", async () => {
+      const app = shop();
+
+      const findings = await check(app, { widgets: "acme/widgets", site: "other/site" });
+
+      expect(problems(findings)).toEqual([]);
+      expect(app.ran).toContain("nobody: git --version");
+      for (const probe of ["gh auth status", "git init", "git commit --allow-empty -m probe"]) {
+        expect(app.ran.filter((line) => line.endsWith(`: ${probe}`)).sort()).toEqual([`acme: ${probe}`, `other: ${probe}`]);
+      }
+      expect(app.ran.filter((line) => line.includes("repos/other/") && !line.startsWith("other: "))).toEqual([]);
+      expect(app.ran.filter((line) => line.includes("repos/acme/") && !line.startsWith("acme: "))).toEqual([]);
+    });
+
+    it("names the account the app is missing from, and still checks the other projects", async () => {
+      const findings = await check(shop(), { widgets: "acme/widgets", todo: "stranger/todo" });
+
+      expect(problems(findings)).toEqual(["fail todo: github login"]);
+      const missing = findings.find((finding) => finding.check === "todo: github login")!;
+      expect(missing.detail).toBe("the GitHub App is not installed in stranger (it is installed in acme, other)");
+      expect(missing.fix).toContain("install the GitHub App");
+    });
   });
 });

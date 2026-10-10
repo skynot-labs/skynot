@@ -43,13 +43,14 @@ export function engineUsage(team: Team): EngineUsage {
 
 export interface ShopReadinessInput {
   exec: Exec;
+  execFor?: (account: string) => Exec;
   engines: ReadinessInput["engines"];
   teams: ReadonlyArray<{ project: Project; team: Team }>;
   dataDir: string;
 }
 
-// The tools and logins are the shop's, checked once; the repository and the token are each project's.
-export async function checkShopReadiness({ exec, engines, teams, dataDir }: ShopReadinessInput): Promise<Finding[]> {
+// The tools and logins are the shop's, checked once; the repository and the token are each project's, asked as the account that owns it.
+export async function checkShopReadiness({ exec, execFor, engines, teams, dataDir }: ShopReadinessInput): Promise<Finding[]> {
   const usage: EngineUsage = {};
   for (const { team } of teams) {
     for (const [engine, entry] of Object.entries(engineUsage(team)) as Array<[EngineName, { roles: string[]; writes: boolean }]>) {
@@ -61,12 +62,14 @@ export async function checkShopReadiness({ exec, engines, teams, dataDir }: Shop
   const shared = await Promise.all([checkNode(), checkGit(exec), checkDataDir(dataDir), ...checkEngines({ engines, usage, exec })]);
   const perProject = await Promise.all(
     teams.map(async ({ project }) => {
-      const found = await checkGithub(exec, project.repo, project.baseBranch);
+      const found = await checkGithub(execFor?.(ownerOf(project.repo)) ?? exec, project.repo, project.baseBranch);
       return teams.length > 1 ? found.map((finding) => ({ ...finding, check: `${project.id}: ${finding.check}` })) : found;
     }),
   );
   return [...shared.flat(), ...perProject.flat()];
 }
+
+const ownerOf = (repo: string): string => repo.split("/")[0]!;
 
 const ok = (check: string, detail: string): Finding => ({ check, level: "ok", detail });
 const fail = (check: string, detail: string, fix: string): Finding => ({ check, level: "fail", detail, fix });
@@ -123,8 +126,9 @@ async function codexSandbox(exec: Exec, writes: boolean, roles: string[]): Promi
 }
 
 async function checkGithub(exec: Exec, repo: string, baseBranch: string): Promise<Finding[]> {
-  const auth = await exec("gh", ["auth", "status"]).catch(() => null);
-  if (auth?.code !== 0) return [fail("github login", "gh is not logged in", "log in with `gh auth login` (see .devcontainer/README.md)")];
+  const auth = await exec("gh", ["auth", "status"]).catch((error: Error) => error);
+  if (auth instanceof Error) return [fail("github login", auth.message, `install the GitHub App in the account that owns ${repo}, or log in with \`gh auth login\``)];
+  if (auth.code !== 0) return [fail("github login", "gh is not logged in", "log in with `gh auth login` (see .devcontainer/README.md)")];
 
   const api = (path: string, ...jq: string[]) => exec("gh", ["api", path, ...jq]).catch(() => ({ code: 1, stdout: "", stderr: "gh did not answer" }));
   const reach = (check: string, path: string, fix: string, level: "fail" | "warn" = "fail") =>
