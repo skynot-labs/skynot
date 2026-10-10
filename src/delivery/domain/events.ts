@@ -7,6 +7,7 @@ export type DeliveryEvent =
   | { type: "delivery.review_completed"; payload: { orderId: string; round: number; verdict: "approved" | "changes_requested"; summary: string; findings: string[] } }
   | { type: "delivery.review_failed"; payload: { orderId: string; reason: string } }
   | { type: "delivery.checks_changed"; payload: { orderId: string; state: "none" | "pending" | "passing" | "failing" } }
+  | { type: "delivery.worker_assigned"; payload: { orderId: string; worker: string } }
   | { type: "delivery.work_retried"; payload: { orderId: string } }
   | { type: "delivery.follow_up_requested"; payload: { orderId: string; instruction: string } }
   | { type: "delivery.pull_request_updated"; payload: { orderId: string; number: number } }

@@ -35,7 +35,7 @@ import { createOrderDesk } from "./order-desk";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
 import { ReviewNotice } from "./review-notice";
-import { createWorkerRunner } from "./worker-runner";
+import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
 
 export interface ShopConfig {
   policy: Policy;
@@ -69,6 +69,7 @@ export interface Shop {
   cursor: LastSequence;
   repo: string;
   reviewing: boolean;
+  workers: string[];
   maxUsdPerDay: number | undefined;
   stop(): void;
 }
@@ -119,6 +120,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     }),
   });
 
+  const workers = (): Record<string, RoleSetup> => ({ [DEFAULT_WORKER]: config.team.roles.developer, ...config.team.workers });
   const reviewerRole = config.team.roles.code_reviewer;
   const reviewer = reviewerRole
     ? new PullRequestReview({
@@ -143,12 +145,13 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       log,
       vcs,
       workspace,
-      worker: createWorkerRunner(scheduler, { engine: config.team.roles.developer.engine, ...withModel(config.team.roles.developer) }),
+      worker: createWorkerRunner(scheduler, { workers, assigneeOf: (id) => activity.linksFor(id).worker }),
       rules,
     }),
     repo,
     findOrder: (id) => orders.get(id),
     listOrders: () => orders.list(),
+    workers: () => Object.keys(workers()),
     ...(config.reportError && { onError: config.reportError }),
     progressOf: (id) => activity.linksFor(id),
   });
@@ -195,6 +198,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     cursor,
     repo,
     reviewing: reviewer !== undefined,
+    workers: Object.keys(workers()),
     maxUsdPerDay: policy.run_budget.max_usd_per_day,
     stop() {
       stopFlow();

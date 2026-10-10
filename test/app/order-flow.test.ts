@@ -40,6 +40,8 @@ function shopPolicy(limits: Partial<Policy["limits"]> = {}): Policy {
   };
 }
 
+const WORKERS = { developer: { engine: "claude" as const }, careful: { engine: "claude" as const, model: "slow-model" } };
+
 type WorkerWork = (dir: string, request?: EngineRequest) => Promise<void>;
 
 async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string; reviews?: Array<Review | string> } = {}) {
@@ -60,7 +62,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock));
   const vcs = new FakeVcs();
   const workspace = new GitWorkspace({ root: path.join(sandbox.root, "shop"), clone: cloneFrom(sandbox.origin) });
-  const worker = createWorkerRunner(scheduler, { engine: "claude" });
+  const worker = createWorkerRunner(scheduler, { workers: () => WORKERS, assigneeOf: (id) => activity.linksFor(id).worker });
   const orderService = new OrderService(log, orders);
 
   const verdicts = [...(options.reviews ?? [])];
@@ -80,6 +82,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
     repo: options.repo ?? "acme/widgets",
     findOrder: (id) => orders.get(id),
     listOrders: () => orders.list(),
+    workers: () => Object.keys(WORKERS),
     progressOf: (id) => activity.linksFor(id),
   });
   flow.start();
@@ -247,6 +250,56 @@ describe("order flow", () => {
 
       expect(shop.flow.requestReview(id)).toMatchObject({ ok: false, error: { message: "the team has no code reviewer" } });
       expect(shop.activity.linksFor(id).reviews).toBe(0);
+    });
+  });
+
+  describe("reassignment", () => {
+    const failsOnce = () => {
+      let attempts = 0;
+      return (dir: string) => (++attempts === 1 ? Promise.reject(new Error("the worker gave up")) : createsFeature(dir));
+    };
+    const modelOfLastRun = (shop: Awaited<ReturnType<typeof createShop>>) => shop.engine.requests.at(-1)?.model;
+
+    it("runs the next attempt with the new worker and records who got the order", async () => {
+      const shop = await createShop(failsOnce());
+      const id = await proposeAndSign(shop);
+      expect(shop.runs.list().map((run) => run.role)).toEqual(["developer"]);
+
+      expect(await shop.flow.reassign(id, "careful")).toMatchObject({ ok: true });
+      await shop.flow.retry(id);
+      await shop.flow.idle();
+
+      expect(modelOfLastRun(shop)).toBe("slow-model");
+      expect(shop.runs.list().map((run) => run.role)).toEqual(["developer", "careful"]);
+      expect(shop.activity.linksFor(id).worker).toBe("careful");
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+    });
+
+    it("refuses a worker that is not on the team and a finished order", async () => {
+      const shop = await createShop(createsFeature);
+      const id = await proposeAndSign(shop);
+
+      expect(await shop.flow.reassign(id, "ghost")).toMatchObject({ ok: false, error: { message: "there is no worker ghost" } });
+      await shop.orderService.deliver(id);
+      expect(await shop.flow.reassign(id, "careful")).toMatchObject({ ok: false, error: { message: `${id} is delivered` } });
+      expect(await shop.flow.reassign("WO-0099", "careful")).toMatchObject({ ok: false, error: { kind: "not_found" } });
+    });
+
+    it("refuses while the order is being worked", async () => {
+      let open!: () => void;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      const shop = await createShop(async (dir) => {
+        await gate;
+        await createsFeature(dir);
+      });
+      const proposed = await shop.orderService.propose(validSpec());
+      if (!proposed.ok) throw new Error("propose failed");
+      await shop.orderService.sign(proposed.value.id);
+      for (let attempt = 0; attempt < 100 && shop.engine.requests.length === 0; attempt++) await new Promise((resolve) => setTimeout(resolve, 5));
+
+      expect(await shop.flow.reassign(proposed.value.id, "careful")).toMatchObject({ ok: false, error: { message: expect.stringContaining("stop it first") } });
+      open();
+      await shop.flow.idle();
     });
   });
 

@@ -13,6 +13,13 @@ roles:
   # code_reviewer:
   #   engine: codex
 
+# More developers to hand orders to. `developer` above stays the default; the ones here are extra choices
+# in the console, each with its own engine and model.
+# workers:
+#   careful:
+#     engine: claude
+#     model: claude-opus-5-5
+
 # Read-only roles the Manager can consult, up to three at once. `soul` is a markdown file, relative to
 # this file; `description` is what the Manager sees when it decides whom to ask. Leave the section out
 # and the Manager works alone.

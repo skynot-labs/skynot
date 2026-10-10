@@ -105,6 +105,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   orderCommand("sign-order", (id) => shop.orderService.sign(id));
   orderCommand("retry-order", (id) => shop.flow.retry(id));
   orderCommand("review-order", async (id) => shop.flow.requestReview(id));
+  orderCommand("reassign-order", (id, body) => shop.flow.reassign(id, (body as { worker: string }).worker), { worker: z.string().regex(/^[a-z][a-z0-9-]{1,23}$/) });
   orderCommand("stop-order", async (id) => shop.flow.stop(id));
   orderCommand("approve-protected-paths", (id) => shop.flow.approveProtected(id));
   orderCommand("follow-up", (id, body) => shop.flow.followUp(id, (body as { text: string }).text), { text });

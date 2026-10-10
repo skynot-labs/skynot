@@ -32,7 +32,7 @@ export function Orders({ state, send }: { state: ShopState; send: Send }) {
           <div class="stage" key={stage.title}>
             <h3>{stage.title} <span class="count">{stage.orders.length}</span></h3>
             {stage.orders.map((order) => (
-              <OrderCard key={order.id} order={order} simulated={state.simulated} reviewing={state.reviewing} send={send} />
+              <OrderCard key={order.id} order={order} simulated={state.simulated} reviewing={state.reviewing} workers={state.workers} send={send} />
             ))}
           </div>
         ))}
@@ -40,7 +40,7 @@ export function Orders({ state, send }: { state: ShopState; send: Send }) {
   );
 }
 
-function OrderCard({ order, simulated, reviewing, send }: { order: OrderView; simulated: boolean; reviewing: boolean; send: Send }) {
+function OrderCard({ order, simulated, reviewing, workers, send }: { order: OrderView; simulated: boolean; reviewing: boolean; workers: string[]; send: Send }) {
   const act = (name: string, extra: object = {}) => send(`/api/commands/${name}`, { orderId: order.id, ...extra });
 
   return (
@@ -89,6 +89,15 @@ function OrderCard({ order, simulated, reviewing, send }: { order: OrderView; si
         <div class="actions">
           <button type="button" onClick={() => act("discard-order")}>Discard</button>
         </div>
+      )}
+
+      {workers.length > 1 && ["signed", "on_bench", "in_review"].includes(order.status) && (
+        <label class="assignee">
+          Worker{" "}
+          <select value={order.worker ?? "developer"} onChange={(event) => void act("reassign-order", { worker: event.currentTarget.value })}>
+            {workers.map((worker) => <option key={worker} value={worker}>{worker}</option>)}
+          </select>
+        </label>
       )}
 
       {order.status === "in_review" && <Verdict order={order} reviewing={reviewing} act={act} />}
