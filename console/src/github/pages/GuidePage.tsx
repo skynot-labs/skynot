@@ -28,10 +28,10 @@ export function GuidePage({ page }: { page: PublicPage }) {
       id: "pages",
       number: "03",
       title: "The Skynot repository site",
-      text: "The repository carries the workflow at .github/workflows/pages.yml: it builds the static site and deploys it. Choose GitHub Actions as the source under Settings → Pages, then run the workflow by hand. It never runs on push.",
+      text: "The repository carries the workflow at .github/workflows/pages.yml: it builds the static site and deploys it. Choose GitHub Actions as the source under Settings → Pages once; after that every push to main that touches the console publishes it.",
       file: "workflows/pages.yml",
       download: "Download workflow",
-      code: "npm run build:github\n\nconsole/dist/github/          The built site\n.github/workflows/pages.yml  Manual deploy",
+      code: "npm run build:github\n\nconsole/dist/github/          The built site\n.github/workflows/pages.yml  Deploy on push to main",
     },
     {
       id: "maintain",
