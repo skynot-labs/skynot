@@ -1,5 +1,5 @@
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActivityProjection } from "../../src/app/activity";
 import { createDeliveryRules } from "../../src/app/delivery-rules";
 import { OrderFlow } from "../../src/app/order-flow";
@@ -339,6 +339,45 @@ describe("order flow", () => {
       await shop.flow.idle();
 
       expect(shop.engine.requests).toHaveLength(2);
+    });
+  });
+
+  describe("discard", () => {
+    it("drops an order that is blocked on the bench", async () => {
+      const shop = await createShop(async () => undefined);
+      const id = await proposeAndSign(shop);
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+
+      const dropped = await shop.flow.discard(id);
+
+      expect(dropped).toMatchObject({ ok: true, value: { status: "discarded" } });
+    });
+
+    it("refuses to drop an order while a worker is still on it", async () => {
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      const shop = await createShop(async (dir) => {
+        await gate;
+        await createsFeature(dir);
+      });
+      const proposed = await shop.orderService.propose(validSpec());
+      if (!proposed.ok) throw new Error("propose failed");
+      await shop.orderService.sign(proposed.value.id);
+      await vi.waitFor(() => expect(shop.engine.requests).toHaveLength(1));
+
+      const refused = await shop.flow.discard(proposed.value.id);
+      release();
+      await shop.flow.idle();
+
+      expect(refused).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
+      expect(shop.orders.get(proposed.value.id)?.status).toBe("in_review");
+    });
+
+    it("still discards an order that was only signed", async () => {
+      const shop = await createShop(createsFeature, { repo: "acme/other" });
+      const id = await proposeAndSign(shop);
+
+      expect(await shop.flow.discard(id)).toMatchObject({ ok: true, value: { status: "discarded" } });
     });
   });
 });

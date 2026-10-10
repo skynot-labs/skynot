@@ -1,5 +1,6 @@
 export { CriterionSchema, WorkOrderSpecSchema, describeIssues, type Criterion, type WorkOrderSpec } from "./work-order-spec";
 export {
+  abandon,
   asOrderEvent,
   deliver,
   discard,

@@ -2,6 +2,7 @@ import { err, ok, type Result } from "../../kernel";
 import type { EventLog } from "../../kernel/events";
 import {
   WorkOrderSpecSchema,
+  abandon,
   deliver,
   describeIssues,
   discard,
@@ -44,6 +45,10 @@ export class OrderService {
 
   discard(id: string): Promise<OrderResult> {
     return this.act(id, discard);
+  }
+
+  abandon(id: string): Promise<OrderResult> {
+    return this.act(id, abandon);
   }
 
   startWork(id: string): Promise<OrderResult> {

@@ -104,7 +104,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   orderCommand("sign-order", (id) => shop.orderService.sign(id));
   orderCommand("retry-order", (id) => shop.flow.retry(id));
   orderCommand("follow-up", (id, body) => shop.flow.followUp(id, (body as { text: string }).text), { text });
-  orderCommand("discard-order", (id) => shop.orderService.discard(id));
+  orderCommand("discard-order", (id) => shop.flow.discard(id));
   orderCommand("record-minutes", (id, body) => shop.orderService.recordMinutes(id, (body as { bucket: z.infer<typeof bucket> }).bucket), { bucket });
 
   if (options.devTools) {

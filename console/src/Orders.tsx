@@ -51,6 +51,7 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
       {order.blocked && (order.status === "signed" || order.status === "on_bench") && (
         <div class="actions">
           <button type="button" onClick={() => act("retry-order")}>Retry</button>
+          {order.status === "on_bench" && <button type="button" onClick={() => act("discard-order")}>Discard</button>}
         </div>
       )}
 
