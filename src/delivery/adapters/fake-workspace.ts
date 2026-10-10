@@ -14,6 +14,10 @@ export class FakeWorkspace implements Workspace {
     return mkdtemp(join(tmpdir(), "skynot-fake-worktree-"));
   }
 
+  prepareFollowUp(): Promise<string> {
+    return this.prepare();
+  }
+
   async changes(): Promise<FileChange[]> {
     return [{ status: "A", path: "src/feature.txt" }];
   }

@@ -1,3 +1,4 @@
+import { useState } from "preact/hooks";
 import type { MinutesBucket, OrderView, ShopState } from "./api";
 
 type Send = (path: string, body: object) => Promise<boolean>;
@@ -71,6 +72,8 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
         </div>
       )}
 
+      {order.status === "in_review" && <FollowUp orderId={order.id} send={send} />}
+
       {order.status === "in_review" && simulated && (
         <div class="actions">
           <button type="button" onClick={() => send("/api/dev/merge-pull-request", { orderId: order.id })}>Merge (simulated)</button>
@@ -105,5 +108,22 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
         <p class="risk">Risk: {order.risk}</p>
       </details>
     </article>
+  );
+}
+
+function FollowUp({ orderId, send }: { orderId: string; send: Send }) {
+  const [text, setText] = useState("");
+
+  return (
+    <form
+      class="other"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (text.trim() && (await send("/api/commands/follow-up", { orderId, text: text.trim() }))) setText("");
+      }}
+    >
+      <input value={text} placeholder="follow-up for the worker, e.g. resolve the conflicts with main" onInput={(event) => setText(event.currentTarget.value)} />
+      <button type="submit" disabled={!text.trim()}>Follow up</button>
+    </form>
   );
 }

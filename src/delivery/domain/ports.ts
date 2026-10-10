@@ -30,6 +30,7 @@ export interface CommandOutcome {
 export interface Workspace {
   readingCopy(repo: string, baseBranch: string): Promise<string>;
   prepare(repo: string, baseBranch: string, branch: string): Promise<string>;
+  prepareFollowUp(repo: string, baseBranch: string, branch: string): Promise<string>;
   changes(dir: string): Promise<FileChange[]>;
   commit(dir: string, message: string): Promise<void>;
   push(dir: string, branch: string): Promise<void>;

@@ -48,19 +48,48 @@ export class OrderFlow {
     return ok(order);
   }
 
+  async followUp(orderId: string, instruction: string): Promise<Result<WorkOrder, OrderError>> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    const { issue } = this.deps.progressOf(orderId);
+    if (order.status !== "in_review" || order.pullRequest === null || issue === null) {
+      return err({ kind: "invalid_transition", message: `${orderId} has no open pull request to follow up on` });
+    }
+    if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
+
+    this.running.add(orderId);
+    try {
+      await this.deps.log.record([{ type: "delivery.follow_up_requested", payload: { orderId, instruction } }]);
+    } catch (error) {
+      this.running.delete(orderId);
+      throw error;
+    }
+    this.launch(orderId, () => this.runFollowUp(order, issue, instruction));
+    return ok(order);
+  }
+
   private react(event: StoredEvent): void {
     if (event.type !== "orders.signed") return;
 
     this.launch((event.payload as { orderId: string }).orderId);
   }
 
-  private launch(orderId: string): void {
+  private launch(orderId: string, task: () => Promise<void> = () => this.run(orderId)): void {
     this.running.add(orderId);
-    const run = this.run(orderId).finally(() => {
+    const run = task().finally(() => {
       this.inFlight.delete(run);
       this.running.delete(orderId);
     });
     this.inFlight.add(run);
+  }
+
+  private async runFollowUp(order: WorkOrder, issue: number, instruction: string): Promise<void> {
+    const { implementer, repo, log } = this.deps;
+    try {
+      await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction);
+    } catch (error) {
+      await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: (error as Error).message } }]);
+    }
   }
 
   private async run(orderId: string): Promise<void> {

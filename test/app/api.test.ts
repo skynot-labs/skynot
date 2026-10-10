@@ -116,6 +116,14 @@ describe("console api", () => {
     expect((await post("/api/commands/retry-order", { orderId: "WO-0099" })).status).toBe(404);
   });
 
+  it("refuses a follow-up on an order without a pull request, an unknown order and an empty instruction", async () => {
+    const id = await fileAnOrder();
+
+    expect((await post("/api/commands/follow-up", { orderId: id, text: "do more" })).status).toBe(409);
+    expect((await post("/api/commands/follow-up", { orderId: "WO-0099", text: "do more" })).status).toBe(404);
+    expect((await post("/api/commands/follow-up", { orderId: id, text: "   " })).status).toBe(400);
+  });
+
   it("rejects malformed commands without changing anything", async () => {
     expect((await post("/api/commands/send-message", { text: "   " })).status).toBe(400);
     expect((await post("/api/commands/sign-order", { orderId: "not-an-id" })).status).toBe(400);

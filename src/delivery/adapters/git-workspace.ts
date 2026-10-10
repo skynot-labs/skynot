@@ -36,12 +36,16 @@ export class GitWorkspace implements Workspace {
   }
 
   prepare(repo: string, baseBranch: string, branch: string): Promise<string> {
+    return this.exclusive(repo, () => this.cutWorktree(repo, baseBranch, branch));
+  }
+
+  // A squash leaves conflicts as markers in the files, with no rebase or merge state to finish.
+  prepareFollowUp(repo: string, baseBranch: string, branch: string): Promise<string> {
     return this.exclusive(repo, async () => {
-      const source = await this.refresh(repo, baseBranch);
-      const dir = join(this.options.root, "worktrees", repo, branch.replaceAll("/", "-"));
-      await rm(dir, { recursive: true, force: true });
-      await this.git(source, "worktree", "prune");
-      await this.git(source, "worktree", "add", "-B", branch, dir, `origin/${baseBranch}`);
+      const dir = await this.cutWorktree(repo, baseBranch, branch);
+      const merged = await this.execute("git", ["merge", "--squash", `origin/${branch}`], { cwd: dir, env: this.gitEnv() });
+      const conflicts = (await this.git(dir, "diff", "--name-only", "--diff-filter=U")).trim();
+      if (merged.code !== 0 && !conflicts) throw new Error(`could not bring ${branch} up to date: ${(merged.stderr || merged.stdout).trim()}`);
       return dir;
     });
   }
@@ -101,7 +105,20 @@ export class GitWorkspace implements Workspace {
     return dir;
   }
 
+  private async cutWorktree(repo: string, baseBranch: string, branch: string): Promise<string> {
+    const source = await this.refresh(repo, baseBranch);
+    const dir = join(this.options.root, "worktrees", repo, branch.replaceAll("/", "-"));
+    await rm(dir, { recursive: true, force: true });
+    await this.git(source, "worktree", "prune");
+    await this.git(source, "worktree", "add", "-B", branch, dir, `origin/${baseBranch}`);
+    return dir;
+  }
+
+  private gitEnv(): NodeJS.ProcessEnv {
+    return { ...process.env, ...IDENTITY };
+  }
+
   private git(dir: string, ...args: string[]): Promise<string> {
-    return run(this.execute, "git", args, { cwd: dir, env: { ...process.env, ...IDENTITY } });
+    return run(this.execute, "git", args, { cwd: dir, env: this.gitEnv() });
   }
 }

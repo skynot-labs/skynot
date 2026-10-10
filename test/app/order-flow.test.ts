@@ -10,7 +10,7 @@ import { ActionBudget, ActionCounts, type Policy } from "../../src/governance";
 import { fixedClock } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
 import { OrderService, OrdersProjection } from "../../src/orders";
-import { addFiles, cloneFrom, createSandbox, type Sandbox } from "../delivery/git-fixture";
+import { addFiles, cloneFrom, createSandbox, git, type Sandbox } from "../delivery/git-fixture";
 import { examplePolicy } from "../governance/fixtures";
 import { validSpec } from "../orders/fixtures";
 
@@ -239,6 +239,106 @@ describe("order flow", () => {
 
       expect(shop.engine.requests).toHaveLength(2);
       expect(shop.vcs.pullRequests).toHaveLength(1);
+    });
+  });
+
+  describe("follow-up", () => {
+    async function moveMain(files: Record<string, string>) {
+      const upstream = path.join(sandbox.root, "upstream");
+      await git(sandbox.root, "clone", "--quiet", sandbox.origin, upstream);
+      await addFiles(upstream, files);
+      await git(upstream, "add", "-A");
+      await git(upstream, "commit", "-m", "main moved");
+      await git(upstream, "push", "origin", "main");
+    }
+
+    const branchFile = async (name: string) => (await git(sandbox.origin, "show", `taller/wo-0001:${name}`)).trimEnd();
+
+    // the first run creates the feature; later runs apply `followUpWork`
+    const afterFirst = (followUpWork: WorkerWork): WorkerWork => {
+      let runs = 0;
+      return (dir) => (++runs === 1 ? createsFeature(dir) : followUpWork(dir));
+    };
+
+    it("applies the director's instruction to the same pull request", async () => {
+      const shop = await createShop(afterFirst((dir) => addFiles(dir, { "src/extra.txt": "extra\n" })));
+      const id = await proposeAndSign(shop);
+
+      const sent = await shop.flow.followUp(id, "also add an extra file");
+      await shop.flow.idle();
+
+      expect(sent.ok).toBe(true);
+      expect(shop.engine.requests[1]?.prompt).toContain("also add an extra file");
+      expect(shop.orders.get(id)).toMatchObject({ status: "in_review", pullRequest: 2 });
+      expect(shop.vcs.pullRequests).toHaveLength(1);
+      expect(await branchFile("src/extra.txt")).toBe("extra");
+      expect(await shop.eventTypes()).toEqual([
+        "delivery.issue_opened",
+        "delivery.pull_request_opened",
+        "delivery.follow_up_requested",
+        "delivery.pull_request_updated",
+      ]);
+    });
+
+    it("resolves a conflict with the base branch and keeps the history linear", async () => {
+      const shop = await createShop(afterFirst((dir) => addFiles(dir, { "src/feature.txt": "feature\nother\n" })));
+      const id = await proposeAndSign(shop);
+      await moveMain({ "src/feature.txt": "other\n" });
+
+      await shop.flow.followUp(id, "resolve the conflicts with main");
+      await shop.flow.idle();
+
+      expect(shop.engine.requests[1]?.prompt).toContain("resolve the conflicts with main");
+      expect(await branchFile("src/feature.txt")).toBe("feature\nother");
+      await git(sandbox.origin, "merge-base", "--is-ancestor", "main", "taller/wo-0001");
+      expect((await git(sandbox.origin, "rev-list", "--count", "main..taller/wo-0001")).trim()).toBe("1");
+      expect((await git(sandbox.origin, "rev-list", "--merges", "--count", "taller/wo-0001")).trim()).toBe("0");
+    });
+
+    it("blocks and leaves the pull request untouched when conflict markers remain", async () => {
+      const shop = await createShop(afterFirst(async () => undefined));
+      const id = await proposeAndSign(shop);
+      await moveMain({ "src/feature.txt": "other\n" });
+      const before = (await git(sandbox.origin, "rev-parse", "taller/wo-0001")).trim();
+
+      await shop.flow.followUp(id, "resolve the conflicts with main");
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+      expect(await shop.eventTypes()).toContain("delivery.work_blocked");
+      expect(await shop.eventTypes()).not.toContain("delivery.pull_request_updated");
+      expect((await git(sandbox.origin, "rev-parse", "taller/wo-0001")).trim()).toBe(before);
+    });
+
+    it("blocks a follow-up that touches a protected path", async () => {
+      const shop = await createShop(afterFirst((dir) => addFiles(dir, { ".github/workflows/ci.yml": "on: push" })));
+      const id = await proposeAndSign(shop);
+
+      await shop.flow.followUp(id, "add a workflow");
+      await shop.flow.idle();
+
+      expect(await shop.eventTypes()).toContain("delivery.work_blocked");
+      expect(await shop.eventTypes()).not.toContain("delivery.pull_request_updated");
+    });
+
+    it("refuses an order without an open pull request and one that does not exist", async () => {
+      const shop = await createShop(createsFeature);
+      const proposed = await shop.orderService.propose(validSpec());
+      if (!proposed.ok) throw new Error("propose failed");
+
+      expect(await shop.flow.followUp(proposed.value.id, "do more")).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
+      expect(await shop.flow.followUp("WO-0099", "do more")).toMatchObject({ ok: false, error: { kind: "not_found" } });
+      expect(shop.engine.requests).toHaveLength(0);
+    });
+
+    it("starts only one run when the follow-up is sent twice at once", async () => {
+      const shop = await createShop(afterFirst((dir) => addFiles(dir, { "src/extra.txt": "extra\n" })));
+      const id = await proposeAndSign(shop);
+
+      await Promise.all([shop.flow.followUp(id, "add extra"), shop.flow.followUp(id, "add extra")]);
+      await shop.flow.idle();
+
+      expect(shop.engine.requests).toHaveLength(2);
     });
   });
 });

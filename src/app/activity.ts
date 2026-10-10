@@ -68,6 +68,10 @@ export class ActivityProjection implements Projection {
         return delivery(`blocked: ${payload.reason}`);
       case "delivery.work_retried":
         return delivery("retry requested");
+      case "delivery.follow_up_requested":
+        return delivery(`follow-up requested: ${payload.instruction}`);
+      case "delivery.pull_request_updated":
+        return delivery(`pull request #${payload.number} updated`);
       case "execution.run_requested":
         this.runOrders.set(payload.runId as string, { role: payload.role as string, orderId });
         return null;
@@ -102,6 +106,8 @@ export class ActivityProjection implements Projection {
         break;
       case "orders.work_started":
       case "delivery.work_retried":
+      case "delivery.follow_up_requested":
+      case "delivery.pull_request_updated":
         this.links.set(orderId, { ...current, blocked: null });
         break;
     }

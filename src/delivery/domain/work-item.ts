@@ -67,7 +67,7 @@ export interface WorkerRules {
   verifyCommands: readonly string[];
 }
 
-export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, failure?: string): string {
+export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, failure?: string, followUp?: string): string {
   const criteria = item.criteria
     .map((criterion) => `- ${criterion.statement} (verify, ${criterion.verification.kind}: ${criterion.verification.detail})`)
     .join("\n");
@@ -89,6 +89,17 @@ export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, 
     ].join("\n"),
     "Finish with a short report: for each acceptance criterion, the evidence (a test name, or a command and its result).",
   ];
+  if (followUp) {
+    parts.splice(
+      1,
+      0,
+      [
+        "This is a follow-up on an open pull request. The branch already holds the work for this order, brought up to date with the base branch.",
+        "Files containing conflict markers (<<<<<<<, =======, >>>>>>>) are unresolved merge conflicts: resolve each one keeping the intent of both sides, and leave no marker behind.",
+        `The director asks:\n${followUp}`,
+      ].join("\n"),
+    );
+  }
   if (failure) parts.push(`Your previous attempt failed verification. Output:\n${failure}\nFix it.`);
   return parts.join("\n\n");
 }

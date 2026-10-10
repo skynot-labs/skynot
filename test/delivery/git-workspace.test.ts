@@ -32,6 +32,53 @@ describe("git workspace", () => {
     expect(await relativeWorkspace.run(dir, "cat src/app.txt", 5000)).toEqual({ ok: true, output: "app" });
   });
 
+  describe("follow-up", () => {
+    async function pushBranch(files: Record<string, string>) {
+      const dir = await workspace.prepare("acme/widgets", "main", "taller/wo-0001");
+      await addFiles(dir, files);
+      await workspace.commit(dir, "WO-0001: work");
+      await workspace.push(dir, "taller/wo-0001");
+      await workspace.drop("acme/widgets", dir);
+    }
+
+    async function moveMain(files: Record<string, string>) {
+      const upstream = path.join(sandbox.root, "upstream");
+      await git(sandbox.root, "clone", "--quiet", sandbox.origin, upstream);
+      await addFiles(upstream, files);
+      await git(upstream, "add", "-A");
+      await git(upstream, "commit", "-m", "main moved");
+      await git(upstream, "push", "origin", "main");
+    }
+
+    it("puts the branch's work on top of the new tip of the base branch", async () => {
+      await pushBranch({ "src/feature.txt": "feature\n" });
+      await moveMain({ "src/later.txt": "later\n" });
+
+      const dir = await workspace.prepareFollowUp("acme/widgets", "main", "taller/wo-0001");
+
+      expect(await readFile(path.join(dir, "src/feature.txt"), "utf8")).toBe("feature\n");
+      expect(await readFile(path.join(dir, "src/later.txt"), "utf8")).toBe("later\n");
+      expect((await git(dir, "rev-parse", "HEAD")).trim()).toBe((await git(dir, "rev-parse", "origin/main")).trim());
+      expect(await workspace.changes(dir)).toEqual([{ status: "A", path: "src/feature.txt" }]);
+    });
+
+    it("leaves a conflict as markers in the file for the worker to resolve", async () => {
+      await pushBranch({ "src/app.txt": "branch\n" });
+      await moveMain({ "src/app.txt": "main\n" });
+
+      const dir = await workspace.prepareFollowUp("acme/widgets", "main", "taller/wo-0001");
+
+      const content = await readFile(path.join(dir, "src/app.txt"), "utf8");
+      expect(content).toContain("<<<<<<<");
+      expect(content).toContain("branch");
+      expect(content).toContain("main");
+    });
+
+    it("fails clearly when the branch was never pushed", async () => {
+      await expect(workspace.prepareFollowUp("acme/widgets", "main", "taller/wo-0099")).rejects.toThrow(/could not bring taller\/wo-0099 up to date/);
+    });
+  });
+
   it("gives a reading copy at the tip of the base branch, refreshed on every call", async () => {
     const first = await workspace.readingCopy("acme/widgets", "main");
     expect(await readFile(path.join(first, "src/app.txt"), "utf8")).toBe("app\n");
