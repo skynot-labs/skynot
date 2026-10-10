@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
-import { RunsProjection } from "../../src/execution";
+import { closeOrphanedRuns, RunsProjection } from "../../src/execution";
 import type { Clock } from "../../src/kernel";
 
 async function openRuns() {
@@ -20,8 +20,25 @@ async function openRuns() {
         : [{ type: "execution.run_completed", payload: { runId, costUsd, turns: 1, model: "m" } }],
     );
   };
-  return { runs, finish };
+  return { runs, finish, log };
 }
+
+describe("runs left over by a restart", () => {
+  it("closes the queued and running ones as failed and leaves finished runs alone", async () => {
+    const { runs, log } = await openRuns();
+    const request = (runId: string) => log.record([{ type: "execution.run_requested", payload: { runId, role: "developer", engine: "claude", access: "read", orderId: "WO-0001" } }]);
+    await request("run_queued");
+    await request("run_running");
+    await log.record([{ type: "execution.run_started", payload: { runId: "run_running" } }]);
+    await request("run_done");
+    await log.record([{ type: "execution.run_completed", payload: { runId: "run_done", costUsd: 0.5, turns: 1, model: "m" } }]);
+
+    expect(await closeOrphanedRuns(runs, log)).toBe(2);
+
+    expect(runs.list().map((run) => [run.id, run.status])).toEqual([["run_queued", "failed"], ["run_running", "failed"], ["run_done", "completed"]]);
+    expect(await closeOrphanedRuns(runs, log)).toBe(0);
+  });
+});
 
 describe("costs", () => {
   it("adds up what each order and each day cost", async () => {

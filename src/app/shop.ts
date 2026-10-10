@@ -11,6 +11,7 @@ import {
 import {
   ClaudeEngine,
   CodexEngine,
+  closeOrphanedRuns,
   RunScheduler,
   RunsProjection,
   ShopControl,
@@ -93,6 +94,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const control = new ShopControl(log);
   for (const projection of [orders, chat, runs, activity, counts, cursor, roster, control]) await attachProjection(log, projection);
 
+  await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, () => control.paused() !== null);
   const vcs = config.vcs ?? new GhVcs();
