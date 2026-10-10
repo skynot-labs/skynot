@@ -244,6 +244,17 @@ describe("order flow", () => {
       expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "approved" });
     });
 
+    it("never sends work back for a review the director asked for, even when no review ran before", async () => {
+      const shop = await createShop(createsFeature, { reviews: ["the engine is unavailable", changes, approved] });
+      const id = await proposeAndSign(shop);
+
+      shop.flow.requestReview(id);
+      await shop.flow.idle();
+
+      expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "changes_requested" });
+      expect(shop.activity.recent(50).some((entry) => entry.text.startsWith("follow-up requested"))).toBe(false);
+    });
+
     it("does nothing, and says so, when the team has no reviewer", async () => {
       const shop = await createShop(createsFeature);
       const id = await proposeAndSign(shop);

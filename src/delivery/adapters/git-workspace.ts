@@ -51,11 +51,17 @@ export class GitWorkspace implements Workspace {
   }
 
   async changes(dir: string): Promise<FileChange[]> {
-    const status = await this.git(dir, "status", "--porcelain", "--untracked-files=all");
-    return status
-      .split("\n")
-      .filter(Boolean)
-      .map((line) => ({ status: line.slice(0, 2).trim(), path: line.slice(3).split(" -> ").at(-1) ?? "" }));
+    // -z leaves paths unquoted: without it git wraps names with spaces or accents in quotes, and a protected path stops matching
+    const entries = (await this.git(dir, "status", "--porcelain", "-z", "--untracked-files=all")).split("\0").filter(Boolean);
+    const changes: FileChange[] = [];
+    for (let index = 0; index < entries.length; index++) {
+      const entry = entries[index]!;
+      const status = entry.slice(0, 2).trim();
+      changes.push({ status, path: entry.slice(3) });
+      // a rename or copy is followed by the path it came from
+      if (/[RC]/.test(entry.slice(0, 2))) changes.push({ status: "R", path: entries[++index] ?? "" });
+    }
+    return changes;
   }
 
   async commit(dir: string, message: string): Promise<void> {

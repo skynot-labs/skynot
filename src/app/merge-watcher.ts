@@ -55,7 +55,7 @@ export class MergeWatcher {
   private async reportChecks(orderId: string, pullRequest: number): Promise<void> {
     const { vcs, repo, log, progressOf } = this.deps;
     const state = await vcs.pullRequestChecks(repo, pullRequest);
-    if (state !== (progressOf(orderId).checks ?? "none")) await log.record([{ type: "delivery.checks_changed", payload: { orderId, state } }]);
+    if (state !== progressOf(orderId).checks) await log.record([{ type: "delivery.checks_changed", payload: { orderId, state } }]);
   }
 
   // Once per merge: a worker that cannot resolve the conflict blocks the order and the director takes over.

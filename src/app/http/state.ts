@@ -55,6 +55,6 @@ function presence(shop: Shop) {
 
 // "Reviewed" means approved by the independent reviewer, and the pull request's checks are not red or running.
 function isReady(links: ReturnType<Shop["activity"]["linksFor"]>, reviewing: boolean): boolean {
-  const checksOk = links.checks === null || links.checks === "none" || links.checks === "passing";
+  const checksOk = links.checks === "none" || links.checks === "passing";
   return links.pullRequestUrl !== null && checksOk && (!reviewing || links.review?.verdict === "approved");
 }
