@@ -20,7 +20,12 @@ async function openGuard(maxUsdPerDay: number | undefined) {
     await log.record([{ type: "execution.run_requested", payload: { runId, role: "developer", engine: "claude", access: "read", orderId: null } }]);
     await log.record([{ type: "execution.run_completed", payload: { runId, costUsd, turns: 1, model: "m" } }]);
   };
-  return { control, spend };
+  const fail = async (costUsd: number) => {
+    const runId = `run_${++next}`;
+    await log.record([{ type: "execution.run_requested", payload: { runId, role: "developer", engine: "claude", access: "write", orderId: null } }]);
+    await log.record([{ type: "execution.run_failed", payload: { runId, failure: { kind: "failed", message: "out of budget", costUsd } } }]);
+  };
+  return { control, spend, fail };
 }
 
 describe("cost guard", () => {
@@ -32,6 +37,16 @@ describe("cost guard", () => {
     await spend(0.5);
 
     await vi.waitFor(() => expect(control.paused()?.reason).toBe("the daily cost cap of $1.00 was reached ($1.10 spent)"));
+  });
+
+  it("counts runs that failed after spending", async () => {
+    const { control, fail } = await openGuard(5);
+
+    await fail(3.02);
+    expect(control.paused()).toBeNull();
+    await fail(3.02);
+
+    await vi.waitFor(() => expect(control.paused()?.reason).toContain("$6.04 spent"));
   });
 
   it("does nothing without a cap", async () => {

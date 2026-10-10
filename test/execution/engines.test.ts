@@ -73,6 +73,12 @@ describe("claude output", () => {
     expect(parseClaude(stdout)).toMatchObject({ ok: true, value: { model: "claude-sonnet" } });
   });
 
+  it("keeps what a run cost when it ends in an error", () => {
+    const stdout = JSON.stringify({ is_error: true, subtype: "error_max_budget_usd", total_cost_usd: 3.02 });
+
+    expect(parseClaude(stdout)).toMatchObject({ ok: false, error: { kind: "failed", costUsd: 3.02 } });
+  });
+
   it("turns a stopped run and non-JSON output into failures", () => {
     expect(parseClaude(JSON.stringify({ is_error: true, subtype: "error_max_budget_usd" }))).toMatchObject({ ok: false });
     expect(parseClaude("Segmentation fault")).toMatchObject({ ok: false, error: { kind: "failed" } });

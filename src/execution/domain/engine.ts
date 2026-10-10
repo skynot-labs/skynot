@@ -28,6 +28,7 @@ export interface EngineResult {
 export interface EngineFailure {
   readonly kind: "timeout" | "failed" | "engine_unavailable" | "cancelled";
   readonly message: string;
+  readonly costUsd?: number;
 }
 
 export interface LoginStatus {
