@@ -24,7 +24,14 @@ export class RosterProjection implements Projection {
     const { changeId } = event.payload;
     switch (event.type) {
       case "team.change_proposed":
-        this.changes.set(changeId, { id: changeId, ...event.payload, status: "pending", proposedAt: stored.occurredAt });
+        this.changes.set(changeId, {
+          id: changeId,
+          action: event.payload.action,
+          role: event.payload.role,
+          reason: event.payload.reason,
+          status: "pending",
+          proposedAt: stored.occurredAt,
+        });
         break;
       case "team.change_signed":
         this.settle(changeId, "signed");
