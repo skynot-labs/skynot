@@ -9,13 +9,15 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p console",
-    "build:console": "npm run design:export && vite build --config console/vite.config.ts",
+    "build:console": "npm run design:export && vite build --config console/vite.config.ts && npm run github:export && vite build --config console/vite.github.config.ts",
     "dev:console": "vite --config console/vite.config.ts",
     "test": "vitest run",
     "dev": "SKYNOT_MOCK=1 tsx src/app/main.ts",
     "start": "tsx src/app/main.ts",
     "check": "tsx src/app/check.ts",
-    "design:export": "node console/scripts/export-design.mjs"
+    "design:export": "node console/scripts/export-design.mjs",
+    "github:export": "node console/scripts/export-github.mjs",
+    "build:github": "npm run design:export && npm run github:export && vite build --config console/vite.github.config.ts"
   },
   "devDependencies": {
     "@preact/preset-vite": "^2.10.6",
