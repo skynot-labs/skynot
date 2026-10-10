@@ -93,15 +93,13 @@ The order is open to change after 4.2: if the inbox or the intake hurts more tha
   file stays untouched) and a new focus for an advisor (appended to its soul). Roles also take an optional
   display `name`. Adding a role is hiring, which already existed.
 
-## Known limits found in review
+## Found in review, and fixed
 
-- **"The first project" is the first folder by name.** Adding a project that sorts before it moves the history
-  written before projects existed. Keep the old project's folder first, or add an explicit legacy field when it hurts.
-- **A ticket is taken before the Manager reads it.** If the Manager fails on it (engine error), the failure shows in
-  the chat and the ticket is not retried; remove the `intake.ticket_taken` event's effect by relabelling is not
-  possible yet. Ask the Manager about it in the chat.
-- **The board mirror does not serialize moves per card or retry,** and has no column for discarded orders.
-- `/api/state?project=` with an unknown id returns the first project instead of an error.
+- The project policy.yaml names first stays the first project, so adding a folder never moves the old history.
+- A ticket the Manager fails on becomes a question in the inbox instead of being lost.
+- The board mirror moves a card one step at a time, in the order the events happened. A discarded order needs no
+  move: only an order that has not started can be discarded, and its card is still where it was.
+- `/api/state?project=` with an unknown id answers 404.
 
 ## Coverage of a dev shop
 

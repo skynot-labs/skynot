@@ -307,6 +307,49 @@ describe("work taken from GitHub", () => {
   });
 });
 
+describe("what the review of phase 4 found", () => {
+  const issue = { repo: "acme/blog", label: "taller:ready", number: 3, title: "Dark mode", body: "Add it.", url: "https://github.com/acme/blog/issues/3" };
+
+  it("keeps a ticket the Manager failed on, as a question for the director", async () => {
+    const vcs = new FakeVcs();
+    vcs.tickets.push(issue);
+    const down = new FakeEngine(() => ({ kind: "engine_unavailable", message: "claude is not logged in" }));
+    const shop = await createShop({ policy: examplePolicy(), dataDir, team: team(), projects: [project("blog")], engines: { claude: down, codex: createMockDeveloper() }, vcs, workspace: new FakeWorkspace() });
+    shops.push(shop);
+
+    await shop.intake.poll();
+    await shop.intake.poll();
+
+    const [item] = inboxOf(shop, "blog");
+    expect(item).toMatchObject({ kind: "ticket_doubt" });
+    expect(shop.desk("blog")!.chat.openDecisions()).toHaveLength(1);
+  });
+
+  it("answers 404 for a project that does not exist, instead of showing another one", async () => {
+    const { shop } = await openShop();
+    const response = await createApi(shop, { allowedHosts: ["console"] }).request("/api/state?project=nope", { headers: { host: "console" } });
+    expect(response.status).toBe(404);
+  });
+
+  it("moves a card in the order its events happened, even when an earlier move is slower", async () => {
+    const log: string[] = [];
+    const board: Board = {
+      place: async ({ url, stage }) => {
+        if (stage === "in_progress") await new Promise((resolve) => setTimeout(resolve, 30));
+        log.push(`${url.slice(-1)}:${stage}`);
+      },
+    };
+    const { shop } = await openShop({}, new FakeVcs(), createMockDeveloper(), (candidate) => (candidate.id === "blog" ? board : undefined));
+    const filed = await fileAnOrder(shop, "blog", "Add an RSS feed");
+    await shop.orderService.sign(filed);
+    await shop.flow.idle();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const stages = log.filter((entry) => entry.startsWith("1:")).map((entry) => entry.slice(2));
+    expect(stages).toEqual(["in_progress", "in_review"]);
+  });
+});
+
 describe("changing a project through the Manager", () => {
   it("proposes a briefing, waits for the signature, and uses the new one on the next turn", async () => {
     const prompts: string[] = [];

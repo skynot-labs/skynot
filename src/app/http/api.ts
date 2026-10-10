@@ -42,7 +42,11 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     await next();
   });
 
-  api.get("/api/state", (context) => context.json({ ...readState(shop, context.req.query("project")), simulated: Boolean(options.devTools) }));
+  api.get("/api/state", (context) => {
+    const project = context.req.query("project");
+    if (project && !shop.desk(project)) return context.json({ error: `no project ${project}` }, 404);
+    return context.json({ ...readState(shop, project), simulated: Boolean(options.devTools) });
+  });
 
   api.get("/api/events", (context) => {
     const after = Number(context.req.query("after") ?? context.req.header("last-event-id") ?? 0) || 0;

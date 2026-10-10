@@ -111,13 +111,23 @@ export class ManagerService {
         : { type: "manager.message_received", payload: { messageId: newId("msg"), text } },
     ]);
 
+    const failed = (error: string) => (ticket?.title ? this.doubtAbout(ticket as { number: number; title: string }, error) : this.reply(error));
+
     const first = await this.ask(prompt, schemas.first);
-    if (!first.ok) return this.reply(first.error);
+    if (!first.ok) return failed(first.error);
     if (first.value.consult.length === 0) return this.act(first.value, ticket?.number);
 
     const replies = await this.consult(first.value.consult);
     const second = await this.ask(buildAdvicePrompt(prompt, replies.map(describeReply)), schemas.final);
-    return second.ok ? this.act(second.value, ticket?.number) : this.reply(second.error);
+    return second.ok ? this.act(second.value, ticket?.number) : failed(second.error);
+  }
+
+  // A ticket is taken once; a failure must not lose it, so it waits for the director in the inbox.
+  private async doubtAbout(ticket: { number: number; title: string }, error: string): Promise<void> {
+    const question = `I could not turn ticket #${ticket.number} "${ticket.title}" into an order (${error}) Tell me what you want done with it.`;
+    const decisionId = newId("dec");
+    await this.deps.log.record([{ type: "manager.decision_asked", payload: { decisionId, question, options: [], ticket: ticket.number } }]);
+    return this.reply(question, { decisionId });
   }
 
   private async ask(prompt: string, schema: ReturnType<typeof createAnswerSchema>): Promise<Result<ManagerAnswer, string>> {

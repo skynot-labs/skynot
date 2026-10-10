@@ -24,6 +24,15 @@ describe("reading the projects", () => {
     expect(await readProjects(examplePolicy(), false, dir)).toMatchObject([{ id: "blog", repo: "acme/blog", baseBranch: "develop" }]);
   });
 
+  it("keeps the project policy.yaml named first as the first, whatever the folders are called", async () => {
+    for (const [name, repo] of [["alpha", "acme/alpha"], ["widgets", "acme/widgets"]] as const) {
+      await mkdir(path.join(dir, name));
+      await writeFile(path.join(dir, name, "project.yaml"), yaml(repo));
+    }
+
+    expect((await readProjects(examplePolicy(), false, dir)).map((project) => project.id)).toEqual(["widgets", "alpha"]);
+  });
+
   it("falls back to the repository listed in policy.yaml, so an existing shop keeps working", async () => {
     expect(await readProjects(examplePolicy(), false, path.join(dir, "none"))).toMatchObject([{ id: "widgets", repo: "acme/widgets" }]);
   });
