@@ -308,4 +308,42 @@ describe("activity", () => {
       await rm(dir, { recursive: true, force: true });
     });
   });
+
+  describe("restarting", () => {
+    it("blocks an order whose worker was cut off by the restart, tells the director, and lets it be retried", async () => {
+      const hangs = new FakeEngine(() => new Promise(() => undefined));
+      const first = await openShop(new FakeVcs(), defaultTeam, { claude: createMockManager(), codex: hangs });
+      const id = await fileAnOrder(first.shop);
+      await first.shop.orderService.sign(id);
+      await vi.waitFor(() => expect(first.shop.runs.list().some((run) => run.role === "developer" && run.status === "running")).toBe(true));
+      first.shop.stop();
+
+      const { shop } = await openShop();
+
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+      expect(shop.activity.linksFor(id).blocked).toBe("the shop restarted while this order was being worked");
+      await vi.waitFor(() => expect(shop.chat.messages().at(-1)?.text).toContain("restarted while this order was being worked"));
+
+      await shop.flow.retry(id);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+      expect(shop.orders.get(id)?.pullRequest).not.toBeNull();
+    });
+
+    it("leaves alone the orders that are in review, delivered or already blocked", async () => {
+      const first = await openShop();
+      const id = await fileAnOrder(first.shop);
+      await first.shop.orderService.sign(id);
+      await first.shop.flow.idle();
+      first.shop.stop();
+      const before = first.shop.chat.messages().length;
+
+      const { shop } = await openShop();
+
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+      expect(shop.activity.linksFor(id).blocked).toBeNull();
+      expect(shop.chat.messages()).toHaveLength(before);
+    });
+  });
 });

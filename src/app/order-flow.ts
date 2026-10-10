@@ -12,6 +12,7 @@ export interface OrderFlowDependencies {
   implementer: Implementer;
   repo: string;
   findOrder(id: string): WorkOrder | undefined;
+  listOrders(): WorkOrder[];
   progressOf(id: string): { issue: number | null; blocked: string | null; protectedPaths: readonly string[]; approvedPaths: readonly string[] };
 }
 
@@ -20,6 +21,15 @@ export class OrderFlow {
   private readonly running = new Set<string>();
 
   constructor(private readonly deps: OrderFlowDependencies) {}
+
+  // A restart drops the runs in flight; an order they left half done would show no way out.
+  async recover(): Promise<void> {
+    for (const order of this.deps.listOrders()) {
+      const waiting = order.status === "signed" || order.status === "on_bench";
+      if (!waiting || this.running.has(order.id) || this.deps.progressOf(order.id).blocked !== null) continue;
+      await this.deps.log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: "the shop restarted while this order was being worked" } }]);
+    }
+  }
 
   start(): () => void {
     return this.deps.log.subscribe((event) => this.react(event));
