@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 import { createManagerRunner } from "../../src/app/model-runner";
 import { createOrderDesk } from "../../src/app/order-desk";
 import { FakeEngine, RunScheduler } from "../../src/execution";
 import { err, fixedClock, ok, type Result } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
-import { ChatProjection, ManagerService, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type TeamDesk, type TeamProposal } from "../../src/manager";
+import { ChatProjection, ManagerService, SYSTEM_PROMPT, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type TeamDesk, type TeamProposal } from "../../src/manager";
 import { OrderService, OrdersProjection, WorkOrderSpecSchema } from "../../src/orders";
 import { validSpec } from "../orders/fixtures";
 
@@ -251,6 +252,26 @@ describe("manager runner", () => {
       ok: false,
       error: "codex timed out",
     });
+  });
+});
+
+describe("system prompt", () => {
+  it("states every length limit of a work order, so the model is not rejected for what it could not know", () => {
+    const spec = z.toJSONSchema(WorkOrderSpecSchema) as { properties: Record<string, any> };
+    const { title, objective, acceptanceCriteria, outOfScope, likelyFiles } = spec.properties;
+    const criterion = acceptanceCriteria.items.properties;
+    const limits = [
+      title.maxLength,
+      objective.maxLength,
+      acceptanceCriteria.maxItems,
+      criterion.statement.maxLength,
+      criterion.verification.properties.detail.maxLength,
+      outOfScope.maxItems,
+      likelyFiles.maxItems,
+      outOfScope.items.maxLength,
+    ];
+
+    expect(limits.every((limit) => typeof limit === "number" && SYSTEM_PROMPT.includes(String(limit)))).toBe(true);
   });
 });
 
