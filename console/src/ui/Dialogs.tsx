@@ -151,6 +151,197 @@ export function ManagerChat({
   );
 }
 
+const lines = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+export function RegisterProject({
+  send,
+  busy,
+  onClose,
+}: {
+  send: Send;
+  busy: boolean;
+  onClose: () => void;
+}) {
+  const [id, setId] = useState("");
+  const [repo, setRepo] = useState("");
+  const [baseBranch, setBaseBranch] = useState("main");
+  const [verify, setVerify] = useState("");
+  const [setup, setSetup] = useState("");
+  const [protectedPaths, setProtectedPaths] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [registered, setRegistered] = useState<string | null>(null);
+  const verifyCommands = lines(verify);
+  const ready =
+    id.trim() && repo.trim() && baseBranch.trim() && verifyCommands.length > 0;
+  async function submit(event: Event) {
+    event.preventDefault();
+    if (!ready || busy) return;
+    const paths = lines(protectedPaths);
+    const sent = await send({
+      name: "register-project",
+      payload: {
+        id: id.trim(),
+        repo: repo.trim(),
+        baseBranch: baseBranch.trim(),
+        verifyCommands,
+        ...(setup.trim() && { setupCommand: setup.trim() }),
+        ...(paths.length > 0 && { protectedPaths: paths }),
+        ...(name.trim() && { name: name.trim() }),
+        ...(description.trim() && { description: description.trim() }),
+      },
+    });
+    if (sent) setRegistered(id.trim());
+  }
+  if (registered)
+    return (
+      <div class="register-project-done" role="status">
+        <p>
+          <Icon name="check" />
+          <strong>{registered}</strong> was written to the projects folder.
+        </p>
+        <p class="form-note">
+          It starts with the next restart of the service. Until then it does
+          not appear in the project list.
+        </p>
+        <div class="modal-actions">
+          <button class="primary-button" onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  return (
+    <form class="register-project" onSubmit={submit}>
+      <p class="form-note">
+        For a repository that already exists. This does not create one: it
+        gives the shop a project that works on it.
+      </p>
+      <div class="register-project-row">
+        <div>
+          <label class="form-label" for="registerId">
+            ID
+          </label>
+          <input
+            id="registerId"
+            type="text"
+            required
+            minLength={2}
+            maxLength={40}
+            pattern="[a-z][a-z0-9-]+"
+            title="Lowercase letters, digits and hyphens. Starts with a letter, 2 to 40 characters."
+            placeholder="my-project"
+            autocomplete="off"
+            spellcheck={false}
+            value={id}
+            onInput={(event) => setId(event.currentTarget.value)}
+          />
+        </div>
+        <div>
+          <label class="form-label" for="registerRepo">
+            REPOSITORY
+          </label>
+          <input
+            id="registerRepo"
+            type="text"
+            required
+            pattern="[\w.\-]+/[\w.\-]+"
+            title="owner/name"
+            placeholder="owner/name"
+            autocomplete="off"
+            spellcheck={false}
+            value={repo}
+            onInput={(event) => setRepo(event.currentTarget.value)}
+          />
+        </div>
+        <div>
+          <label class="form-label" for="registerBranch">
+            BASE BRANCH
+          </label>
+          <input
+            id="registerBranch"
+            type="text"
+            required
+            autocomplete="off"
+            spellcheck={false}
+            value={baseBranch}
+            onInput={(event) => setBaseBranch(event.currentTarget.value)}
+          />
+        </div>
+      </div>
+      <label class="form-label" for="registerVerify">
+        VERIFY COMMANDS · ONE PER LINE
+      </label>
+      <textarea
+        id="registerVerify"
+        class="mono"
+        required
+        rows={3}
+        spellcheck={false}
+        placeholder={"npm test\nnpm run typecheck"}
+        value={verify}
+        onInput={(event) => setVerify(event.currentTarget.value)}
+      />
+      <label class="form-label" for="registerSetup">
+        SETUP COMMAND · OPTIONAL
+      </label>
+      <input
+        id="registerSetup"
+        type="text"
+        autocomplete="off"
+        spellcheck={false}
+        placeholder="npm ci"
+        value={setup}
+        onInput={(event) => setSetup(event.currentTarget.value)}
+      />
+      <label class="form-label" for="registerProtected">
+        PROTECTED PATHS · OPTIONAL, ONE PER LINE
+      </label>
+      <textarea
+        id="registerProtected"
+        class="mono"
+        rows={2}
+        spellcheck={false}
+        value={protectedPaths}
+        onInput={(event) => setProtectedPaths(event.currentTarget.value)}
+      />
+      <label class="form-label" for="registerName">
+        NAME · OPTIONAL
+      </label>
+      <input
+        id="registerName"
+        type="text"
+        maxLength={60}
+        value={name}
+        onInput={(event) => setName(event.currentTarget.value)}
+      />
+      <label class="form-label" for="registerDescription">
+        DESCRIPTION · OPTIONAL
+      </label>
+      <textarea
+        id="registerDescription"
+        rows={2}
+        maxLength={280}
+        value={description}
+        onInput={(event) => setDescription(event.currentTarget.value)}
+      />
+      <div class="modal-actions">
+        <button class="secondary-button" type="button" onClick={onClose}>
+          Cancel
+        </button>
+        <button class="primary-button" type="submit" disabled={busy || !ready}>
+          Register the project
+          <Icon name="arrow" />
+        </button>
+      </div>
+    </form>
+  );
+}
+
 const authors: Record<Message["author"], string> = {
   director: "YOU · DIRECTOR",
   manager: "MANAGER",

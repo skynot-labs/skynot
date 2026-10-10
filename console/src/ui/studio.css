@@ -52,11 +52,38 @@
   padding: 11px 13px;
   font-size: 11px;
 }
-.studio-hero-actions .icon-button {
-  width: 34px;
-  height: 34px;
+.studio-pause-controls {
+  display: flex;
   border: 1px solid #ffffff18;
   border-radius: 6px;
+  overflow: hidden;
+}
+.studio-pause-controls button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 11px 12px;
+  background: transparent;
+  color: var(--sk-color-muted);
+  font: 8px var(--sk-font-mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.studio-pause-controls button + button {
+  border-left: 1px solid #ffffff18;
+}
+.studio-pause-controls button:hover {
+  background: #ffffff0b;
+  color: var(--sk-color-text);
+}
+.studio-pause-controls button.paused {
+  color: var(--sk-attention);
+  background: color-mix(in srgb, var(--sk-attention) 7%, transparent);
+}
+.studio-pause-controls svg {
+  width: 12px;
+  height: 12px;
 }
 .studio-hero-stage {
   position: relative;
@@ -343,10 +370,16 @@
   width: 100%;
   justify-content: space-between;
 }
-.studio-pause-label {
+.studio-pause-labels {
   position: absolute;
   top: 16px;
   left: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.studio-pause-label {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -588,9 +621,6 @@
     justify-content: flex-start;
     width: 100%;
   }
-  .studio-hero-actions .icon-button {
-    margin-left: auto;
-  }
   .studio-hero-heading h1 {
     font-size: 24px;
   }
@@ -667,7 +697,7 @@
     padding: 14px 10px;
     font-size: 11px;
   }
-  .studio-pause-label {
+  .studio-pause-labels {
     position: static;
     margin: 0 16px 15px;
   }

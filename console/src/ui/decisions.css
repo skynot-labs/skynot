@@ -72,3 +72,37 @@
 .decision-page .proposal-briefing {
   font-size: 12px;
 }
+.inbox-tabs button {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.decision-question.answered h3 {
+  margin: 10px 0 12px;
+}
+.question-answer {
+  padding: 2px 0 2px 10px;
+  border-left: 2px solid var(--sk-action);
+}
+.question-answer span {
+  color: var(--sk-action);
+  font: 7px var(--sk-font-mono);
+  letter-spacing: 0.25px;
+  text-transform: uppercase;
+}
+.question-answer p {
+  margin: 4px 0 0;
+  color: var(--sk-color-text);
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.decision-question.answered .question-author {
+  margin: 12px 0 0;
+}
+.decision-page .question-answer span {
+  font-size: 9px;
+}
+.decision-page .question-answer p {
+  font-size: 13px;
+}

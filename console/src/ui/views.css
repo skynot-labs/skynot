@@ -184,3 +184,98 @@
 .cost-table th:last-child {
   text-align: right;
 }
+.cost-table + .cost-table {
+  margin-top: 23px;
+}
+.status-chip.interrupted {
+  color: var(--peach);
+  background: #eeb88e08;
+  border-color: #eeb88e20;
+}
+.run-failure {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 160px;
+  max-width: 260px;
+  line-height: 1.6;
+  color: var(--sk-danger);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.budget-total + .budget-total.token-detail {
+  border-top: 0;
+  padding-top: 0;
+  padding-left: 12px;
+}
+
+.person-card .agent-error {
+  color: var(--sk-danger);
+  font-size: 10px;
+  line-height: 1.7;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.person-stats.agent-totals {
+  gap: 12px;
+}
+.person-stats.agent-totals strong {
+  font-size: 10px;
+}
+
+.profile-card,
+.pause-card {
+  padding-bottom: 21px;
+}
+.profile-card h3 {
+  font-size: 17px;
+  font-weight: 450;
+  margin: 4px 20px 9px;
+  overflow-wrap: anywhere;
+}
+.profile-card p,
+.pause-card p {
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 0 20px;
+  overflow-wrap: anywhere;
+}
+.profile-card form {
+  margin: 0 20px;
+}
+.profile-card .form-label:first-child {
+  margin-top: 4px;
+}
+.profile-card .proposal-actions {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.profile-card .text-button svg,
+.pause-card button svg {
+  width: 12px;
+  height: 12px;
+}
+.pause-card .pause-reason {
+  color: var(--peach);
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+.pause-card .pause-reason small {
+  display: block;
+  font: 8px var(--mono);
+  color: var(--muted);
+  margin-top: 4px;
+}
+.pause-card button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 20px 0;
+  font-size: 10px;
+}

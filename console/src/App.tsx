@@ -1,11 +1,13 @@
-import { useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Agent, Command, Order } from "./contracts";
 import { HttpGateway } from "./adapters/http-gateway";
 import { useConsole } from "./application/use-console";
 import {
   agentAppearance,
-  readAppearance,
-  writeAppearance,
+  appearanceFrom,
+  avatarPreference,
+  uploadLocalPreferences,
+  type Appearance,
 } from "./application/appearance";
 import { Icon } from "./ui/Icon";
 import { Studio, StudioHero } from "./ui/Studio";
@@ -17,14 +19,20 @@ import {
   OrdersView,
   UsageView,
 } from "./ui/ProjectViews";
-import { AvatarEditor, ManagerChat, Modal } from "./ui/Dialogs";
+import {
+  AvatarEditor,
+  ManagerChat,
+  Modal,
+  RegisterProject,
+} from "./ui/Dialogs";
 import { OrderDetail } from "./ui/OrderDetail";
 import { usd } from "./ui/format";
 import { StudioCustomizer } from "./ui/StudioCustomizer";
 import {
-  readStudioAppearance,
-  writeStudioAppearance,
   projectStudio,
+  studioAppearanceFrom,
+  studioPreference,
+  type StudioAppearance,
 } from "./application/studio-appearance";
 import { studioSummary, defaultStudioPreferences } from "./studio/model";
 import { Brand } from "./design/Brand";
@@ -40,8 +48,10 @@ type Tab =
 type Dialog =
   | { kind: "agent"; id: string }
   | { kind: "order"; id: string }
-  | { kind: "manager" | "studio" }
+  | { kind: "manager" | "studio" | "register" }
   | null;
+type Unsaved = { appearance: Appearance; studio: StudioAppearance };
+const nothingUnsaved: Unsaved = { appearance: {}, studio: {} };
 const tabs: Array<{ id: Tab; name: string; icon: string }> = [
   { id: "studio", name: "The studio", icon: "office" },
   { id: "decisions", name: "Decisions", icon: "chat" },
@@ -91,15 +101,31 @@ export function App() {
   const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
   const [tab, setTab] = useState<Tab>("studio");
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [appearance, setAppearance] = useState(readAppearance);
-  const [studioAppearance, setStudioAppearance] =
-    useState(readStudioAppearance);
+  const [unsaved, setUnsaved] = useState(nothingUnsaved);
   const [busy, setBusy] = useState(false);
   const [notification, setNotification] = useState("");
   const [noticeId, setNoticeId] = useState<ReturnType<
     typeof setTimeout
   > | null>(null);
   const project = snapshot?.project;
+  const preferences = snapshot?.preferences;
+  const appearance = useMemo(
+    () => ({ ...appearanceFrom(preferences ?? {}), ...unsaved.appearance }),
+    [preferences, unsaved],
+  );
+  const studioAppearance = useMemo(
+    () => ({ ...studioAppearanceFrom(preferences ?? {}), ...unsaved.studio }),
+    [preferences, unsaved],
+  );
+  useEffect(() => setUnsaved(nothingUnsaved), [snapshot?.cursor]);
+  const uploaded = useRef(false);
+  useEffect(() => {
+    if (!preferences || uploaded.current) return;
+    uploaded.current = true;
+    void uploadLocalPreferences(preferences, async (command) => {
+      await gateway.send(command);
+    }).catch(() => undefined);
+  }, [preferences]);
   const studioSettings = project
     ? projectStudio(studioAppearance, project.id)
     : defaultStudioPreferences;
@@ -129,11 +155,23 @@ export function App() {
     setDialog(null);
     setTab("studio");
   }
-  const togglePause = () =>
-    void send({
-      name: snapshot?.paused ? "resume-shop" : "pause-shop",
-      payload: {},
-    });
+  async function savePreference(
+    command: Command | null,
+    look: Partial<Unsaved>,
+    saved: string,
+  ) {
+    if (!command) {
+      notify("The service cannot store a look under this id.");
+      return;
+    }
+    setUnsaved((current) => ({
+      appearance: { ...current.appearance, ...look.appearance },
+      studio: { ...current.studio, ...look.studio },
+    }));
+    setDialog(null);
+    if (await send(command)) notify(saved);
+    else setUnsaved(nothingUnsaved);
+  }
   const selectedAgent =
     dialog?.kind === "agent"
       ? project?.agents.find((a) => a.id === dialog.id)
@@ -204,13 +242,21 @@ export function App() {
         <div>
           <div class="project-nav-heading">
             <span>PROJECTS</span>
+            <button
+              class="icon-button"
+              onClick={() => setDialog({ kind: "register" })}
+              aria-label="Register a project"
+              title="Register a project"
+            >
+              <Icon name="plus" />
+            </button>
           </div>
           <div class="project-nav">
             {snapshot?.projects.map((p) => (
               <button
                 class={`project-switch ${p.id === project?.id ? "selected" : ""}`}
                 key={p.id}
-                title={p.repo}
+                title={p.paused ? `${p.repo} · paused` : p.repo}
                 onClick={() => chooseProject(p.id)}
               >
                 <span
@@ -220,7 +266,10 @@ export function App() {
                   {p.name.slice(0, 1).toUpperCase()}
                 </span>
                 <span>
-                  <strong>{p.name}</strong>
+                  <strong>
+                    {p.name}
+                    {p.paused && <em class="project-paused">PAUSED</em>}
+                  </strong>
                   <small>
                     {p.needsYou > 0
                       ? `${p.needsYou} WAITING FOR YOU`
@@ -293,11 +342,35 @@ export function App() {
             {snapshot.paused && (
               <div class="shop-banner attention" role="status">
                 <span>
-                  <Icon name="pause" /> Paused: nothing new starts, and what
-                  is running will finish. {snapshot.paused.reason}.
+                  <Icon name="pause" /> The shop is paused: nothing new
+                  starts, and what is running will finish.{" "}
+                  {snapshot.paused.reason}.
                 </span>
-                <button disabled={busy} onClick={togglePause}>
-                  Resume
+                <button
+                  disabled={busy}
+                  onClick={() => void send({ name: "resume-shop", payload: {} })}
+                >
+                  Resume the shop
+                  <Icon name="play" />
+                </button>
+              </div>
+            )}
+            {project?.paused && (
+              <div class="shop-banner attention" role="status">
+                <span>
+                  <Icon name="pause" /> This project is paused: nothing new
+                  starts in {project.name}. {project.paused.reason}.
+                </span>
+                <button
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: "resume-project",
+                      payload: { project: project.id },
+                    })
+                  }
+                >
+                  Resume this project
                   <Icon name="play" />
                 </button>
               </div>
@@ -346,7 +419,6 @@ export function App() {
                 onTeam={() => setTab("agents")}
                 onContext={() => setTab("context")}
                 onCustomize={() => setDialog({ kind: "studio" })}
-                onPause={togglePause}
                 send={send}
                 busy={busy}
               />
@@ -357,6 +429,9 @@ export function App() {
                     <span class="tiny-led" /> {project.name.toUpperCase()}
                     <span class="heading-phase">{project.repo}</span>
                   </div>
+                  {project.description && (
+                    <p class="heading-description">{project.description}</p>
+                  )}
                   <h1>
                     {headings[tab][0]}
                     <br />
@@ -397,7 +472,11 @@ export function App() {
                   </strong>
                   <span class="stat-detail">
                     {queued} queued ·{" "}
-                    {snapshot.paused ? "queue paused" : "queue open"}
+                    {snapshot.paused
+                      ? "shop paused"
+                      : project.paused
+                        ? "project paused"
+                        : "queue open"}
                   </span>
                 </div>
               </div>
@@ -543,19 +622,26 @@ export function App() {
               project={project}
               appearance={appearance}
               settings={studioSettings}
-              onSave={(value) => {
-                const next = { ...studioAppearance, [project.id]: value };
-                setStudioAppearance(next);
-                try {
-                  writeStudioAppearance(next);
-                  notify("Style saved for this project.");
-                } catch {
-                  notify(
-                    "Style applied to this session. The browser will not let it be saved.",
-                  );
-                }
-                setDialog(null);
-              }}
+              onSave={(value) =>
+                void savePreference(
+                  studioPreference(project.id, value),
+                  { studio: { [project.id]: value } },
+                  "Style saved for this project.",
+                )
+              }
+            />
+          </Modal>
+        )}
+        {dialog?.kind === "register" && (
+          <Modal
+            title="Bring a repository in."
+            eyebrow="WORKSPACE · NEW PROJECT"
+            onClose={() => setDialog(null)}
+          >
+            <RegisterProject
+              send={send}
+              busy={busy}
+              onClose={() => setDialog(null)}
             />
           </Modal>
         )}
@@ -581,24 +667,16 @@ export function App() {
               }
               busy={busy}
               onSave={(avatar, alias, followStudioLook) => {
-                const next = {
-                  ...appearance,
-                  [`${project.id}/${selectedAgent.id}`]: {
-                    avatar,
-                    alias: alias.trim(),
-                    followStudioLook,
+                const look = { avatar, alias: alias.trim(), followStudioLook };
+                void savePreference(
+                  avatarPreference(project.id, selectedAgent.id, look),
+                  {
+                    appearance: {
+                      [`${project.id}/${selectedAgent.id}`]: look,
+                    },
                   },
-                };
-                setAppearance(next);
-                try {
-                  writeAppearance(next);
-                  notify("Avatar saved for this agent and project.");
-                } catch {
-                  notify(
-                    "Avatar applied to this session. The browser will not let it be saved.",
-                  );
-                }
-                setDialog(null);
+                  "Avatar saved for this agent and project.",
+                );
               }}
             />
           </Modal>

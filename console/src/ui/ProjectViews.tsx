@@ -5,8 +5,10 @@ import type {
   Finding,
   Order,
   Project,
+  Run,
   Send,
   Snapshot,
+  TokenUsage,
 } from "../contracts";
 import type { Appearance } from "../application/appearance";
 import { studioAgentAppearance } from "../studio/presentation";
@@ -16,7 +18,15 @@ import {
 } from "../studio/model";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
-import { agentStatus, clock, orderStatus, usd } from "./format";
+import {
+  agentStatus,
+  clock,
+  dayTime,
+  orderStatus,
+  runOutcome,
+  tokenCount,
+  usd,
+} from "./format";
 import "./views.css";
 
 const STAGES: Array<{
@@ -177,6 +187,16 @@ const KIND_LABEL: Record<Agent["kind"], string> = {
 
 const TEAM_ACTION = { hire: "Hire", dismiss: "Dismiss", refocus: "Refocus" };
 
+const NOT_REPORTED = "not reported";
+
+const tokensInOut = (usage: TokenUsage | null) =>
+  usage === null
+    ? NOT_REPORTED
+    : `${tokenCount(usage.inputTokens)} in · ${tokenCount(usage.outputTokens)} out`;
+
+const reportedSpend = (spentUsd: number | null) =>
+  spentUsd === null ? NOT_REPORTED : usd(spentUsd);
+
 export function AgentsView({
   project,
   appearance,
@@ -208,6 +228,12 @@ export function AgentsView({
           );
           const runId =
             a.status === "working" || a.status === "queued" ? a.runId : null;
+          const lastFailure =
+            a.status === "error"
+              ? project.runs.find(
+                  (run) => run.role === a.id && run.outcome === "failed",
+                )?.failure
+              : undefined;
           return (
             <article class="person-card" key={a.id}>
               <div class="person-card-head">
@@ -221,6 +247,11 @@ export function AgentsView({
                   {a.role !== visual.name && <p>{a.role}</p>}
                 </div>
               </div>
+              {lastFailure && (
+                <p class="agent-error" title={lastFailure.message}>
+                  {lastFailure.message}
+                </p>
+              )}
               <div class="agent-runtime">
                 <span>
                   <Icon name="code" />
@@ -237,6 +268,19 @@ export function AgentsView({
                   Current order<strong>{a.orderId ?? "None"}</strong>
                 </span>
               </div>
+              {a.runs > 0 && (
+                <div class="person-stats agent-totals">
+                  <span>
+                    Runs<strong>{a.runs}</strong>
+                  </span>
+                  <span>
+                    Spent<strong>{reportedSpend(a.spentUsd)}</strong>
+                  </span>
+                  <span>
+                    Tokens<strong>{tokensInOut(a.usage)}</strong>
+                  </span>
+                </div>
+              )}
               {runId !== null && (
                 <button
                   class="danger-button agent-stop"
@@ -343,6 +387,9 @@ export function UsageView({
   const ratio =
     costs.cap === null ? null : Math.min(100, (costs.today / costs.cap) * 100);
   const spenders = project.orders.filter((o) => o.spentUsd > 0);
+  const active = project.agents.filter((a) => a.runs > 0);
+  const roleName = (role: string) =>
+    project.agents.find((a) => a.id === role)?.name ?? role;
   return (
     <>
       <div class="usage-top">
@@ -377,6 +424,30 @@ export function UsageView({
           </div>
           <div class="budget-number">{usd(project.spentUsd)}</div>
           <p>Everything the agents spent on {project.name}.</p>
+          {project.tokens === null ? (
+            <div class="budget-total">
+              <span>The engines have not reported token usage yet.</span>
+            </div>
+          ) : (
+            <>
+              <div class="budget-total">
+                <span>Input tokens</span>
+                <strong>{tokenCount(project.tokens.inputTokens)}</strong>
+              </div>
+              <div class="budget-total token-detail">
+                <span>of which cached</span>
+                <strong>
+                  {project.tokens.cachedInputTokens === null
+                    ? NOT_REPORTED
+                    : tokenCount(project.tokens.cachedInputTokens)}
+                </strong>
+              </div>
+              <div class="budget-total">
+                <span>Output tokens</span>
+                <strong>{tokenCount(project.tokens.outputTokens)}</strong>
+              </div>
+            </>
+          )}
         </section>
       </div>
       <section class="panel cost-table">
@@ -417,11 +488,262 @@ export function UsageView({
           <div class="empty-state">No work order has spent anything yet.</div>
         )}
       </section>
+      {active.length > 0 && (
+        <section class="panel cost-table">
+          <div class="panel-heading">
+            <span class="panel-title">Spent per agent</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>AGENT</th>
+                  <th>RUNS</th>
+                  <th>TOKENS IN</th>
+                  <th>CACHED</th>
+                  <th>TOKENS OUT</th>
+                  <th>USD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {active.map((a) => (
+                  <tr key={a.id}>
+                    <td>
+                      <strong>{a.name}</strong>
+                      <small>{a.engine}</small>
+                    </td>
+                    <td>{a.runs}</td>
+                    <td>
+                      {a.usage ? tokenCount(a.usage.inputTokens) : NOT_REPORTED}
+                    </td>
+                    <td>
+                      {a.usage?.cachedInputTokens == null
+                        ? NOT_REPORTED
+                        : tokenCount(a.usage.cachedInputTokens)}
+                    </td>
+                    <td>
+                      {a.usage ? tokenCount(a.usage.outputTokens) : NOT_REPORTED}
+                    </td>
+                    <td>{reportedSpend(a.spentUsd)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+      <section class="panel cost-table">
+        <div class="panel-heading">
+          <span class="panel-title">Run history</span>
+          {project.runs.length > 0 && (
+            <span class="pill">LAST {project.runs.length}</span>
+          )}
+        </div>
+        {project.runs.length > 0 ? (
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>FINISHED</th>
+                  <th>AGENT</th>
+                  <th>ENGINE</th>
+                  <th>OUTCOME</th>
+                  <th>TURNS</th>
+                  <th>TOKENS</th>
+                  <th>ORDER</th>
+                  <th>USD</th>
+                </tr>
+              </thead>
+              <tbody>
+                {project.runs.map((run) => (
+                  <RunRow key={run.runId} run={run} role={roleName(run.role)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div class="empty-state">No run has finished on this project yet.</div>
+        )}
+      </section>
       <p class="view-note">
         <Icon name="help" />
         Cost as reported by the CLIs. It is not a subscription invoice.
       </p>
     </>
+  );
+}
+
+function RunRow({ run, role }: { run: Run; role: string }) {
+  return (
+    <tr>
+      <td>{run.finishedAt ? dayTime(run.finishedAt) : "—"}</td>
+      <td>{role}</td>
+      <td>
+        {run.engine}
+        <small>{run.model ?? "default model"}</small>
+      </td>
+      <td>
+        {run.outcome && (
+          <span class={`status-chip ${run.outcome}`}>
+            {runOutcome[run.outcome]}
+          </span>
+        )}
+        {run.outcome === "failed" && run.failure && (
+          <small class="run-failure" title={run.failure.message}>
+            {run.failure.message}
+          </small>
+        )}
+      </td>
+      <td>{run.turns ?? "—"}</td>
+      <td>{tokensInOut(run.usage)}</td>
+      <td>{run.orderId ?? "—"}</td>
+      <td>{reportedSpend(run.costUsd)}</td>
+    </tr>
+  );
+}
+
+const MAX_NAME = 60;
+const MAX_DESCRIPTION = 280;
+
+function ProfileCard({
+  project,
+  send,
+  busy,
+}: {
+  project: Project;
+  send: Send;
+  busy: boolean;
+}) {
+  const [draft, setDraft] = useState<{
+    name: string;
+    description: string;
+  } | null>(null);
+  const save = async () => {
+    if (draft === null) return;
+    const name = draft.name.trim();
+    const description = draft.description.trim();
+    const sent = await send({
+      name: "describe-project",
+      payload: {
+        project: project.id,
+        ...(name !== project.name && { name: name || null }),
+        ...(description !== (project.description ?? "") && {
+          description: description || null,
+        }),
+      },
+    });
+    if (sent) setDraft(null);
+  };
+  return (
+    <section class="panel profile-card">
+      <div class="panel-heading">
+        <span class="panel-title">Project</span>
+        {draft === null && (
+          <button
+            class="text-button"
+            onClick={() =>
+              setDraft({
+                name: project.name,
+                description: project.description ?? "",
+              })
+            }
+          >
+            <Icon name="edit" />
+            Edit
+          </button>
+        )}
+      </div>
+      {draft === null ? (
+        <>
+          <h3>{project.name}</h3>
+          <p>{project.description ?? "No description yet."}</p>
+        </>
+      ) : (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void save();
+          }}
+        >
+          <label class="form-label" for="profile-name">
+            NAME
+          </label>
+          <input
+            id="profile-name"
+            type="text"
+            maxLength={MAX_NAME}
+            value={draft.name}
+            onInput={(e) => setDraft({ ...draft, name: e.currentTarget.value })}
+          />
+          <label class="form-label" for="profile-description">
+            DESCRIPTION · {draft.description.length}/{MAX_DESCRIPTION}
+          </label>
+          <textarea
+            id="profile-description"
+            maxLength={MAX_DESCRIPTION}
+            value={draft.description}
+            onInput={(e) =>
+              setDraft({ ...draft, description: e.currentTarget.value })
+            }
+          />
+          <div class="proposal-actions">
+            <button
+              type="button"
+              class="secondary-button"
+              onClick={() => setDraft(null)}
+            >
+              Cancel
+            </button>
+            <button type="submit" class="primary-button" disabled={busy}>
+              Save
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+function PauseCard({
+  project,
+  send,
+  busy,
+}: {
+  project: Project;
+  send: Send;
+  busy: boolean;
+}) {
+  const paused = project.paused;
+  return (
+    <section class="panel pause-card">
+      <div class="panel-heading">
+        <span class="panel-title">This project's work</span>
+        {paused && <span class="pill">PAUSED</span>}
+      </div>
+      {paused && (
+        <p class="pause-reason">
+          {paused.reason}
+          <small>Paused since {dayTime(paused.since)}</small>
+        </p>
+      )}
+      <p>
+        While paused, this project's queued runs wait and the running ones
+        finish. Other projects go on.
+      </p>
+      <button
+        class="secondary-button"
+        disabled={busy}
+        onClick={() =>
+          void send({
+            name: paused ? "resume-project" : "pause-project",
+            payload: { project: project.id },
+          })
+        }
+      >
+        <Icon name={paused ? "play" : "pause"} />
+        {paused ? "Resume this project" : "Pause this project"}
+      </button>
+    </section>
   );
 }
 
@@ -514,6 +836,8 @@ export function ContextView({
         </section>
       </div>
       <div class="context-side">
+        <ProfileCard project={project} send={send} busy={busy} />
+        <PauseCard project={project} send={send} busy={busy} />
         <section class="panel repository-card">
           <div class="panel-heading">
             <span class="panel-title">Repository</span>

@@ -31,7 +31,9 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (347 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` and `npm run typecheck` (server and console) pass.
+- Console: the studio (an office per project, the decision desk, work orders, costs with token usage and run
+  history). Its guides are `docs/studio-themes.md`, `docs/github-kit.md` and `docs/github-app.md`.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates

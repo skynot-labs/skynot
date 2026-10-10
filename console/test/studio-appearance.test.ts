@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  readStudioAppearance,
-  writeStudioAppearance,
+  studioAppearanceFrom,
+  studioPreference,
   projectStudio,
-  studioStorageKey,
 } from "../src/application/studio-appearance";
 import {
   defaultStudioPreferences,
@@ -31,6 +30,9 @@ const member = (id: string, kind: Agent["kind"]): Agent => ({
   orderId: null,
   runId: null,
   queuePosition: null,
+  runs: 0,
+  spentUsd: 0,
+  usage: null,
   avatar: {
     skin: "#ecc3a0",
     hair: "#3a293e",
@@ -42,8 +44,10 @@ const agent = member("manager", "manager");
 const project: Project = {
   id: "one",
   name: "one",
+  description: null,
   repo: "skynot-labs/one",
   accent: "#a5d7b8",
+  paused: null,
   reviewing: false,
   workers: ["developer"],
   agents: [agent, member("developer", "worker")],
@@ -56,44 +60,44 @@ const project: Project = {
   briefing: null,
   hireable: [],
   activity: [],
+  runs: [],
+  answered: [],
   spentUsd: 0,
+  tokens: null,
 };
 
 afterEach(() => vi.unstubAllGlobals());
 describe("project studio presentation preferences", () => {
-  it("persists a theme per project without changing another project's view", () => {
-    const data = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      getItem: (key: string) => data.get(key) ?? null,
-      setItem: (key: string, value: string) => data.set(key, value),
-    });
+  it("saves a theme per project without changing another project's view", () => {
     const theme = {
       ...defaultStudioPreferences,
       place: "kyoto" as const,
       season: "spring" as const,
       layout: "open" as const,
     };
-    writeStudioAppearance({ one: theme });
-    expect(projectStudio(readStudioAppearance(), "one")).toEqual(theme);
-    expect(projectStudio(readStudioAppearance(), "two")).toEqual(
-      defaultStudioPreferences,
-    );
-    expect(data.has(studioStorageKey)).toBe(true);
+    const command = studioPreference("one", theme);
+    expect(command).toEqual({
+      name: "set-preference",
+      payload: { key: "studio/one", value: theme },
+    });
+    const saved = studioAppearanceFrom({ "studio/one": theme });
+    expect(projectStudio(saved, "one")).toEqual(theme);
+    expect(projectStudio(saved, "two")).toEqual(defaultStudioPreferences);
+    expect(studioPreference("one", null)?.payload).toEqual({
+      key: "studio/one",
+      value: null,
+    });
   });
   it("recovers unknown catalog IDs independently and keeps valid projects", () => {
-    vi.stubGlobal("localStorage", {
-      getItem: () =>
-        JSON.stringify({
-          one: {
-            place: "removed-place",
-            season: "winter",
-            festival: "future-party",
-            layout: "pods",
-          },
-          two: { place: "coast", season: "summer" },
-        }),
+    const result = studioAppearanceFrom({
+      "studio/one": {
+        place: "removed-place",
+        season: "winter",
+        festival: "future-party",
+        layout: "pods",
+      },
+      "studio/two": { place: "coast", season: "summer" },
     });
-    const result = readStudioAppearance();
     expect(result.one).toMatchObject({
       place: "studio",
       season: "winter",
@@ -103,21 +107,25 @@ describe("project studio presentation preferences", () => {
     expect(result.two).toMatchObject({ place: "coast", season: "summer" });
     expect(normalizeStudioPreferences(null)).toEqual(defaultStudioPreferences);
   });
-  it("rejects unsupported settings before writing and tolerates unavailable storage", () => {
-    const setItem = vi.fn();
-    vi.stubGlobal("localStorage", {
-      getItem: () => {
-        throw new Error("disabled");
-      },
-      setItem,
-    });
-    expect(readStudioAppearance()).toEqual({});
+  it("reads only studio entries that hold a style", () => {
+    expect(
+      studioAppearanceFrom({
+        "studio/one": "kyoto",
+        "studio/two": ["coast"],
+        "studio/one/developer": { place: "coast" },
+        "avatar/one/developer": { place: "coast" },
+        "layout/one": { place: "coast" },
+      }),
+    ).toEqual({});
+  });
+  it("rejects unsupported settings and builds no command for a key the shop would refuse", () => {
     expect(() =>
-      writeStudioAppearance({
-        one: { ...defaultStudioPreferences, place: "unknown" as "studio" },
+      studioPreference("one", {
+        ...defaultStudioPreferences,
+        place: "unknown" as "studio",
       }),
     ).toThrow();
-    expect(setItem).not.toHaveBeenCalled();
+    expect(studioPreference("Not A Project", defaultStudioPreferences)).toBeNull();
   });
   it("layers clothes without changing body, identity, optical glasses or audio", () => {
     const base = resolveAvatar({
