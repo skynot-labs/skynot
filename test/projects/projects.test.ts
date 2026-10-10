@@ -42,10 +42,9 @@ describe("project catalog", () => {
     await expect(new YamlProjectCatalog(dir).list()).rejects.toThrow("Bad Name");
   });
 
-  it("refuses a folder without project.yaml, an unknown field and the placeholder repository", async () => {
-    await addProject("empty", null);
-    await expect(new YamlProjectCatalog(dir).list()).rejects.toThrow("empty has no project.yaml");
-    await rm(path.join(dir, "empty"), { recursive: true });
+  it("leaves alone a folder without project.yaml, and refuses an unknown field and the placeholder repository", async () => {
+    await addProject("Some App", null);
+    expect(await new YamlProjectCatalog(dir).list()).toEqual([]);
 
     expect(parseProjectFile("typo", `${projectYaml()}verfy_commands: []\n`)).toMatchObject({ ok: false, error: expect.stringContaining("typo") });
     expect(parseProjectFile("fresh", projectYaml("OWNER/REPO"))).toMatchObject({ ok: false, error: expect.stringContaining("placeholder") });

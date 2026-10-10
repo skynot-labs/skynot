@@ -20,7 +20,8 @@ const DEMO: Project = { id: "demo", repo: "demo/todo", baseBranch: "main", setup
 
 export async function readProjects(policy: Policy, mock = false, dir = PROJECTS_DIR): Promise<Project[]> {
   if (mock && !existsSync(dir)) return [DEMO];
-  const projects = existsSync(dir) ? await new YamlProjectCatalog(dir).list() : projectsFromPolicy(policy);
+  const listed = await new YamlProjectCatalog(dir).list();
+  const projects = listed.length > 0 ? listed : projectsFromPolicy(policy);
   // The first project owns the history written before projects existed: the one policy.yaml always named first.
   const legacy = projects.findIndex((project) => project.repo === policy.repos[0]?.name);
   if (legacy > 0) projects.unshift(...projects.splice(legacy, 1));
