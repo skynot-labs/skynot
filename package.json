@@ -8,20 +8,27 @@
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p console",
+    "build:console": "vite build --config console/vite.config.ts",
+    "dev:console": "vite --config console/vite.config.ts",
     "test": "vitest run",
     "dev": "SKYNOT_MOCK=1 tsx src/app/main.ts",
     "start": "tsx src/app/main.ts"
   },
   "devDependencies": {
+    "@fontsource/fraunces": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
+    "vite": "^8.3.4",
     "vitest": "^5.0.3"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
     "hono": "^4.13.13",
+    "preact": "^11.0.1",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   }

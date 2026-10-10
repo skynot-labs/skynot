@@ -33,6 +33,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  await shop.manager.idle();
   await shop.flow.idle();
   shop.stop();
   await rm(dataDir, { recursive: true, force: true });
@@ -50,7 +51,7 @@ const post = (url: string, body: unknown, headers: Record<string, string> = {}) 
   });
 
 async function settle() {
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await shop.manager.idle();
   await shop.flow.idle();
 }
 
@@ -172,8 +173,8 @@ describe("event stream", () => {
       buffer += decoder.decode(value);
       for (const block of buffer.split("\n\n").slice(0, -1)) {
         const id = /^id: (.*)$/m.exec(block)?.[1];
-        const event = /^event: (.*)$/m.exec(block)?.[1];
-        if (id && event) received.push({ id, event });
+        const data = /^data: (.*)$/m.exec(block)?.[1];
+        if (id && data) received.push({ id, event: (JSON.parse(data) as { type: string }).type });
       }
       buffer = buffer.slice(buffer.lastIndexOf("\n\n") + 2);
     }

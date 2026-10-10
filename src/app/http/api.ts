@@ -39,7 +39,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     await next();
   });
 
-  api.get("/api/state", (context) => context.json(readState(shop)));
+  api.get("/api/state", (context) => context.json({ ...readState(shop), simulated: Boolean(options.devTools) }));
 
   api.get("/api/events", (context) => {
     const after = Number(context.req.query("after") ?? context.req.header("last-event-id") ?? 0) || 0;
@@ -48,7 +48,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
       const send = async (event: { sequence: number; type: string }) => {
         if (event.sequence <= lastSent) return;
         lastSent = event.sequence;
-        await stream.writeSSE({ id: String(event.sequence), event: event.type, data: JSON.stringify(event) });
+        await stream.writeSSE({ id: String(event.sequence), data: JSON.stringify(event) });
       };
 
       const buffered: Array<{ sequence: number; type: string }> = [];

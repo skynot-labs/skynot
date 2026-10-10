@@ -32,6 +32,10 @@ export class ManagerService {
     this.answerSchema = createAnswerSchema(deps.desk.specSchema);
   }
 
+  async idle(): Promise<void> {
+    await this.queue.catch(() => undefined);
+  }
+
   handleMessage(text: string): Promise<void> {
     return this.exclusive(() => this.takeTurn(text));
   }
