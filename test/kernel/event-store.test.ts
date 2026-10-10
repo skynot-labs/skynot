@@ -1,4 +1,4 @@
-import { appendFile, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -73,6 +73,21 @@ describe("jsonl event store", () => {
 
     const lines = (await readFile(file, "utf8")).trim().split("\n");
     expect(lines.map((line) => JSON.parse(line).type)).toEqual(["a", "b"]);
+  });
+
+  it("keeps every acknowledged event after an append that failed halfway", async () => {
+    const file = path.join(dir, "events.jsonl");
+    const store = new JsonlEventStore(file);
+    await store.append([pending("a")]);
+    await chmod(file, 0o400);
+    await expect(store.append([pending("lost")])).rejects.toThrow();
+    await chmod(file, 0o600);
+    await appendFile(file, '{"sequence":2,"type":"lo');
+
+    await store.append([pending("b")]);
+    await store.append([pending("c")]);
+
+    expect((await new JsonlEventStore(file).readAfter(0)).map((event) => `${event.sequence}:${event.type}`)).toEqual(["1:a", "2:b", "3:c"]);
   });
 
   it("refuses a log corrupted before its last line", async () => {
