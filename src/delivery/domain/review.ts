@@ -37,5 +37,5 @@ export const reviewComment = (review: Review, round: number): string =>
     ...(review.findings.length ? ["", ...review.findings.map((finding) => `- ${finding}`)] : []),
   ].join("\n");
 
-export const followUpFromReview = (review: Review): string =>
+export const followUpFromReview = (review: { findings: readonly string[] }): string =>
   `The independent reviewer asked for changes. Address each point, or say in your report why it does not apply:\n${review.findings.map((finding) => `- ${finding}`).join("\n")}`;
