@@ -1,0 +1,186 @@
+@media (min-width: 1021px) {
+  .kanban.with-discarded {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+.order-card .order-blocked,
+.order-card .order-delivery {
+  display: block;
+  font-size: 8px;
+  line-height: 1.7;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+.order-card .order-blocked {
+  color: var(--sk-danger);
+}
+.order-card .order-delivery {
+  font-family: var(--mono);
+  color: var(--blue);
+}
+
+.order-notice {
+  border: 1px solid #eeb88e30;
+  background: #eeb88e07;
+  color: var(--peach);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-top: 16px;
+  font-size: 11px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.order-notice.blocked {
+  border-color: #d6969c40;
+  background: #d6969c0a;
+  color: var(--sk-danger);
+}
+.order-notice ul {
+  margin: 6px 0 0 16px;
+}
+.order-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.order-inline-actions button {
+  font-size: 10px;
+  padding: 8px 12px;
+}
+.order-inline-actions > span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.order-text-form {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.order-text-form input {
+  flex: 1;
+  min-width: 0;
+}
+.order-text-form button {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+.order-section {
+  margin-top: 22px;
+}
+.order-section > h4 {
+  font: 9px var(--mono);
+  letter-spacing: 1px;
+  color: #b9b0c7;
+  font-weight: 400;
+  margin-bottom: 10px;
+}
+.order-section p,
+.order-section li {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--text);
+}
+.order-section ul {
+  list-style: none;
+}
+.order-section li + li {
+  margin-top: 9px;
+}
+.order-section li small {
+  display: block;
+  font: 9px var(--mono);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.order-section .checks-failing {
+  color: var(--sk-danger);
+}
+.order-section .checks-passing {
+  color: var(--mint);
+}
+.order-section .checks-pending {
+  color: var(--peach);
+}
+.order-raw {
+  margin-top: 22px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.order-raw summary {
+  cursor: pointer;
+}
+.order-raw pre,
+.briefing-text {
+  font: 10px/1.7 var(--mono);
+  color: #b9adca;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #1e1d28;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+.order-links {
+  display: flex;
+  gap: 18px;
+}
+
+.person-card .agent-stop {
+  margin-top: 10px;
+  justify-content: center;
+}
+.hireable {
+  margin-top: 22px;
+}
+
+.timeline-entry a {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+.context-main {
+  display: flex;
+  flex-direction: column;
+  gap: 19px;
+  min-width: 0;
+}
+.briefing-change {
+  padding: 0 19px 19px;
+}
+.briefing-change > p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.briefing-change .proposal-actions {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+.finding.ok > svg {
+  color: var(--mint);
+}
+.finding.warn > svg {
+  color: var(--peach);
+}
+.finding.fail > svg {
+  color: var(--sk-danger);
+}
+.finding em {
+  display: block;
+  font-style: normal;
+  font-size: 9px;
+  line-height: 1.7;
+  color: var(--peach);
+  margin-top: 4px;
+}
+
+.cost-table {
+  margin-top: 0;
+}
+.cost-table td:last-child,
+.cost-table th:last-child {
+  text-align: right;
+}

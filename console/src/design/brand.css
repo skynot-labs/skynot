@@ -1,0 +1,55 @@
+.sk-brand {
+  display: inline-flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.sk-brand img {
+  display: block;
+  width: 164px;
+  height: 40px;
+}
+.sk-brand small {
+  font: 8px var(--mono);
+  letter-spacing: 1.6px;
+  color: var(--muted);
+  margin: 0 0 0 45px;
+}
+.skynot-shell .brand .sk-brand small {
+  margin-top: 0;
+  letter-spacing: 1.6px;
+}
+.brand-guide-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  padding: 12px 0;
+}
+.brand-guide-link:hover {
+  color: var(--mint);
+}
+.brand-guide-link svg {
+  width: 16px;
+  height: 16px;
+}
+.top-actions .design-link {
+  display: grid;
+  place-items: center;
+}
+@media (max-width: 600px) {
+  .sk-brand img {
+    width: 140px;
+    height: 34px;
+  }
+  .sk-brand small,
+  .skynot-shell .brand .sk-brand small {
+    display: none;
+  }
+  .skynot-shell .topbar {
+    gap: 10px;
+  }
+  .skynot-shell .top-actions {
+    gap: 8px;
+  }
+}

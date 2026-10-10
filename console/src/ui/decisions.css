@@ -1,0 +1,74 @@
+.decision-question.ticket-doubt {
+  border-color: color-mix(in srgb, var(--sk-attention) 22%, transparent);
+  background: color-mix(in srgb, var(--sk-attention) 3%, transparent);
+}
+.ticket-doubt .question-meta {
+  color: var(--sk-attention);
+}
+.decision-question.worker-question {
+  border-color: color-mix(in srgb, var(--sk-agent) 22%, transparent);
+  background: color-mix(in srgb, var(--sk-agent) 3%, transparent);
+}
+.worker-question .question-meta {
+  color: var(--sk-agent);
+}
+.question-order {
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.question-order:hover {
+  color: var(--sk-color-text);
+}
+.inbox-proposal .proposal-actions {
+  display: flex;
+  gap: var(--sk-space-2);
+  margin-top: var(--sk-space-3);
+}
+.inbox-proposal .proposal-actions button {
+  flex: 1;
+  width: auto;
+  justify-content: center;
+  padding: 9px 11px;
+  font-size: 10px;
+}
+.proposal-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  color: var(--sk-action);
+  font-size: 10px;
+}
+.proposal-link svg {
+  width: 12px;
+  height: 12px;
+}
+.proposal-briefing {
+  max-height: 180px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--sk-color-border);
+  border-radius: 5px;
+  background: var(--sk-color-canvas);
+  color: var(--sk-color-text);
+  font: 10px/1.6 var(--sk-font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.decision-page .inbox-proposal {
+  margin: 0;
+  padding: 22px;
+}
+.decision-page .inbox-proposal h3 {
+  font-size: 15px;
+}
+.decision-page .inbox-proposal .proposal-actions button,
+.decision-page .proposal-link {
+  font-size: 12px;
+}
+.decision-page .proposal-briefing {
+  font-size: 12px;
+}

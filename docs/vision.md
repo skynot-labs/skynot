@@ -42,13 +42,13 @@ Hexagonal, light DDD, event-driven.
 - **Light DDD:** aggregates only for the work order and the role run. Ubiquitous language in English. No empty layers.
 - **shellm** (the director's CLI-as-API gateway) is **not** integrated: it runs each request in an empty, read-only temp directory, so it cannot serve workers or repo-reading roles. It may become an optional `RoleEngine` adapter for pure prompt-to-answer calls. Its ideas are taken: a cap on concurrent CLI processes, a visible queue, login checks with `claude auth status` and `codex login status` that spend no quota, no automatic retries, per-run cost.
 
-## The game-style office (later)
+## The game-style office
 
-The product started from the idea of looking like a management game in the spirit of Game Dev Tycoon: an office where the team works and the director watches and decides. We build that **after** the idea is validated. Until then it is a design constraint, not a feature:
+The product started from the idea of looking like a management game in the spirit of Game Dev Tycoon: an office where the team works and the director watches and decides. The console is that office since the flow was validated in phase 1. It stays a client like any other:
 
-- The console is a thin client. All logic lives behind the API, and the UI only renders projections and sends commands. A game-style office is then just another client of the same API and event stream.
-- The state exposed to clients includes **who is doing what**: each agent's role, instance, status (idle, working, waiting for the director) and current order. A console does not need it, but the office will.
-- Keep the console clean and plain now. No game visuals, sprites or animation before the flow is validated.
+- The console is a thin client. All logic lives behind the API, and the UI only renders projections and sends commands.
+- Who is at a desk, working or waiting for the director comes from the state the API exposes (role, status, current order), never from an animation.
+- How a studio or an avatar looks is a preference kept in the browser. It changes no role, permission, schedule or cost.
 
 ## Roles and teams
 
