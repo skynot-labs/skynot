@@ -3,13 +3,8 @@ import { err, ok, type Result } from "../../kernel";
 import type { Policy, RepoPolicy } from "./policy";
 
 export interface PolicyViolation {
-  readonly kind: "repo_not_allowed" | "branch_outside_prefix" | "label_outside_prefix" | "action_limit_reached";
+  readonly kind: "branch_outside_prefix" | "label_outside_prefix" | "action_limit_reached";
   readonly message: string;
-}
-
-export function repoPolicy(policy: Policy, repoName: string): Result<RepoPolicy, PolicyViolation> {
-  const repo = policy.repos.find((candidate) => candidate.name === repoName);
-  return repo ? ok(repo) : err({ kind: "repo_not_allowed", message: `${repoName} is not in policy.yaml` });
 }
 
 export function checkBranch(policy: Policy, branch: string): Result<void, PolicyViolation> {
@@ -24,7 +19,7 @@ export function checkLabel(policy: Policy, label: string): Result<void, PolicyVi
     : err({ kind: "label_outside_prefix", message: `label "${label}" is outside "${policy.labels.prefix}"` });
 }
 
-export function protectedPathsTouched(repo: RepoPolicy, changedPaths: readonly string[]): string[] {
+export function protectedPathsTouched(repo: Pick<RepoPolicy, "protected_paths">, changedPaths: readonly string[]): string[] {
   const rules = repo.protected_paths.map((rule) => rule.toLowerCase());
   return changedPaths.filter((changed) => {
     const normalized = path.posix.normalize(changed).replace(/^\.\//, "").toLowerCase();

@@ -143,6 +143,13 @@ and Resume in the header, today's cost against the cap, and what each order has 
 `run_budget.max_usd_per_day` in `policy.yaml` (optional; a day is the UTC day). Stopping blocks the order
 as "stopped by the director", so it can be retried or discarded.
 
+## Phase 4 progress (plan in `docs/plans/phase-4.md`)
+
+| Slice | What | State |
+|---|---|---|
+| 4.1 | `projects/<name>/` with `project.yaml`, optional `team.yaml` and `briefing.md`; ports `ProjectCatalog`, `BriefingStore`, `TeamRepository` with yml adapters; the Manager reads the briefing | Built; tried with the real `claude`, which used facts that only the briefing held. The director's own setup still runs from `policy.yaml` and `team.yaml` (the fallback); move it to `projects/` when ready |
+| 4.2 to 4.6 | State per project, inbox, intake from GitHub, console, changing a project without editing files | Not started |
+
 ## Readiness
 
 `npm run check` (and the banner in the console) lists what is missing: CLI logins, the `codex` sandbox, token

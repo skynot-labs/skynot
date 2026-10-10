@@ -11,6 +11,7 @@ import {
   describeIssues,
   type AdvisorBench,
   type AdvisorReply,
+  type BriefingSource,
   type DecisionId,
   type ManagerAnswer,
   type MessageId,
@@ -30,6 +31,7 @@ export interface ManagerDependencies {
   desk: OrderDesk;
   advisors?: AdvisorBench;
   team?: TeamDesk;
+  briefing?: BriefingSource;
 }
 
 export class ManagerService {
@@ -81,6 +83,7 @@ export class ManagerService {
     const schemas = this.schemas();
 
     const prompt = buildPrompt({
+      briefing: await this.deps.briefing?.read().catch(() => null) ?? null,
       orders: desk.overview(),
       advisors: this.bench.roster(),
       hireable: this.teamDesk.hireable(),

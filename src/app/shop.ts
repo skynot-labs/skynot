@@ -23,6 +23,7 @@ import { systemClock, type Clock } from "../kernel";
 import { attachProjection, EventLog, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection } from "../orders";
+import type { BriefingStore, Project } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import type { Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
@@ -33,6 +34,7 @@ import { createCodeReviewer } from "./code-reviewer";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
+import { projectsFromPolicy } from "./projects";
 import { createOrderDesk } from "./order-desk";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
@@ -47,7 +49,8 @@ export interface ShopConfig {
   vcs?: Vcs;
   workspace?: Workspace;
   clock?: Clock;
-  repo?: string;
+  projects?: Project[];
+  briefing?: BriefingStore;
   readiness?: () => Promise<Finding[]>;
   reportError?: (error: unknown, event: StoredEvent) => void;
 }
@@ -83,8 +86,10 @@ const MANAGER_TIMEOUT_MS = 180_000;
 export async function createShop(config: ShopConfig): Promise<Shop> {
   const { policy, dataDir } = config;
   const clock = config.clock ?? systemClock;
-  const repo = config.repo ?? policy.repos[0]!.name;
-  const repoRules = policy.repos.find((candidate) => candidate.name === repo) ?? policy.repos[0]!;
+  const projects = config.projects ?? projectsFromPolicy(policy);
+  const project = projects[0];
+  if (!project) throw new Error("the shop needs at least one project");
+  const repo = project.repo;
 
   const log = new EventLog(new JsonlEventStore(join(dataDir, "events.jsonl")), clock, config.reportError);
   const orders = new OrdersProjection();
@@ -102,7 +107,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, () => control.paused() !== null);
   const vcs = config.vcs ?? new GhVcs();
   const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces") });
-  const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock));
+  const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
 
   const orderService = new OrderService(log, orders);
   const teamService = new TeamService(log, roster);
@@ -112,14 +117,15 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     runner: createManagerRunner(scheduler, {
       engine: config.team.roles.manager.engine,
       ...withModel(config.team.roles.manager),
-      cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
+      cwd: async () => workspace.readingCopy(repo, project.baseBranch),
       timeoutMs: MANAGER_TIMEOUT_MS,
       maxUsd: policy.run_budget.max_usd,
     }),
     desk: createOrderDesk(orderService, orders),
+    ...(config.briefing && { briefing: { read: () => config.briefing!.read(project.id) } }),
     team: createTeamDesk(teamService, roster),
     advisors: createAdvisorBench(scheduler, () => roster.members(), {
-      cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
+      cwd: async () => workspace.readingCopy(repo, project.baseBranch),
       timeoutMs: MANAGER_TIMEOUT_MS,
       maxUsd: policy.run_budget.max_usd,
     }),
@@ -134,7 +140,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         reviewer: createCodeReviewer(scheduler, {
           engine: reviewerRole.engine,
           ...withModel(reviewerRole),
-          cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
+          cwd: async () => workspace.readingCopy(repo, project.baseBranch),
           timeoutMs: MANAGER_TIMEOUT_MS,
           maxUsd: policy.run_budget.max_usd,
         }),

@@ -1,6 +1,6 @@
 # Phase 4 · Several projects, a board, and questions that reach the director
 
-**Status:** plan approved by the director; slice 4.1 starts. See [vision](../vision.md) and [phase 3](phase-3.md) for
+**Status:** plan approved by the director; slice 4.1 built, 4.2 to 4.6 not started. See [vision](../vision.md) and [phase 3](phase-3.md) for
 what exists.
 
 ## Why

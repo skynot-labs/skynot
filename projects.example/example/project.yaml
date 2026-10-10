@@ -1,0 +1,9 @@
+version: 1
+
+# The repository this project works on, and how the shop checks the work before opening a pull request.
+repo: OWNER/REPO
+base_branch: main
+setup_command: npm ci
+verify_commands: ["npm run typecheck", "npm test"]
+# Files the worker may not touch without the director's signature.
+protected_paths: [".github/", ".claude/", ".mcp.json", "AGENTS.md", "CLAUDE.md", "vitest.config*"]

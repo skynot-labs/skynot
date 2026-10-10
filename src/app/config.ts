@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { loadPolicy, parsePolicy, type Policy } from "../governance";
-import { loadTeam, type Team } from "../team";
+import { YamlTeamRepository, type Team } from "../team";
+import { PROJECTS_DIR } from "./projects";
 
 export const policyPath = process.env.SKYNOT_POLICY ?? "policy.yaml";
 export const teamPath = process.env.SKYNOT_TEAM ?? "team.yaml";
@@ -20,11 +21,11 @@ export async function readPolicy(mock: boolean): Promise<Policy> {
   return parsed.value;
 }
 
-export async function readTeam(mock: boolean): Promise<Team> {
+export async function readTeam(mock: boolean, projectId: string): Promise<Team> {
   if (mock) return { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {}, library: {} };
-  if (!existsSync(teamPath)) throw new Error(`${teamPath} not found. Copy team.example.yaml to team.yaml.`);
+  if (!existsSync(teamPath) && !existsSync(`${PROJECTS_DIR}/${projectId}/team.yaml`)) throw new Error(`${teamPath} not found. Copy team.example.yaml to team.yaml.`);
 
-  const loaded = await loadTeam(teamPath);
+  const loaded = await new YamlTeamRepository(PROJECTS_DIR, teamPath).forProject(projectId);
   if (!loaded.ok) throw new Error(loaded.error);
   return loaded.value;
 }

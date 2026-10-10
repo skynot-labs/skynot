@@ -7,6 +7,7 @@ import { readState } from "../../src/app/http/state";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
 import type { EngineName, EngineRequest, RoleEngine } from "../../src/execution";
+import type { BriefingStore } from "../../src/projects";
 import type { Team } from "../../src/team";
 import { FakeEngine } from "../../src/execution";
 import { examplePolicy } from "../governance/fixtures";
@@ -33,7 +34,7 @@ function recording(engine: RoleEngine) {
   return { requests, recorded };
 }
 
-async function openShop(vcs = new FakeVcs(), team: Team = defaultTeam, engines: Partial<Record<EngineName, RoleEngine>> = { claude: createMockManager(), codex: createMockDeveloper() }) {
+async function openShop(vcs = new FakeVcs(), team: Team = defaultTeam, engines: Partial<Record<EngineName, RoleEngine>> = { claude: createMockManager(), codex: createMockDeveloper() }, briefing?: BriefingStore) {
   const shop = await createShop({
     policy: examplePolicy(),
     dataDir,
@@ -41,6 +42,7 @@ async function openShop(vcs = new FakeVcs(), team: Team = defaultTeam, engines: 
     engines,
     vcs,
     workspace: new FakeWorkspace(),
+    ...(briefing && { briefing }),
   });
   shops.push(shop);
   return { shop, vcs };
@@ -252,6 +254,33 @@ describe("activity", () => {
     expect(shop.activity.linksFor(id).blocked).toBeNull();
   });
 
+  describe("the project's briefing", () => {
+    const store = (text: string | null): BriefingStore => ({ read: async () => text });
+    const prompts = (requests: EngineRequest[]) => requests.map((request) => request.prompt);
+
+    it("reaches the Manager's prompt, with the rule that it never goes into an order", async () => {
+      const manager = recording(createMockManager());
+      const { shop } = await openShop(new FakeVcs(), defaultTeam, { claude: manager.recorded, codex: createMockDeveloper() }, store("The client hates modals."));
+
+      await shop.manager.handleMessage("Export the inventory to CSV");
+
+      expect(prompts(manager.requests)[0]).toContain("## Private briefing from the director\nThe client hates modals.");
+      expect(manager.requests[0]?.system).toContain("Never copy or quote it in an order");
+    });
+
+    it("leaves the prompt as it was when there is no briefing, or when reading it fails", async () => {
+      for (const briefing of [store(null), { read: async (): Promise<string> => Promise.reject(new Error("disk")) }]) {
+        const manager = recording(createMockManager());
+        const { shop } = await openShop(new FakeVcs(), defaultTeam, { claude: manager.recorded, codex: createMockDeveloper() }, briefing);
+
+        await shop.manager.handleMessage("Export the inventory to CSV");
+
+        expect(prompts(manager.requests)[0]).not.toContain("briefing from the director");
+        expect(shop.chat.messages().at(-1)?.author).toBe("manager");
+      }
+    });
+  });
+
   describe("the team file", () => {
     it("sends each role's own model to its engine", async () => {
       const manager = recording(createMockManager());
@@ -386,9 +415,12 @@ describe("activity", () => {
         dataDir: dir,
         team: defaultTeam,
         engines: { claude: createMockManager(), codex: createMockDeveloper() },
-        vcs: new FakeVcs(),
+        vcs: Object.assign(new FakeVcs(), {
+          createIssue: async () => {
+            throw new Error("GitHub is down");
+          },
+        }),
         workspace: new FakeWorkspace(),
-        repo: "acme/not-in-the-policy",
       });
       shops.push(shop);
 

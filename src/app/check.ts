@@ -1,18 +1,19 @@
 import { ClaudeEngine, CodexEngine } from "../execution";
 import { exec } from "../kernel/process";
 import { readPolicy, readTeam } from "./config";
+import { readProjects } from "./projects";
 import { checkReadiness, engineUsage } from "./readiness";
 
 const policy = await readPolicy(false);
-const team = await readTeam(false);
-const repo = policy.repos[0]!;
+const [project] = await readProjects(policy);
+const team = await readTeam(false, project!.id);
 
 const findings = await checkReadiness({
   exec,
   engines: { claude: new ClaudeEngine(), codex: new CodexEngine() },
   usage: engineUsage(team),
-  repo: repo.name,
-  baseBranch: repo.base_branch,
+  repo: project!.repo,
+  baseBranch: project!.baseBranch,
   dataDir: process.env.SKYNOT_DATA ?? "data/shop",
 });
 
