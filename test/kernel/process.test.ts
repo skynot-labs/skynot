@@ -6,6 +6,12 @@ describe("exec", () => {
     expect(await exec("sh", ["-c", "echo out; echo err >&2; exit 3"])).toEqual({ stdout: "out\n", stderr: "err\n", code: 3 });
   });
 
+  it("keeps multi-byte characters whole in a long output", async () => {
+    const result = await exec("node", ["-e", "process.stdout.write('x' + 'é'.repeat(300000))"]);
+
+    expect(result.stdout).toBe(`x${"é".repeat(300000)}`);
+  });
+
   it("kills the whole process group when the timeout passes", async () => {
     const started = Date.now();
 

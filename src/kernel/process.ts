@@ -57,6 +57,9 @@ export const exec: Exec = (command, args, options = {}) =>
     if (options.signal?.aborted) cancel();
     else options.signal?.addEventListener("abort", cancel, { once: true });
 
+    // decoding each chunk on its own breaks a character split across two of them
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
     child.on("error", (error) => {
