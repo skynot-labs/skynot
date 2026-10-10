@@ -47,6 +47,11 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
       <pre class="card">{order.card}</pre>
 
       {order.blocked && <p class="blocked">Blocked: {order.blocked}</p>}
+      {order.blocked && (order.status === "signed" || order.status === "on_bench") && (
+        <div class="actions">
+          <button type="button" onClick={() => act("retry-order")}>Retry</button>
+        </div>
+      )}
 
       <div class="links">
         {order.issueUrl && <a href={order.issueUrl} target="_blank" rel="noreferrer">issue</a>}

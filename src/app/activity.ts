@@ -10,12 +10,13 @@ export interface ActivityEntry {
 }
 
 export interface OrderLinks {
+  readonly issue: number | null;
   readonly issueUrl: string | null;
   readonly pullRequestUrl: string | null;
   readonly blocked: string | null;
 }
 
-const NO_LINKS: OrderLinks = { issueUrl: null, pullRequestUrl: null, blocked: null };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null };
 
 type Payload = Record<string, unknown>;
 
@@ -65,6 +66,8 @@ export class ActivityProjection implements Projection {
         return delivery(`pull request #${payload.number} opened`, payload.url as string);
       case "delivery.work_blocked":
         return delivery(`blocked: ${payload.reason}`);
+      case "delivery.work_retried":
+        return delivery("retry requested");
       case "execution.run_requested":
         this.runOrders.set(payload.runId as string, { role: payload.role as string, orderId });
         return null;
@@ -89,7 +92,7 @@ export class ActivityProjection implements Projection {
 
     switch (type) {
       case "delivery.issue_opened":
-        this.links.set(orderId, { ...current, issueUrl: payload.url as string });
+        this.links.set(orderId, { ...current, issue: payload.issue as number, issueUrl: payload.url as string });
         break;
       case "delivery.pull_request_opened":
         this.links.set(orderId, { ...current, pullRequestUrl: payload.url as string, blocked: null });
@@ -98,6 +101,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, blocked: payload.reason as string });
         break;
       case "orders.work_started":
+      case "delivery.work_retried":
         this.links.set(orderId, { ...current, blocked: null });
         break;
     }

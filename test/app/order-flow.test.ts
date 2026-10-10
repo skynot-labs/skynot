@@ -1,5 +1,6 @@
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { ActivityProjection } from "../../src/app/activity";
 import { createDeliveryRules } from "../../src/app/delivery-rules";
 import { OrderFlow } from "../../src/app/order-flow";
 import { createWorkerRunner } from "../../src/app/worker-runner";
@@ -47,7 +48,8 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   const orders = new OrdersProjection();
   const runs = new RunsProjection();
   const counts = new ActionCounts();
-  for (const projection of [orders, runs, counts]) await attachProjection(log, projection);
+  const activity = new ActivityProjection();
+  for (const projection of [orders, runs, counts, activity]) await attachProjection(log, projection);
 
   const engine = new FakeEngine(async (request) => {
     await work(request.cwd);
@@ -67,6 +69,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
     implementer: new Implementer({ log, vcs, workspace, worker, rules }),
     repo: options.repo ?? "acme/widgets",
     findOrder: (id) => orders.get(id),
+    progressOf: (id) => activity.linksFor(id),
   });
   flow.start();
 
@@ -169,5 +172,73 @@ describe("order flow", () => {
 
     expect(shop.vcs.pullRequests.map((pullRequest) => pullRequest.head).sort()).toEqual(["taller/wo-0001", "taller/wo-0002"]);
     expect(shop.orders.list().map((order) => order.status)).toEqual(["in_review", "in_review"]);
+  });
+
+  describe("retry", () => {
+    const failsOnce = () => {
+      let attempts = 0;
+      return async (dir: string) => {
+        if (++attempts > 1) await addFiles(dir, { "src/feature.txt": "feature\n" });
+      };
+    };
+
+    it("picks a blocked order up where it stopped, reusing its issue", async () => {
+      const shop = await createShop(failsOnce());
+      const id = await proposeAndSign(shop);
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+
+      const retried = await shop.flow.retry(id);
+      await shop.flow.idle();
+
+      expect(retried.ok).toBe(true);
+      expect(shop.orders.get(id)).toMatchObject({ status: "in_review", pullRequest: 2 });
+      expect(shop.vcs.issues).toHaveLength(1);
+      expect(shop.vcs.pullRequests).toMatchObject([{ number: 2, head: "taller/wo-0001" }]);
+      expect(await shop.eventTypes()).toEqual([
+        "delivery.issue_opened",
+        "delivery.work_blocked",
+        "delivery.work_retried",
+        "delivery.pull_request_opened",
+      ]);
+    });
+
+    it("keeps the order blocked when the retry fails again", async () => {
+      const shop = await createShop(async () => undefined);
+      const id = await proposeAndSign(shop);
+
+      await shop.flow.retry(id);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+      expect(shop.vcs.issues).toHaveLength(1);
+      expect((await shop.eventTypes()).filter((type) => type === "delivery.work_blocked")).toHaveLength(2);
+    });
+
+    it("refuses an order that is not blocked", async () => {
+      const shop = await createShop(createsFeature);
+      const id = await proposeAndSign(shop);
+
+      const retried = await shop.flow.retry(id);
+
+      expect(retried).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
+      expect(shop.engine.requests).toHaveLength(1);
+    });
+
+    it("refuses an order that does not exist", async () => {
+      const shop = await createShop(createsFeature);
+
+      expect(await shop.flow.retry("WO-0099")).toMatchObject({ ok: false, error: { kind: "not_found" } });
+    });
+
+    it("starts only one run when the retry is requested twice at once", async () => {
+      const shop = await createShop(failsOnce());
+      const id = await proposeAndSign(shop);
+
+      await Promise.all([shop.flow.retry(id), shop.flow.retry(id)]);
+      await shop.flow.idle();
+
+      expect(shop.engine.requests).toHaveLength(2);
+      expect(shop.vcs.pullRequests).toHaveLength(1);
+    });
   });
 });

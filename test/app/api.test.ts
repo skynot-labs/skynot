@@ -107,6 +107,15 @@ describe("console api", () => {
     await settle();
   });
 
+  it("refuses to retry an order that is not blocked and one that does not exist", async () => {
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+
+    expect((await post("/api/commands/retry-order", { orderId: id })).status).toBe(409);
+    expect((await post("/api/commands/retry-order", { orderId: "WO-0099" })).status).toBe(404);
+  });
+
   it("rejects malformed commands without changing anything", async () => {
     expect((await post("/api/commands/send-message", { text: "   " })).status).toBe(400);
     expect((await post("/api/commands/sign-order", { orderId: "not-an-id" })).status).toBe(400);

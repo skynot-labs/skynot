@@ -105,6 +105,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     }),
     repo,
     findOrder: (id) => orders.get(id),
+    progressOf: (id) => activity.linksFor(id),
   });
   const stopFlow = flow.start();
 
