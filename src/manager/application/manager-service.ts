@@ -95,6 +95,7 @@ export class ManagerService {
       const parsed = schema.safeParse(raw.value);
       if (parsed.success) return ok(parsed.data as ManagerAnswer);
       feedback = describeIssues(parsed.error);
+      await this.deps.log.record([{ type: "manager.answer_rejected", payload: { attempt, issues: feedback } }]);
     }
     return err("I could not produce a valid answer after 3 tries. Rephrase or add detail and I will try again.");
   }

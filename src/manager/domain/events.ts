@@ -12,6 +12,7 @@ export type ManagerEvent =
     }
   | { type: "manager.decision_asked"; payload: { decisionId: DecisionId; question: string; options: string[] } }
   | { type: "manager.decision_answered"; payload: { decisionId: DecisionId; answer: string } }
+  | { type: "manager.answer_rejected"; payload: { attempt: number; issues: string } }
   | { type: "manager.consulted"; payload: { role: string; question: string } }
   | { type: "manager.advised"; payload: { role: string; answer: string } }
   | { type: "manager.advisor_failed"; payload: { role: string; reason: string } };
