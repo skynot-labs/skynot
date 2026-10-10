@@ -114,6 +114,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     if (review?.verdict !== "changes_requested") return Promise.resolve({ ok: false as const, error: { kind: "invalid_transition" as const, message: `${id} has no requested changes to apply` } });
     return shop.flow.followUp(id, followUpFromReview(review));
   });
+  orderCommand("answer-question", (id, body) => shop.flow.answerQuestion(id, (body as { answer: string }).answer), { answer: text });
   orderCommand("start-now", (id) => shop.flow.startNow(id));
   orderCommand("review-order", async (id) => shop.flow.requestReview(id));
   orderCommand("reassign-order", (id, body) => shop.flow.reassign(id, (body as { worker: string }).worker), { worker: z.string().regex(/^[a-z][a-z0-9-]{1,23}$/) });

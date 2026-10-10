@@ -18,6 +18,11 @@ export class BlockedNotice {
   }
 
   private react(event: StoredEvent): void {
+    if (event.type === "delivery.question_raised") {
+      const { orderId, question } = event.payload as { orderId: string; question: string };
+      void this.deps.say(`${orderId} has a question for you: ${question} Answer it on its card or in the inbox.`, orderId).catch((error) => this.deps.onError?.(error, event));
+      return;
+    }
     if (event.type !== "delivery.work_blocked") return;
 
     const { orderId, reason } = event.payload as { orderId: string; reason: string };

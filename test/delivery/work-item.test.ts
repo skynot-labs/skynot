@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deletedTest, issueBody, issueTitle, pullRequestBody, workerPrompt, type WorkItem } from "../../src/delivery";
+import { askedQuestion, deletedTest, issueBody, issueTitle, pullRequestBody, workerPrompt, type WorkItem } from "../../src/delivery";
 
 const item: WorkItem = {
   id: "WO-0042",
@@ -13,6 +13,31 @@ const item: WorkItem = {
   likelyFiles: ["src/export.ts"],
   card: "WO-0042  Export the inventory to CSV\nstatus   ? needs your signature",
 };
+
+describe("the worker's question", () => {
+  it.each([
+    ["I read the code.\nQUESTION: Which date format?", "Which date format?"],
+    ["QUESTION: first\nsomething else\nQUESTION: the last one counts", "the last one counts"],
+    ["  QUESTION:    padded   ", "padded"],
+  ])("takes the last line that starts with the mark: %j", (report, expected) => {
+    expect(askedQuestion(report)).toBe(expected);
+  });
+
+  it("ignores a report without one, an empty one, and cuts a long one", () => {
+    expect(askedQuestion("all done, see tests")).toBeNull();
+    expect(askedQuestion("QUESTION:")).toBeNull();
+    expect(askedQuestion("QUESTION: ??")).toBeNull();
+    expect(askedQuestion(`QUESTION: ${"x".repeat(900)}`)).toHaveLength(300);
+  });
+
+  it("is offered in the prompt, together with the answers the director already gave", () => {
+    const prompt = workerPrompt({ ...item, answers: ["Which format? → ISO 8601"] }, 7, { protectedPaths: [], verifyCommands: ["npm test"] });
+
+    expect(prompt).toContain("end your report with one line, `QUESTION:");
+    expect(prompt).toContain("Follow these answers:\n- Which format? → ISO 8601");
+    expect(workerPrompt(item, 7, { protectedPaths: [], verifyCommands: [] })).not.toContain("Follow these answers");
+  });
+});
 
 describe("issue and pull request text", () => {
   it("titles the issue with the order id", () => {

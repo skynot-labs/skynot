@@ -17,7 +17,7 @@ export interface PromptContext {
   advisors?: ReadonlyArray<{ name: string; description: string }>;
   hireable?: ReadonlyArray<{ name: string; description: string }>;
   openQuestions: readonly string[];
-  conversation: ReadonlyArray<{ author: "director" | "manager"; text: string }>;
+  conversation: ReadonlyArray<{ author: "director" | "manager" | "ticket"; text: string }>;
   message: string;
 }
 

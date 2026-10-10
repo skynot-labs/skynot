@@ -6,11 +6,12 @@ export type DecisionId = Id<"dec">;
 
 export type ManagerEvent =
   | { type: "manager.message_received"; payload: { messageId: MessageId; text: string } }
+  | { type: "manager.ticket_received"; payload: { messageId: MessageId; ticket: number; title: string; text: string } }
   | {
       type: "manager.replied";
       payload: { messageId: MessageId; text: string; orderId: string | null; decisionId: DecisionId | null };
     }
-  | { type: "manager.decision_asked"; payload: { decisionId: DecisionId; question: string; options: string[] } }
+  | { type: "manager.decision_asked"; payload: { decisionId: DecisionId; question: string; options: string[]; ticket?: number } }
   | { type: "manager.decision_answered"; payload: { decisionId: DecisionId; answer: string } }
   | { type: "manager.answer_rejected"; payload: { attempt: number; issues: string } }
   | { type: "manager.consulted"; payload: { role: string; question: string } }

@@ -26,6 +26,8 @@ export interface OrderFlowDependencies {
     approvedPaths: readonly string[];
     waitingOn: readonly string[];
     reviews: number;
+    question: string | null;
+    answers: readonly string[];
   };
 }
 
@@ -40,8 +42,8 @@ export class OrderFlow {
   async recover(): Promise<void> {
     for (const order of this.deps.listOrders()) {
       const unfinished = order.status === "signed" || order.status === "on_bench";
-      const { blocked, waitingOn } = this.deps.progressOf(order.id);
-      if (!unfinished || this.running.has(order.id) || blocked !== null) continue;
+      const { blocked, waitingOn, question } = this.deps.progressOf(order.id);
+      if (!unfinished || this.running.has(order.id) || blocked !== null || question !== null) continue;
       if (order.status === "signed" && waitingOn.length > 0) {
         await this.consider(order.id);
         continue;
@@ -133,6 +135,25 @@ export class OrderFlow {
     return ok(order);
   }
 
+  // The director answers what the worker asked; the order goes on with the answer in its prompt.
+  async answerQuestion(orderId: string, answer: string): Promise<Result<WorkOrder, OrderError>> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    const { question, issue } = this.deps.progressOf(orderId);
+    if (question === null || !["signed", "on_bench", "in_review"].includes(order.status)) {
+      return err({ kind: "invalid_transition", message: `${orderId} has no question waiting for an answer` });
+    }
+    if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
+
+    await this.claim(orderId, { type: "delivery.question_answered", payload: { orderId, answer } });
+    if (order.status === "in_review" && issue !== null) {
+      this.launch(orderId, (signal) => this.runFollowUp(order, issue, `The director answered your question: ${answer}`, signal));
+    } else {
+      this.launch(orderId);
+    }
+    return ok(order);
+  }
+
   // The director signs the exact protected files the worker touched; the next run may touch those, no others.
   async approveProtected(orderId: string): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
@@ -157,7 +178,8 @@ export class OrderFlow {
   discard(orderId: string): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
     if (order?.status !== "on_bench") return this.deps.orders.discard(orderId);
-    if (this.running.has(orderId) || this.deps.progressOf(orderId).blocked === null) {
+    const { blocked: stuck, question } = this.deps.progressOf(orderId);
+    if (this.running.has(orderId) || (stuck === null && question === null)) {
       return Promise.resolve(err({ kind: "invalid_transition", message: `${orderId} is being worked on: wait until it finishes or blocks` }));
     }
     return this.deps.orders.abandon(orderId);
@@ -213,6 +235,10 @@ export class OrderFlow {
     this.inFlight.add(run);
   }
 
+  private itemOf(order: WorkOrder): WorkItem {
+    return toWorkItem(order, this.deps.progressOf(order.id).answers);
+  }
+
   private async review(orderId: string, signal: AbortSignal, mayRequestChanges = true): Promise<void> {
     const { findOrder, progressOf, repoOf, log } = this.deps;
     const order = findOrder(orderId);
@@ -220,7 +246,7 @@ export class OrderFlow {
     if (!reviewer || order?.status !== "in_review" || order.pullRequest === null || signal.aborted) return;
 
     const { reviews, issue } = progressOf(orderId);
-    const outcome = await reviewer.run(toWorkItem(order), repoOf(order), order.pullRequest, reviews + 1, signal);
+    const outcome = await reviewer.run(this.itemOf(order), repoOf(order), order.pullRequest, reviews + 1, signal);
     if (!outcome.ok || !mayRequestChanges || outcome.value.verdict === "approved" || reviews >= AUTOMATIC_ROUNDS || signal.aborted || issue === null) return;
 
     const instruction = followUpFromReview(outcome.value);
@@ -231,7 +257,7 @@ export class OrderFlow {
   private async runFollowUp(order: WorkOrder, issue: number, instruction: string, signal: AbortSignal): Promise<void> {
     const { implementer, repoOf, log } = this.deps;
     try {
-      const updated = await implementer.followUp(toWorkItem(order), repoOf(order), issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
+      const updated = await implementer.followUp(this.itemOf(order), repoOf(order), issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
       if (updated.ok) await this.review(order.id, signal);
     } catch (error) {
       await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: (error as Error).message } }]);
@@ -243,7 +269,7 @@ export class OrderFlow {
     try {
       const order = findOrder(orderId);
       if (!order) return;
-      const item = toWorkItem(order);
+      const item = this.itemOf(order);
 
       let issue = progressOf(orderId).issue;
       if (issue === null) {
@@ -273,7 +299,7 @@ export class OrderFlow {
   }
 }
 
-export function toWorkItem(order: WorkOrder): WorkItem {
+export function toWorkItem(order: WorkOrder, answers: readonly string[] = []): WorkItem {
   const { spec } = order;
   return {
     id: order.id,
@@ -284,5 +310,7 @@ export function toWorkItem(order: WorkOrder): WorkItem {
     risk: spec.risk,
     likelyFiles: spec.likelyFiles,
     card: renderCard(order),
+    ticket: order.ticket,
+    ...(answers.length > 0 && { answers }),
   };
 }

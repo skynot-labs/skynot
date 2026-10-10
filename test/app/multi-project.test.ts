@@ -6,7 +6,8 @@ import { createMockDeveloper, createMockManager } from "../../src/app/mock-engin
 import { createApi } from "../../src/app/http/api";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
-import type { EngineRequest, RoleEngine } from "../../src/execution";
+import { FakeEngine, type EngineRequest, type RoleEngine } from "../../src/execution";
+import { inboxOf } from "../../src/app/inbox";
 import type { Project } from "../../src/projects";
 import type { Team } from "../../src/team";
 import { examplePolicy } from "../governance/fixtures";
@@ -184,5 +185,42 @@ describe("the console API with two projects", () => {
     expect(shop.orders.listFor("shop")).toHaveLength(1);
     expect(shop.orders.listFor("blog")).toHaveLength(0);
     expect((await call(shop, "/api/commands/send-message", { text: "hello", project: "ghost" })).status).toBe(404);
+  });
+});
+
+describe("the director's inbox", () => {
+  const asking = () => new FakeEngine(() => ({ text: "QUESTION: Which color should the banner be?" }));
+  const call = (shop: Shop, path: string, body: object) =>
+    createApi(shop, { allowedHosts: ["console"] }).request(path, { method: "POST", headers: { host: "console", "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  it("lists what the Manager and a worker wait on, per project, oldest first, and tells the chat about the worker's question", async () => {
+    const { shop } = await openShop({}, new FakeVcs(), asking());
+    const blogOrder = await fileAnOrder(shop, "blog", "Add an RSS feed");
+    await shop.desk("shop")!.manager.handleMessage("Add a cart page");
+    await shop.orderService.sign(blogOrder);
+    await shop.flow.idle();
+
+    const blog = inboxOf(shop, "blog");
+    expect(blog).toMatchObject([{ kind: "worker_question", orderId: blogOrder, question: "Which color should the banner be?", from: "developer" }]);
+    expect(inboxOf(shop, "shop")).toMatchObject([{ kind: "manager_question", from: "manager", orderId: null }]);
+    await shop.desk("blog")!.manager.idle();
+    expect(shop.desk("blog")!.chat.messages().at(-1)?.text).toContain(`${blogOrder} has a question for you: Which color should the banner be?`);
+    expect(shop.desk("shop")!.chat.messages().map((message) => message.text).join("\n")).not.toContain("banner");
+  });
+
+  it("answers a worker's question through the API, and counts what waits in the project's summary", async () => {
+    const { shop } = await openShop({}, new FakeVcs(), asking());
+    const blogOrder = await fileAnOrder(shop, "blog", "Add an RSS feed");
+    await shop.orderService.sign(blogOrder);
+    await shop.flow.idle();
+    const needs = async () => ((await (await createApi(shop, { allowedHosts: ["console"] }).request("/api/state", { headers: { host: "console" } })).json()) as { projects: Array<{ id: string; needsYou: number }> }).projects.find((entry) => entry.id === "blog")?.needsYou;
+    expect(await needs()).toBe(1);
+
+    expect((await call(shop, "/api/commands/answer-question", { orderId: blogOrder, answer: "green" })).status).toBe(200);
+    await shop.flow.idle();
+
+    expect(inboxOf(shop, "blog").map((item) => item.kind)).toEqual(["worker_question"]);
+    expect((await call(shop, "/api/commands/answer-question", { orderId: "WO-0099", answer: "green" })).status).toBe(404);
+    expect((await call(shop, "/api/commands/answer-question", { orderId: blogOrder, answer: "" })).status).toBe(400);
   });
 });
