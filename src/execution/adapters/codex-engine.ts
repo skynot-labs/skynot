@@ -69,9 +69,10 @@ export class CodexEngine implements RoleEngine {
 
   async loginStatus(): Promise<LoginStatus> {
     try {
-      const { stdout, code } = await this.execute("codex", ["login", "status"]);
-      return code === 0 && /logged in/i.test(stdout)
-        ? { loggedIn: true, detail: stdout.trim() }
+      const { stdout, stderr, code } = await this.execute("codex", ["login", "status"]);
+      const said = `${stdout}${stderr}`.trim();
+      return code === 0 && /logged in/i.test(said)
+        ? { loggedIn: true, detail: said }
         : { loggedIn: false, detail: "run `codex login`" };
     } catch {
       return { loggedIn: false, detail: "codex is not installed or did not answer" };

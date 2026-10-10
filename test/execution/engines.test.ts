@@ -195,6 +195,7 @@ describe("codex engine", () => {
 
   it("checks the login from the CLI's own status command", async () => {
     expect(await new CodexEngine(execReturning({ stdout: "Logged in using ChatGPT" })).loginStatus()).toMatchObject({ loggedIn: true });
+    expect(await new CodexEngine(execReturning({ stderr: "Logged in using ChatGPT" })).loginStatus()).toMatchObject({ loggedIn: true });
     expect(await new CodexEngine(execReturning({ code: 1, stdout: "Not logged in" })).loginStatus()).toMatchObject({ loggedIn: false });
   });
 });

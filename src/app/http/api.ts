@@ -119,6 +119,11 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   orderCommand("discard-order", (id) => shop.flow.discard(id));
   orderCommand("record-minutes", (id, body) => shop.orderService.recordMinutes(id, (body as { bucket: z.infer<typeof bucket> }).bucket), { bucket });
 
+  api.post("/api/commands/recheck", async (context) => {
+    await shop.readiness.refresh();
+    return context.json({ findings: shop.readiness.findings().length });
+  });
+
   api.post("/api/commands/stop-run", async (context) => {
     const body = z.object({ runId: z.string().regex(/^run_[0-9a-f-]+$/) }).safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "invalid request" }, 400);

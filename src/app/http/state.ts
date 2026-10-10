@@ -8,6 +8,7 @@ export function readState(shop: Shop) {
   return {
     repo: shop.repo,
     reviewing: shop.reviewing,
+    readiness: shop.readiness.findings(),
     workers: shop.workers,
     cursor: shop.cursor.value,
     orders: shop.orders.list().map((order) => ({

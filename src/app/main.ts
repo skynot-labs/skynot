@@ -1,52 +1,32 @@
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { FakeVcs, FakeWorkspace } from "../delivery";
-import { loadPolicy, parsePolicy, type Policy } from "../governance";
-import { loadTeam, type Team } from "../team";
+import { readPolicy, readTeam } from "./config";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
+import { ClaudeEngine, CodexEngine } from "../execution";
+import { exec } from "../kernel/process";
+import { checkReadiness, engineUsage } from "./readiness";
 import { createShop } from "./shop";
 
 const mock = process.env.SKYNOT_MOCK === "1";
 const port = Number(process.env.PORT ?? 4747);
-const policyPath = process.env.SKYNOT_POLICY ?? "policy.yaml";
-const teamPath = process.env.SKYNOT_TEAM ?? "team.yaml";
 const dataDir = process.env.SKYNOT_DATA ?? (mock ? "data/mock" : "data/shop");
 const consoleDir = "console/dist";
 
-async function readPolicy(): Promise<Policy> {
-  if (existsSync(policyPath)) {
-    const loaded = await loadPolicy(policyPath);
-    if (!loaded.ok) throw new Error(loaded.error);
-    return loaded.value;
-  }
-  if (!mock) throw new Error(`${policyPath} not found. Copy policy.example.yaml to policy.yaml and set your repository.`);
-
-  const example = (await readFile("policy.example.yaml", "utf8")).replace("OWNER/REPO", "demo/todo");
-  const parsed = parsePolicy(example);
-  if (!parsed.ok) throw new Error(parsed.error);
-  return parsed.value;
-}
-
-async function readTeam(): Promise<Team> {
-  if (mock) return { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {}, library: {} };
-  if (!existsSync(teamPath)) throw new Error(`${teamPath} not found. Copy team.example.yaml to team.yaml.`);
-
-  const loaded = await loadTeam(teamPath);
-  if (!loaded.ok) throw new Error(loaded.error);
-  return loaded.value;
-}
-
-const policy = await readPolicy();
+const policy = await readPolicy(mock);
 const vcs = new FakeVcs();
 
+const team = await readTeam(mock);
 const shop = await createShop({
   policy,
   dataDir,
-  team: await readTeam(),
+  team,
+  ...(!mock && {
+    readiness: () => checkReadiness({ exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, usage: engineUsage(team), repo: policy.repos[0]!.name, baseBranch: policy.repos[0]!.base_branch, dataDir }),
+  }),
   reportError: (error, event) => console.error(`handler failed on ${event.type}:`, error),
   ...(mock && {
     engines: { claude: createMockManager(), codex: createMockDeveloper() },
@@ -78,6 +58,11 @@ if (existsSync(consoleDir)) {
   app.get("*", serveStatic({ path: `${consoleDir}/index.html` }));
 }
 
+void shop.readiness.refresh().then(() => {
+  for (const finding of shop.readiness.findings().filter((entry) => entry.level !== "ok")) {
+    console.warn(`[${finding.level}] ${finding.check}: ${finding.detail}. ${finding.fix ?? ""}`);
+  }
+});
 shop.watcher.start(mock ? 2_000 : 30_000);
 
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
