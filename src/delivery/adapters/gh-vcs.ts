@@ -6,6 +6,8 @@ interface Created {
   html_url: string;
 }
 
+const PASSING_CONCLUSIONS = ["success", "skipped", "neutral"];
+
 export class GhVcs implements Vcs {
   constructor(private readonly execute: Exec = exec) {}
 
@@ -36,8 +38,9 @@ export class GhVcs implements Vcs {
     };
     const runs = found.workflow_runs;
     if (runs.length === 0) return "none";
-    if (runs.some((run) => ["failure", "cancelled", "timed_out", "action_required"].includes(run.conclusion ?? ""))) return "failing";
-    return runs.every((run) => run.status === "completed") ? "passing" : "pending";
+    const finished = runs.filter((run) => run.status === "completed");
+    if (finished.some((run) => !PASSING_CONCLUSIONS.includes(run.conclusion ?? ""))) return "failing";
+    return finished.length === runs.length ? "passing" : "pending";
   }
 
   async commentOnPullRequest(repo: string, number: number, text: string): Promise<void> {
