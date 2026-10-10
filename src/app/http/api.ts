@@ -3,6 +3,7 @@ import { streamSSE } from "hono/streaming";
 import { z } from "zod";
 import type { Result } from "../../kernel";
 import type { OrderError, WorkOrder } from "../../orders";
+import type { TeamChange, TeamError } from "../../team";
 import type { Shop } from "../shop";
 import { readState } from "./state";
 
@@ -106,6 +107,21 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   orderCommand("follow-up", (id, body) => shop.flow.followUp(id, (body as { text: string }).text), { text });
   orderCommand("discard-order", (id) => shop.flow.discard(id));
   orderCommand("record-minutes", (id, body) => shop.orderService.recordMinutes(id, (body as { bucket: z.infer<typeof bucket> }).bucket), { bucket });
+
+  const changeId = z.string().regex(/^chg_[0-9a-f-]+$/);
+  const teamCommand = (path: string, run: (id: string) => Promise<Result<TeamChange, TeamError>>) =>
+    api.post(`/api/commands/${path}`, async (context) => {
+      const body = z.object({ changeId }).safeParse(await context.req.json().catch(() => null));
+      if (!body.success) return context.json({ error: "invalid request" }, 400);
+
+      const result = await run(body.data.changeId);
+      return result.ok
+        ? context.json({ id: result.value.id, status: result.value.status })
+        : context.json({ error: result.error.message }, result.error.kind === "not_found" ? 404 : 409);
+    });
+
+  teamCommand("sign-team-change", (id) => shop.teamService.sign(id));
+  teamCommand("discard-team-change", (id) => shop.teamService.discard(id));
 
   if (options.devTools) {
     const { mergePullRequest } = options.devTools;

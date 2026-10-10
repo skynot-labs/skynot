@@ -42,7 +42,7 @@ export function App() {
       <main class="board">
         <Chat state={state} send={send} />
         <Orders state={state} send={send} />
-        <Floor state={state} />
+        <Floor state={state} send={send} />
       </main>
     </div>
   );

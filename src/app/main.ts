@@ -32,7 +32,7 @@ async function readPolicy(): Promise<Policy> {
 }
 
 async function readTeam(): Promise<Team> {
-  if (mock) return { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {} };
+  if (mock) return { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {}, library: {} };
   if (!existsSync(teamPath)) throw new Error(`${teamPath} not found. Copy team.example.yaml to team.yaml.`);
 
   const loaded = await loadTeam(teamPath);

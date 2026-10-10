@@ -4,7 +4,7 @@ import { createOrderDesk } from "../../src/app/order-desk";
 import { FakeEngine, RunScheduler } from "../../src/execution";
 import { err, fixedClock, ok, type Result } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
-import { ChatProjection, ManagerService, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner } from "../../src/manager";
+import { ChatProjection, ManagerService, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type TeamDesk, type TeamProposal } from "../../src/manager";
 import { OrderService, OrdersProjection, WorkOrderSpecSchema } from "../../src/orders";
 import { validSpec } from "../orders/fixtures";
 
@@ -24,9 +24,9 @@ function scriptedRunner(script: Script) {
 }
 
 const say = (message: string, extra: Record<string, unknown> = {}) =>
-  ok({ message, question: null, options: [], order: null, consult: [], ...extra });
+  ok({ message, question: null, options: [], order: null, consult: [], team: null, ...extra });
 
-async function createManager(script: Script, advisors?: AdvisorBench) {
+async function createManager(script: Script, advisors?: AdvisorBench, team?: TeamDesk) {
   const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date("2026-10-09T12:00:00.000Z")));
   const orders = new OrdersProjection();
   const chat = new ChatProjection();
@@ -34,13 +34,13 @@ async function createManager(script: Script, advisors?: AdvisorBench) {
   await attachProjection(log, chat);
   const orderService = new OrderService(log, orders);
   const { runner, prompts } = scriptedRunner(script);
-  const manager = new ManagerService({ log, chat, runner, desk: createOrderDesk(orderService, orders), ...(advisors && { advisors }) });
+  const manager = new ManagerService({ log, chat, runner, desk: createOrderDesk(orderService, orders), ...(advisors && { advisors }), ...(team && { team }) });
   return { manager, chat, orders, orderService, prompts, log };
 }
 
 describe("answer schema", () => {
   const schema = createAnswerSchema(WorkOrderSpecSchema);
-  const reply = { message: "Done.", question: null, options: [], order: null, consult: [] };
+  const reply = { message: "Done.", question: null, options: [], order: null, consult: [], team: null };
 
   it("accepts a plain reply, a question with options, and an order", () => {
     expect(schema.safeParse(reply).success).toBe(true);
@@ -385,12 +385,89 @@ describe("consulting advisors", () => {
 
   it("rejects a consultation that also asks or proposes, and the same advisor twice", () => {
     const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"]);
-    const base = { message: "x", question: null, options: [], order: null, consult: [{ role: "architect", question: "Thoughts?" }] };
+    const base = { message: "x", question: null, options: [], order: null, team: null, consult: [{ role: "architect", question: "Thoughts?" }] };
 
     expect(schema.safeParse(base).success).toBe(true);
     expect(schema.safeParse({ ...base, question: "Which one?" }).success).toBe(false);
     expect(schema.safeParse({ ...base, order: validSpec() }).success).toBe(false);
     expect(schema.safeParse({ ...base, consult: [...base.consult, ...base.consult] }).success).toBe(false);
     expect(schema.safeParse({ ...base, consult: Array(4).fill({ role: "architect", question: "Thoughts?" }) }).success).toBe(false);
+  });
+});
+
+describe("proposing team changes", () => {
+  const roster = [{ name: "architect", description: "how a change fits the code" }];
+  const advisors: AdvisorBench = { roster: () => roster, consult: async () => [] };
+
+  function desk(answer: () => Result<{ text: string }, string> = () => ok({ text: "Change chg_1 is waiting for your signature." })) {
+    const proposals: TeamProposal[] = [];
+    const teamDesk: TeamDesk = {
+      hireable: () => [{ name: "designer", description: "screens and wording" }],
+      async propose(proposal) {
+        proposals.push(proposal);
+        return answer();
+      },
+    };
+    return { teamDesk, proposals };
+  }
+
+  const propose = (action: "hire" | "dismiss", role: string) => say("A designer would help.", { team: { action, role, reason: "the order is mostly wording" } });
+
+  it("hands a valid proposal to the team desk and tells the director it waits for a signature", async () => {
+    const { teamDesk, proposals } = desk();
+    const { manager, chat, prompts } = await createManager([propose("hire", "designer")], advisors, teamDesk);
+
+    await manager.handleMessage("Rewrite all the error messages");
+
+    expect(prompts[0]).toContain("- designer: screens and wording");
+    expect(proposals).toEqual([{ action: "hire", role: "designer", reason: "the order is mostly wording" }]);
+    expect(chat.messages().at(-1)?.text).toBe("A designer would help.\n\nChange chg_1 is waiting for your signature.");
+  });
+
+  it("proposes to dismiss someone on the team", async () => {
+    const { teamDesk, proposals } = desk();
+    const { manager } = await createManager([propose("dismiss", "architect")], advisors, teamDesk);
+
+    await manager.handleMessage("The architect never helps");
+
+    expect(proposals).toMatchObject([{ action: "dismiss", role: "architect" }]);
+  });
+
+  it("sends a proposal for someone who cannot be hired or dismissed back with the real choices", async () => {
+    const { teamDesk, proposals } = desk();
+    const { manager, prompts } = await createManager([propose("hire", "oracle"), propose("dismiss", "designer"), propose("hire", "designer")], advisors, teamDesk);
+
+    await manager.handleMessage("We need help");
+
+    expect(prompts[1]).toContain('cannot hire "oracle"; available: designer');
+    expect(prompts[2]).toContain('cannot dismiss "designer"; available: architect');
+    expect(proposals).toHaveLength(1);
+  });
+
+  it("says plainly when the desk refuses the proposal", async () => {
+    const { teamDesk } = desk(() => err("there is already a pending change for designer"));
+    const { manager, chat } = await createManager([propose("hire", "designer")], advisors, teamDesk);
+
+    await manager.handleMessage("We need help");
+
+    expect(chat.messages().at(-1)?.text).toBe("I could not propose that: there is already a pending change for designer");
+  });
+
+  it("does not let a team proposal travel with an order, a question or a consultation", () => {
+    const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"], { hire: ["designer"], dismiss: ["architect"] });
+    const base = { message: "x", question: null, options: [], order: null, consult: [], team: { action: "hire", role: "designer", reason: "wording heavy" } };
+
+    expect(schema.safeParse(base).success).toBe(true);
+    expect(schema.safeParse({ ...base, question: "Which?" }).success).toBe(false);
+    expect(schema.safeParse({ ...base, order: validSpec() }).success).toBe(false);
+    expect(schema.safeParse({ ...base, consult: [{ role: "architect", question: "Thoughts?" }] }).success).toBe(false);
+  });
+
+  it("cannot propose anything when there is no team desk", async () => {
+    const { manager, prompts } = await createManager([propose("hire", "designer"), say("Fine.")]);
+
+    await manager.handleMessage("We need help");
+
+    expect(prompts[1]).toContain("nobody can be hired now");
   });
 });

@@ -32,7 +32,7 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (227 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (254 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates
@@ -124,7 +124,7 @@ Administration permission on purpose, so the director sets it in GitHub settings
 |---|---|---|
 | 1 | Engine and model per role in `team.yaml` | Done and tried with the real `claude` (Sonnet on the developer) |
 | 2 | Advisors consulted in parallel by the Manager | Done and tried once with the real `claude`: one consultation took the order from "scalable storage" to a SQLite-only order with a frozen fixture, for about $0.22 against $0.03 for a plain turn |
-| 3 | Team proposal and hiring | Not planned in detail, and not recommended yet: no pain shown |
+| 3 | Team changes with the director's signature (library, `RosterProjection`, Sign and Discard in the console) | Built and tested; not tried with the real `claude` yet. Built on the director's call, without a pain shown |
 
 Things to know:
 

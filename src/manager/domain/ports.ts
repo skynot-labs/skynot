@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { Result } from "../../kernel";
+import { err, type Result } from "../../kernel";
 
 export interface ModelRunner {
   ask(input: { system: string; prompt: string; schema: z.ZodType }): Promise<Result<unknown, string>>;
@@ -38,3 +38,16 @@ export interface AdvisorBench {
 }
 
 export const NO_ADVISORS: AdvisorBench = { roster: () => [], consult: async () => [] };
+
+export interface TeamProposal {
+  readonly action: "hire" | "dismiss";
+  readonly role: string;
+  readonly reason: string;
+}
+
+export interface TeamDesk {
+  hireable(): AdvisorInfo[];
+  propose(proposal: TeamProposal): Promise<Result<{ text: string }, string>>;
+}
+
+export const NO_TEAM_DESK: TeamDesk = { hireable: () => [], propose: async () => err("there is no team to change") };

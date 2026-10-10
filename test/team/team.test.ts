@@ -37,6 +37,12 @@ describe("team file", () => {
     expect(advised.ok && describeRoles(advised.value).map((entry) => entry.role)).toEqual(["manager", "developer", "architect"]);
   });
 
+  it("reads a library of roles that can be hired", () => {
+    const team = parseTeamFile(`${withAdvisor}library:\n  designer:\n    engine: codex\n    description: screens and flows\n    soul: roles/designer.md\n`);
+
+    expect(team.ok && Object.keys(team.value.library)).toEqual(["designer"]);
+  });
+
   it.each([
     ["an unknown engine", valid.replace("codex", "gemini"), "roles.developer.engine"],
     ["a role that does not exist", `${valid}  architect: { engine: claude }\n`, "architect"],
@@ -47,6 +53,8 @@ describe("team file", () => {
     ["an advisor without a soul", withAdvisor.replace("    soul: roles/architect.md\n", ""), "advisors.architect.soul"],
     ["an advisor without a description", withAdvisor.replace("    description: how a change fits the code\n", ""), "advisors.architect.description"],
     ["an advisor named like a role", withAdvisor.replace("architect:", "manager:"), '"manager" is already a role'],
+    ["a library role also listed as an advisor", `${withAdvisor}library:\n  architect:\n    engine: claude\n    description: again\n    soul: roles/architect.md\n`, '"architect" is already listed under advisors'],
+    ["a library role named like a role", `${withAdvisor}library:\n  developer:\n    engine: claude\n    description: x y z\n    soul: roles/x.md\n`, '"developer" is already a role'],
     ["an advisor name with spaces", withAdvisor.replace("architect:", '"the architect":'), "advisors"],
   ])("rejects %s and names it", (_name, source, mention) => {
     const team = parseTeamFile(source);
@@ -88,10 +96,20 @@ describe("loading a team", () => {
     expect(!empty.ok && empty.error).toContain("is empty");
   });
 
+  it("reads the souls of the library too, and names the missing one", async () => {
+    const withLibrary = `${withAdvisor}library:\n  designer:\n    engine: claude\n    description: screens and flows\n    soul: roles/designer.md\n`;
+    const good = await loadTeam(await folder({ "team.yaml": withLibrary, "roles/architect.md": "A", "roles/designer.md": "You design." }));
+    const bad = await loadTeam(await folder({ "team.yaml": withLibrary, "roles/architect.md": "A" }));
+
+    expect(good.ok && good.value.library.designer?.soul).toBe("You design.");
+    expect(!bad.ok && bad.error).toContain('the soul of "designer" (roles/designer.md)');
+  });
+
   it("accepts the tracked example together with the tracked souls", async () => {
     const team = await loadTeam("team.example.yaml");
 
     expect(team.ok && Object.keys(team.value.advisors)).toEqual(["architect", "reviewer"]);
+    expect(team.ok && Object.keys(team.value.library)).toEqual(["designer"]);
     expect((await readFile("team.example.yaml", "utf8")).includes("advisors:")).toBe(true);
   });
 });

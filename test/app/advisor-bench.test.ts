@@ -12,6 +12,7 @@ const team: Team = {
     architect: { engine: "claude", model: "architect-model", description: "design", soul: "You are the architect." },
     reviewer: { engine: "claude", description: "scope", soul: "You are the reviewer." },
   },
+  library: {},
 };
 
 async function openBench(engine: FakeEngine, maxParallel = 4, cwd: () => Promise<string> = async () => "/repo/copy") {
@@ -19,7 +20,7 @@ async function openBench(engine: FakeEngine, maxParallel = 4, cwd: () => Promise
   const runs = new RunsProjection();
   await attachProjection(log, runs);
   const scheduler = new RunScheduler({ claude: engine }, log, maxParallel);
-  return { bench: createAdvisorBench(scheduler, team, { cwd, timeoutMs: 1000, maxUsd: 2 }), runs };
+  return { bench: createAdvisorBench(scheduler, () => team.advisors, { cwd, timeoutMs: 1000, maxUsd: 2 }), runs };
 }
 
 describe("advisor bench", () => {

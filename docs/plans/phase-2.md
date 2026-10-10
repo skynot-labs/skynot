@@ -1,6 +1,6 @@
 # Phase 2 · Roles and teams
 
-**Status:** slice 1 and slice 2 are built; slice 3 is not planned in detail yet. See [vision](../vision.md) for the
+**Status:** the three slices are built. Slice 3 was built on the director's call; the plan below records the decisions. See [vision](../vision.md) for the
 context and [phase 1](phase-1.md) for what exists.
 
 ## Why, and why in slices
@@ -40,11 +40,27 @@ stops the service before it spends anything.
 **Done when:** one idea makes the Manager consult two advisors at the same time, their answers appear in
 the logbook, and the resulting order reflects them.
 
-## Slice 3 · Team and hiring
+## Slice 3 · Team changes with the director's signature
 
-The Manager proposes a team for a project and the director signs it, or the Manager hires within limits
-set in `policy.yaml` (allowed roles, maximum size). Events `TeamProposed` and `TeamSigned`. Planned in
-detail after slice 2, because it depends on what the advisors turn out to be worth.
+The Manager may propose to hire an advisor or dismiss one, and nothing changes until the director signs.
+
+- **Library.** `team.yaml` gains a `library` section, with the same shape as `advisors`: roles that are
+  known but not on the team. The souls stay markdown files in `roles/`, reviewed in a pull request; no
+  model writes a system prompt. A role that is not in the file cannot be hired.
+- **Who is on the team.** The file says who starts on it; signed changes in the event log move people in
+  and out. `RosterProjection` rebuilds the current team from the log, so a change applies at once, with
+  no restart and no file edited by the service. Events: `team.change_proposed`, `team.change_signed`,
+  `team.change_discarded`.
+- **Manager.** The answer gains a `team` proposal (action, role, reason), on its own like a consultation.
+  The roles it may hire or dismiss are checked against the live team, and a role with a pending change
+  cannot get a second one.
+- **Console.** Pending changes show in the Team section with Sign and Discard.
+
+**Done when:** the Manager proposes hiring a library role, the team does not change until the director
+signs, and the next turn can consult the new advisor.
+
+**Left out:** hiring without a signature within limits set in `policy.yaml`, changing the engine or model
+of an existing role (edit `team.yaml`), and several instances of one role.
 
 ## Not in phase 2
 

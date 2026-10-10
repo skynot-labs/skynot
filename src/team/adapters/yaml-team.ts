@@ -24,13 +24,21 @@ export async function loadTeam(filePath: string): Promise<Result<Team, string>> 
   const file = parseTeamFile(await readFile(filePath, "utf8"));
   if (!file.ok) return file;
 
-  const advisors: Record<string, Advisor> = {};
-  for (const [name, advisor] of Object.entries(file.value.advisors)) {
-    const soul = await readSoul(resolve(dirname(filePath), advisor.soul));
-    if (!soul.ok) return err(`team.yaml: the soul of "${name}" (${advisor.soul}) ${soul.error}`);
-    advisors[name] = { ...advisor, soul: soul.value };
+  const advisors = await readSouls(filePath, file.value.advisors);
+  if (!advisors.ok) return advisors;
+  const library = await readSouls(filePath, file.value.library);
+  if (!library.ok) return library;
+  return ok({ ...file.value, advisors: advisors.value, library: library.value });
+}
+
+async function readSouls(teamPath: string, entries: TeamFile["advisors"]): Promise<Result<Record<string, Advisor>, string>> {
+  const loaded: Record<string, Advisor> = {};
+  for (const [name, entry] of Object.entries(entries)) {
+    const soul = await readSoul(resolve(dirname(teamPath), entry.soul));
+    if (!soul.ok) return err(`team.yaml: the soul of "${name}" (${entry.soul}) ${soul.error}`);
+    loaded[name] = { ...entry, soul: soul.value };
   }
-  return ok({ ...file.value, advisors });
+  return ok(loaded);
 }
 
 async function readSoul(path: string): Promise<Result<string, string>> {

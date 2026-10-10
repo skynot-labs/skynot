@@ -23,7 +23,7 @@ beforeEach(async () => {
   shop = await createShop({
     policy: examplePolicy(),
     dataDir,
-    team: { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {} },
+    team: { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {}, library: { designer: { engine: "claude", description: "screens", soul: "You design." } } },
     engines: { claude: createMockManager(), codex: createMockDeveloper() },
     vcs,
     workspace: new FakeWorkspace(),
@@ -121,6 +121,26 @@ describe("console api", () => {
     expect((await post("/api/commands/follow-up", { orderId: id, text: "do more" })).status).toBe(409);
     expect((await post("/api/commands/follow-up", { orderId: "WO-0099", text: "do more" })).status).toBe(404);
     expect((await post("/api/commands/follow-up", { orderId: id, text: "   " })).status).toBe(400);
+  });
+
+  it("signs and discards team changes, and refuses the ones that make no sense", async () => {
+    const proposed = await shop.teamService.propose({ action: "hire", role: "designer", reason: "wording heavy" });
+    if (!proposed.ok) throw new Error("propose failed");
+    const { id } = proposed.value;
+
+    expect((await getState()).teamChanges).toMatchObject([{ id, action: "hire", role: "designer" }]);
+    expect((await getState()).hireable).toEqual([{ name: "designer", description: "screens" }]);
+
+    const signed = await post("/api/commands/sign-team-change", { changeId: id });
+    expect(signed.status).toBe(200);
+    expect(await signed.json()).toEqual({ id, status: "signed" });
+    const state = await getState();
+    expect(state.team.map((member) => member.role)).toEqual(["manager", "developer", "designer"]);
+    expect(state.teamChanges).toEqual([]);
+
+    expect((await post("/api/commands/sign-team-change", { changeId: id })).status).toBe(409);
+    expect((await post("/api/commands/discard-team-change", { changeId: "chg_0000" })).status).toBe(404);
+    expect((await post("/api/commands/discard-team-change", { changeId: "nope" })).status).toBe(400);
   });
 
   it("rejects malformed commands without changing anything", async () => {

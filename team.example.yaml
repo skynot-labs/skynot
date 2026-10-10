@@ -20,3 +20,11 @@ advisors:
     engine: claude
     description: skeptical review of a proposed order's scope and criteria
     soul: roles/reviewer.md
+
+# Roles that are known but not on the team. The Manager may propose hiring one (or dismissing an
+# advisor), and nothing changes until you sign the proposal in the console. Same shape as `advisors`.
+library:
+  designer:
+    engine: claude
+    description: screens, flows and wording a user reads
+    soul: roles/designer.md
