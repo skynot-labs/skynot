@@ -4,6 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { FakeVcs, FakeWorkspace } from "../delivery";
 import { readPolicy, readTeam } from "./config";
+import { lockDataDir } from "./data-lock";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { ClaudeEngine, CodexEngine } from "../execution";
@@ -20,6 +21,7 @@ const policy = await readPolicy(mock);
 const vcs = new FakeVcs();
 
 const team = await readTeam(mock);
+process.on("exit", await lockDataDir(dataDir));
 const shop = await createShop({
   policy,
   dataDir,
