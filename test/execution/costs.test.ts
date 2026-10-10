@@ -56,6 +56,15 @@ describe("costs", () => {
     expect(runs.spentTotal()).toBeCloseTo(1.85);
   });
 
+  it("counts what a failed run reports it spent", async () => {
+    const { runs, log } = await openRuns();
+    await log.record([{ type: "execution.run_requested", payload: { runId: "run_x", role: "developer", engine: "claude", access: "write", orderId: "WO-0001" } }]);
+    await log.record([{ type: "execution.run_failed", payload: { runId: "run_x", failure: { kind: "failed", message: "out of budget", costUsd: 3.02 } } }]);
+
+    expect(runs.spentOn("2026-10-10")).toBeCloseTo(3.02);
+    expect(runs.spentOnOrder("WO-0001")).toBeCloseTo(3.02);
+  });
+
   it("counts a run that failed or has not finished as free, since its cost is unknown", async () => {
     const { runs, finish } = await openRuns();
     await finish("2026-10-11T09:00:00.000Z", "WO-0001", null);

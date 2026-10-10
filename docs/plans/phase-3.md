@@ -79,7 +79,8 @@ the card here.
 ## Known limits
 
 - `codex` reports no cost, so its runs show $0 and never count toward `max_usd_per_day`. A team whose developer
-  runs on `codex` is not protected by the cap. Runs that fail, are stopped or time out record no cost either.
+  runs on `codex` is not protected by the cap. A `claude` run that ends in an
+  error counts what it reports it spent; one that is stopped or times out records no cost.
 - "Ready to merge" waits for the first CI read after every push, up to one poll (30 s). If GitHub has not
   registered the workflow run yet, that read can say "none" for a moment before it says "pending".
 - An order that is blocked or left in `on_bench` holds every later order that shares files with it, until the

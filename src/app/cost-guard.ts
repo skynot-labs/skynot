@@ -19,7 +19,8 @@ export class CostGuard {
 
   private react(event: StoredEvent): void {
     const { maxUsdPerDay, runs, control } = this.deps;
-    if (maxUsdPerDay === undefined || event.type !== "execution.run_completed") return;
+    const finished = event.type === "execution.run_completed" || event.type === "execution.run_failed";
+    if (maxUsdPerDay === undefined || !finished) return;
 
     const day = event.occurredAt.slice(0, 10);
     const spent = runs.spentOn(day);

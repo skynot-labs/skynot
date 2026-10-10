@@ -55,6 +55,6 @@ export function evolve(run: Run | null, event: RunEvent, at: string): Run | null
     case "execution.run_completed":
       return { ...run, status: "completed", finishedAt: at, costUsd: event.payload.costUsd };
     case "execution.run_failed":
-      return { ...run, status: "failed", finishedAt: at, failure: event.payload.failure };
+      return { ...run, status: "failed", finishedAt: at, costUsd: event.payload.failure.costUsd ?? null, failure: event.payload.failure };
   }
 }

@@ -52,7 +52,11 @@ export function parseClaude(stdout: string): Result<EngineResult, EngineFailure>
     return err({ kind: "failed", message: `claude printed something that is not JSON: ${stdout.slice(0, 200)}` });
   }
   if (json.is_error || (json.subtype && json.subtype !== "success")) {
-    return err({ kind: "failed", message: `claude stopped: ${json.subtype ?? "error"} ${json.result ?? ""}`.trim() });
+    return err({
+      kind: "failed",
+      message: `claude stopped: ${json.subtype ?? "error"} ${json.result ?? ""}`.trim(),
+      ...(json.total_cost_usd !== undefined && { costUsd: json.total_cost_usd }),
+    });
   }
   return ok({
     text: json.result ?? "",
