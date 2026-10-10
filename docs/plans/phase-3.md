@@ -85,7 +85,6 @@ the card here.
   registered the workflow run yet, that read can say "none" for a moment before it says "pending".
 - An order that is blocked or left in `on_bench` holds every later order that shares files with it, until the
   director uses Start now or discards it.
-- Stopping an order whose run is still queued does nothing until the shop resumes or a slot frees up.
 
 ## Not in phase 3
 
