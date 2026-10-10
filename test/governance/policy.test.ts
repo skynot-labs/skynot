@@ -10,6 +10,17 @@ describe("policy parsing", () => {
     expect(parsed).toMatchObject({ ok: true, value: { repos: [{ name: "acme/widgets" }] } });
   });
 
+  it("reads the optional daily cost cap and refuses one that is not a positive number", () => {
+    const withCap = (value: string) => parsePolicy(example.replace("OWNER/REPO", "acme/widgets").replace(/max_usd_per_day: .*/, `max_usd_per_day: ${value}`));
+    const without = parsePolicy(example.replace("OWNER/REPO", "acme/widgets").replace(/  max_usd_per_day: .*\n/, ""));
+
+    expect(withCap("7.5")).toMatchObject({ ok: true, value: { run_budget: { max_usd_per_day: 7.5 } } });
+    expect(without).toMatchObject({ ok: true });
+    expect(without.ok && without.value.run_budget.max_usd_per_day).toBeUndefined();
+    expect(withCap("0").ok).toBe(false);
+    expect(withCap("-3").ok).toBe(false);
+  });
+
   it("refuses to start with the placeholder repo", () => {
     expect(parsePolicy(example)).toMatchObject({ ok: false, error: expect.stringContaining("OWNER/REPO") });
   });

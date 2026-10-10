@@ -137,3 +137,4 @@ button.stop { padding: 0 0.4rem; font-size: 0.78rem; }
 
 .masthead .pause { margin-left: auto; }
 .notice.paused { border-color: var(--seal); }
+.masthead .cost, .links .spent { color: var(--pencil); font-family: var(--mono); font-size: 0.82rem; }

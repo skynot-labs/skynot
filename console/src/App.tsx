@@ -30,6 +30,9 @@ export function App() {
         <span class="repo">{state.repo}</span>
         {state.simulated && <span class="badge">simulated engines</span>}
         <span class={`link ${connected ? "up" : "down"}`}>{connected ? "live" : "reconnecting"}</span>
+        <span class="cost">
+          ${state.costs.today.toFixed(2)} today{state.costs.cap !== null ? ` of $${state.costs.cap.toFixed(2)}` : ""}
+        </span>
         <button type="button" class="pause" onClick={() => void send(state.paused ? "/api/commands/resume-shop" : "/api/commands/pause-shop", {})}>
           {state.paused ? "Resume" : "Pause"}
         </button>

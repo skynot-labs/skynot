@@ -72,6 +72,7 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
       <div class="links">
         {order.issueUrl && <a href={order.issueUrl} target="_blank" rel="noreferrer">issue</a>}
         {order.pullRequestUrl && <a href={order.pullRequestUrl} target="_blank" rel="noreferrer">pull request</a>}
+        {order.spentUsd > 0 && <span class="spent">${order.spentUsd.toFixed(2)} spent</span>}
       </div>
 
       {order.status === "awaiting_signature" && (

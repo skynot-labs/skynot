@@ -1,6 +1,6 @@
 # Phase 3 · Control, flow and an independent reviewer
 
-**Status:** decisions taken; slice 3.1 in progress. See [vision](../vision.md) and
+**Status:** decisions taken; slice 3.1 built and tried; 3.2 to 3.4 not started. See [vision](../vision.md) and
 [phase 2](phase-2.md) for what exists.
 
 ## Why

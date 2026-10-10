@@ -25,6 +25,7 @@ import { RosterProjection, TeamService, type RoleSetup, type Team } from "../tea
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { BlockedNotice } from "./blocked-notice";
+import { CostGuard } from "./cost-guard";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
@@ -64,6 +65,7 @@ export interface Shop {
   watcher: MergeWatcher;
   cursor: LastSequence;
   repo: string;
+  maxUsdPerDay: number | undefined;
   stop(): void;
 }
 
@@ -130,6 +132,13 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     progressOf: (id) => activity.linksFor(id),
   });
   const stopFlow = flow.start();
+  const stopCostGuard = new CostGuard({
+    log,
+    runs,
+    control,
+    maxUsdPerDay: policy.run_budget.max_usd_per_day,
+    ...(config.reportError && { onError: config.reportError }),
+  }).start();
   const stopNotice = new BlockedNotice({
     log,
     say: (text, orderId) => manager.tell(text, { orderId }),
@@ -159,9 +168,11 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     watcher,
     cursor,
     repo,
+    maxUsdPerDay: policy.run_budget.max_usd_per_day,
     stop() {
       stopFlow();
       stopNotice();
+      stopCostGuard();
       watcher.stop();
     },
   };
