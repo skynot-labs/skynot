@@ -38,6 +38,16 @@ describe("team file", () => {
     expect(withReviewer("{ engine: codex }")).toMatchObject({ ok: false, error: expect.stringContaining("different engine or model") });
   });
 
+  it("lists extra workers after the roles, and keeps them apart from the code reviewer and the other names", () => {
+    const withWorkers = (extra: string) => parseTeamFile(`${valid}workers:\n  careful: { engine: claude, model: slow }\n${extra}`);
+
+    const team = withWorkers("");
+    expect(team.ok && describeRoles(team.value).map((entry) => entry.role)).toEqual(["manager", "developer", "careful"]);
+    expect(parseTeamFile(`${valid}workers:\n  developer: { engine: claude }\n`).ok).toBe(false);
+    expect(parseTeamFile(`${valid}  code_reviewer: { engine: claude }\nworkers:\n  twin: { engine: codex, model: other }\n`).ok).toBe(true);
+    expect(parseTeamFile(`${valid}  code_reviewer: { engine: claude }\nworkers:\n  twin: { engine: claude }\n`)).toMatchObject({ ok: false, error: expect.stringContaining("every worker") });
+  });
+
   it("works without advisors and lists them after the roles when present", () => {
     const alone = parseTeamFile(valid);
     const advised = parseTeamFile(withAdvisor);

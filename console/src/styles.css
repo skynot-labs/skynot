@@ -143,3 +143,4 @@ button.stop { padding: 0 0.4rem; font-size: 0.78rem; }
 .verdict ul { margin: 0.3rem 0 0 1.1rem; padding: 0; }
 .verdict .ready { color: var(--ok, #2d7a3e); }
 .verdict .checks-failing { color: var(--danger, #b3261e); }
+.assignee { font-size: 0.88rem; color: var(--pencil); display: inline-block; margin: 0.3rem 0; }

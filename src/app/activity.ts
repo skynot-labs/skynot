@@ -17,12 +17,13 @@ export interface OrderLinks {
   readonly protectedPaths: readonly string[];
   readonly approvedPaths: readonly string[];
   readonly waitingOn: readonly string[];
+  readonly worker: string | null;
   readonly reviews: number;
   readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[] } | null;
   readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], reviews: 0, review: null, checks: null };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, reviews: 0, review: null, checks: null };
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
@@ -78,6 +79,8 @@ export class ActivityProjection implements Projection {
         return delivery(`protected paths touched: ${(payload.paths as string[]).join(", ")}`);
       case "delivery.protected_paths_approved":
         return delivery(`the director approved: ${(payload.paths as string[]).join(", ")}`);
+      case "delivery.worker_assigned":
+        return delivery(`assigned to ${payload.worker}`);
       case "delivery.review_completed":
         return delivery(`review round ${payload.round}: ${payload.verdict === "approved" ? "approved" : "changes requested"}. ${payload.summary}`);
       case "delivery.review_failed":
@@ -147,6 +150,9 @@ export class ActivityProjection implements Projection {
         break;
       case "delivery.protected_paths_approved":
         this.links.set(orderId, { ...current, ...UNBLOCKED, approvedPaths: [...new Set([...current.approvedPaths, ...(payload.paths as string[])])] });
+        break;
+      case "delivery.worker_assigned":
+        this.links.set(orderId, { ...current, worker: payload.worker as string });
         break;
       case "delivery.review_completed":
         this.links.set(orderId, {

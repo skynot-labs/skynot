@@ -1,6 +1,6 @@
 # Phase 3 · Control, flow and an independent reviewer
 
-**Status:** decisions taken; slices 3.1, 3.2 and 3.4 built; 3.3 not started. See [vision](../vision.md) and
+**Status:** decisions taken; all four slices are built; the phase awaits its review. See [vision](../vision.md) and
 [phase 2](phase-2.md) for what exists.
 
 ## Why
@@ -67,6 +67,14 @@ the card here.
 - "Ready to merge" on the card means approved by the reviewer and CI neither red nor running. The merge is
   still the director's; GitHub is not asked to block it.
 - CI status comes from check runs, polled with the merge watcher. Legacy commit statuses are not read.
+
+## Decisions taken building 3.3
+
+- `team.yaml` gains `workers`: extra developers, each with an engine and a model. `developer` stays the default
+  and the one every order starts with. A worker may not match the code reviewer's engine and model.
+- Only the director assigns, with a selector on the card; the Manager does not choose a worker. Reassigning
+  changes who gets the next run (retry or follow-up) and is refused while the order is being worked: stop it first.
+- A run's role in the log and the presence is the worker's name, so cost per worker can be read from the runs.
 
 ## Not in phase 3
 

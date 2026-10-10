@@ -1,18 +1,25 @@
 import type { WorkerRunner } from "../delivery";
-import type { EngineName, RunScheduler } from "../execution";
+import type { RunScheduler } from "../execution";
 import { err, ok } from "../kernel";
+import type { RoleSetup } from "../team";
 
 export interface WorkerEngineOptions {
-  engine: EngineName;
-  model?: string;
+  workers: () => Record<string, RoleSetup>;
+  assigneeOf: (orderId: string) => string | null;
 }
+
+export const DEFAULT_WORKER = "developer";
 
 export function createWorkerRunner(scheduler: RunScheduler, options: WorkerEngineOptions): WorkerRunner {
   return {
     async work({ orderId, prompt, cwd, allowedCommands, timeoutMs, maxUsd, signal }) {
+      const name = options.assigneeOf(orderId) ?? DEFAULT_WORKER;
+      const worker = options.workers()[name];
+      if (!worker) return err(`there is no worker ${name}`);
+
       const outcome = await scheduler.submit({
-        role: "developer",
-        engine: options.engine,
+        role: name,
+        engine: worker.engine,
         orderId,
         request: {
           prompt,
@@ -22,7 +29,7 @@ export function createWorkerRunner(scheduler: RunScheduler, options: WorkerEngin
           timeoutMs,
           maxUsd,
           ...(signal && { signal }),
-          ...(options.model && { model: options.model }),
+          ...(worker.model && { model: worker.model }),
         },
       });
       return outcome.ok ? ok({ report: outcome.value.text, costUsd: outcome.value.costUsd }) : err(outcome.error.message);

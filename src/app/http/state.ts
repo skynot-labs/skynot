@@ -8,6 +8,7 @@ export function readState(shop: Shop) {
   return {
     repo: shop.repo,
     reviewing: shop.reviewing,
+    workers: shop.workers,
     cursor: shop.cursor.value,
     orders: shop.orders.list().map((order) => ({
       id: order.id,
@@ -29,7 +30,7 @@ export function readState(shop: Shop) {
     })),
     chat: shop.chat.messages(),
     decisions: shop.chat.openDecisions(),
-    team: describeRoles({ roles: shop.team.roles, advisors: shop.roster.members() }),
+    team: describeRoles({ roles: shop.team.roles, ...(shop.team.workers && { workers: shop.team.workers }), advisors: shop.roster.members() }),
     teamChanges: shop.roster.pending(),
     hireable: shop.roster.hireable(),
     paused: shop.control.paused(),

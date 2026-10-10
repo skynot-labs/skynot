@@ -17,6 +17,7 @@ export interface OrderFlowDependencies {
   repo: string;
   findOrder(id: string): WorkOrder | undefined;
   listOrders(): WorkOrder[];
+  workers(): string[];
   onError?: (error: unknown, event: StoredEvent) => void;
   progressOf(id: string): {
     issue: number | null;
@@ -81,6 +82,18 @@ export class OrderFlow {
 
     await this.claim(orderId, { type: "delivery.follow_up_requested", payload: { orderId, instruction } });
     this.launch(orderId, (signal) => this.runFollowUp(order, issue, instruction, signal));
+    return ok(order);
+  }
+
+  // The next run, whether a retry or a follow-up, uses the new worker. A run in progress keeps its own.
+  async reassign(orderId: string, worker: string): Promise<Result<WorkOrder, OrderError>> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    if (!this.deps.workers().includes(worker)) return err({ kind: "invalid_transition", message: `there is no worker ${worker}` });
+    if (!["signed", "on_bench", "in_review"].includes(order.status)) return err({ kind: "invalid_transition", message: `${orderId} is ${order.status}` });
+    if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is being worked: stop it first` });
+
+    await this.deps.log.record([{ type: "delivery.worker_assigned", payload: { orderId, worker } }]);
     return ok(order);
   }
 
