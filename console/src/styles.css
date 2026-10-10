@@ -148,3 +148,12 @@ button.stop { padding: 0 0.4rem; font-size: 0.78rem; }
 .notice.readiness summary { cursor: pointer; }
 .notice.readiness ul { margin: 0.5rem 0 0.5rem 1.1rem; padding: 0; }
 .notice.readiness li { margin-bottom: 0.4rem; }
+
+.projects { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.projects button { font-family: var(--mono); padding: 0.15rem 0.6rem; border: 1px solid var(--ink); background: none; color: inherit; cursor: pointer; }
+.projects button.current { background: var(--ink); color: var(--paper, #f4efe3); }
+.projects .needs { margin-left: 0.4rem; padding: 0 0.35rem; border: 1px solid currentColor; border-radius: 0.6rem; font-size: 0.78rem; }
+.inbox { margin: 0.8rem 0; }
+.inbox ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.8rem; }
+.inbox .from { color: var(--pencil); font-size: 0.85rem; margin: 0; }
+.inbox .ask { margin: 0.2rem 0 0.4rem; font-weight: 600; }
