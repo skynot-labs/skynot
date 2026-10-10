@@ -492,3 +492,33 @@ describe("proposing team changes", () => {
     expect(prompts[1]).toContain("nobody can be hired now");
   });
 });
+
+describe("refocus and briefing proposals", () => {
+  const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"], { hire: [], dismiss: ["architect"], refocus: ["architect"] });
+  const base = { message: "ok", question: null, options: [], order: null, consult: [], team: null, briefing: null };
+
+  it("accepts a refocus with its focus, and refuses one without it or for someone off the team", () => {
+    expect(schema.safeParse({ ...base, team: { action: "refocus", role: "architect", reason: "needs it", focus: "performance" } }).success).toBe(true);
+    expect(schema.safeParse({ ...base, team: { action: "refocus", role: "architect", reason: "needs it", focus: null } }).success).toBe(false);
+    expect(schema.safeParse({ ...base, team: { action: "refocus", role: "ghost", reason: "needs it", focus: "x y z" } }).success).toBe(false);
+  });
+
+  it("accepts a briefing change only on its own", () => {
+    const briefing = { text: "Marta reads only Spanish.", reason: "the director said so" };
+
+    expect(schema.safeParse({ ...base, briefing }).success).toBe(true);
+    expect(schema.safeParse({ ...base, briefing, question: "Which one?" }).success).toBe(false);
+    expect(schema.safeParse({ ...base, briefing: { ...briefing, text: "x".repeat(1501) } }).success).toBe(false);
+  });
+
+  it("does not need the fields an older answer never had", () => {
+    const { briefing: _briefing, ...older } = base;
+    expect(schema.safeParse({ ...older, team: { action: "dismiss", role: "architect", reason: "abc" } }).success).toBe(true);
+    expect(schema.safeParse(older).success).toBe(true);
+  });
+
+  it("states both rules in the prompt, with the limit of the briefing", () => {
+    expect(SYSTEM_PROMPT).toContain("refocus");
+    expect(SYSTEM_PROMPT).toContain("at most 1500 characters");
+  });
+});

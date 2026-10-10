@@ -38,6 +38,15 @@ describe("reading the projects", () => {
     await expect(readProjects(policy, false, path.join(dir, "none"))).rejects.toThrow("OWNER/REPO");
   });
 
+  it("refuses two projects on the same repository, since the rules are looked up by repository", async () => {
+    for (const id of ["blog", "blog-two"]) {
+      await mkdir(path.join(dir, id));
+      await writeFile(path.join(dir, id, "project.yaml"), yaml("acme/blog"));
+    }
+
+    await expect(readProjects(examplePolicy(), false, dir)).rejects.toThrow("a repository belongs to one project");
+  });
+
   it("gives the simulated shop a demo project of its own", async () => {
     expect(await readProjects({ ...examplePolicy(), repos: [] }, true, path.join(dir, "none"))).toMatchObject([{ id: "demo" }]);
   });

@@ -7,3 +7,10 @@ setup_command: npm ci
 verify_commands: ["npm run typecheck", "npm test"]
 # Files the worker may not touch without the director's signature.
 protected_paths: [".github/", ".claude/", ".mcp.json", "AGENTS.md", "CLAUDE.md", "vitest.config*"]
+
+# Optional: a GitHub project board whose Status column follows the orders (Todo, In Progress, In Review, Done).
+# The names are the usual ones; list `columns` only to rename them.
+# board:
+#   owner: your-login
+#   number: 13
+#   columns: { in_review: "In Review" }

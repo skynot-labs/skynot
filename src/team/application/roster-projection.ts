@@ -11,6 +11,7 @@ export class RosterProjection implements Projection {
   private readonly known: Record<string, Advisor>;
   private readonly onTeam: Set<string>;
   private readonly changes = new Map<ChangeId, TeamChange>();
+  private readonly foci = new Map<string, string>();
 
   constructor(
     team: Pick<Team, "advisors" | "library">,
@@ -32,6 +33,7 @@ export class RosterProjection implements Projection {
           action: event.payload.action,
           role: event.payload.role,
           reason: event.payload.reason,
+          focus: event.payload.focus ?? null,
           status: "pending",
           proposedAt: stored.occurredAt,
         });
@@ -39,7 +41,8 @@ export class RosterProjection implements Projection {
       case "team.change_signed":
         this.settle(changeId, "signed");
         if (event.payload.action === "hire") this.onTeam.add(event.payload.role);
-        else this.onTeam.delete(event.payload.role);
+        else if (event.payload.action === "dismiss") this.onTeam.delete(event.payload.role);
+        else if (event.payload.focus) this.foci.set(event.payload.role, event.payload.focus);
         break;
       case "team.change_discarded":
         this.settle(changeId, "discarded");
@@ -48,7 +51,7 @@ export class RosterProjection implements Projection {
   }
 
   members(): Record<string, Advisor> {
-    return Object.fromEntries([...this.onTeam].filter((name) => name in this.known).map((name) => [name, this.known[name]!]));
+    return Object.fromEntries([...this.onTeam].filter((name) => name in this.known).map((name) => [name, this.withFocus(name)]));
   }
 
   isMember(role: string): boolean {
@@ -67,6 +70,13 @@ export class RosterProjection implements Projection {
 
   change(id: string): TeamChange | undefined {
     return this.changes.get(id as ChangeId);
+  }
+
+  // The soul on file stays as it is; what the director added is appended, so removing the focus means editing the log's last word, not a file.
+  private withFocus(name: string): Advisor {
+    const advisor = this.known[name]!;
+    const focus = this.foci.get(name);
+    return focus ? { ...advisor, soul: `${advisor.soul}\n\nFocus the director set for this role: ${focus}` } : advisor;
   }
 
   private settle(id: ChangeId, status: TeamChange["status"]): void {

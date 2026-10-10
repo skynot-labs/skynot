@@ -24,8 +24,8 @@ describe("team file", () => {
     const team = parseTeamFile(valid);
 
     expect(team.ok && describeRoles(team.value)).toEqual([
-      { role: "manager", engine: "claude", model: "claude-sonnet-5-5" },
-      { role: "developer", engine: "codex", model: null },
+      { role: "manager", name: null, engine: "claude", model: "claude-sonnet-5-5" },
+      { role: "developer", name: null, engine: "codex", model: null },
     ]);
   });
 
@@ -46,6 +46,13 @@ describe("team file", () => {
     expect(parseTeamFile(`${valid}workers:\n  developer: { engine: claude }\n`).ok).toBe(false);
     expect(parseTeamFile(`${valid}  code_reviewer: { engine: claude }\nworkers:\n  twin: { engine: codex, model: other }\n`).ok).toBe(true);
     expect(parseTeamFile(`${valid}  code_reviewer: { engine: claude }\nworkers:\n  twin: { engine: claude }\n`)).toMatchObject({ ok: false, error: expect.stringContaining("every worker") });
+  });
+
+  it("takes a display name for any role, and shows it next to the role id", () => {
+    const named = parseTeamFile(`${valid.replace("developer: { engine: codex }", 'developer: { name: Dani, engine: codex }')}advisors:\n  architect:\n    name: Ada\n    engine: claude\n    description: design\n    soul: roles/architect.md\n`);
+
+    expect(named.ok && describeRoles(named.value).map((entry) => [entry.role, entry.name])).toEqual([["manager", null], ["developer", "Dani"], ["architect", "Ada"]]);
+    expect(parseTeamFile(valid.replace("developer: { engine: codex }", 'developer: { name: "", engine: codex }')).ok).toBe(false);
   });
 
   it("works without advisors and lists them after the roles when present", () => {

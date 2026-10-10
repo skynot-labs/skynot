@@ -161,6 +161,20 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   teamCommand("sign-team-change", (id) => serviceOf(id).sign(id));
   teamCommand("discard-team-change", (id) => serviceOf(id).discard(id));
 
+  const briefingId = z.string().regex(/^brf_[0-9a-f-]+$/);
+  for (const [path, run] of [
+    ["sign-briefing-change", (id: string) => shop.briefingService.sign(id)],
+    ["discard-briefing-change", (id: string) => shop.briefingService.discard(id)],
+  ] as const) {
+    api.post(`/api/commands/${path}`, async (context) => {
+      const body = z.object({ changeId: briefingId }).safeParse(await context.req.json().catch(() => null));
+      if (!body.success) return context.json({ error: "invalid request" }, 400);
+
+      const result = await run(body.data.changeId);
+      return result.ok ? context.json({ id: result.value.id, status: result.value.status }) : context.json({ error: result.error.message }, result.error.kind === "not_found" ? 404 : 409);
+    });
+  }
+
   if (options.devTools) {
     const { mergePullRequest } = options.devTools;
     api.post("/api/dev/merge-pull-request", async (context) => {

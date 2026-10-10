@@ -25,11 +25,12 @@ import { systemClock, type Clock } from "../kernel";
 import { attachProjection, EventLog, inProject, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection, type WorkOrder } from "../orders";
-import type { BriefingStore, Project } from "../projects";
+import { BriefingChanges, BriefingService, withSignedChanges, type BriefingStore, type Project } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import type { Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
+import { createBriefingDesk } from "./briefing-desk";
 import { BlockedNotice } from "./blocked-notice";
 import { CostGuard } from "./cost-guard";
 import { BoardMirror } from "./board-mirror";
@@ -94,6 +95,8 @@ export interface Shop {
   control: ShopControl;
   activity: ActivityProjection;
   orderService: OrderService;
+  briefingChanges: BriefingChanges;
+  briefingService: BriefingService;
   flow: OrderFlow;
   watcher: MergeWatcher;
   intake: IntakeWatcher;
@@ -121,9 +124,10 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const activity = new ActivityProjection(first.id);
   const counts = new ActionCounts();
   const taken = new IntakeProjection();
+  const briefingChanges = new BriefingChanges();
   const cursor = new LastSequence();
   const control = new ShopControl(log);
-  for (const projection of [orders, runs, activity, counts, cursor, control, taken]) await attachProjection(log, projection);
+  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges]) await attachProjection(log, projection);
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
@@ -132,6 +136,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces") });
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
   const orderService = new OrderService(log, orders);
+  const briefingService = new BriefingService(log, briefingChanges);
+  const briefing = config.briefing && withSignedChanges(config.briefing, briefingChanges, policy.memory.max_memory_chars);
 
   const desks = new Map<string, ProjectDesk>();
   for (const [index, project] of projects.entries()) {
@@ -156,7 +162,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         chat,
         runner: createManagerRunner(scheduler, { engine: team.roles.manager.engine, ...withModel(team.roles.manager), ...reading }),
         desk: createOrderDesk(orderService, orders, project.id),
-        ...(config.briefing && { briefing: { read: () => config.briefing!.read(project.id) } }),
+        ...(briefing && { briefing: { read: () => briefing.read(project.id) } }),
+        briefingDesk: createBriefingDesk(briefingService, project.id),
         team: createTeamDesk(teamService, roster),
         advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
       }),
@@ -261,6 +268,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     control,
     activity,
     orderService,
+    briefingChanges,
+    briefingService,
     flow,
     watcher,
     intake,

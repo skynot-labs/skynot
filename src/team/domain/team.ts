@@ -3,6 +3,7 @@ import { z } from "zod";
 export const ENGINES = ["claude", "codex"] as const;
 
 const RoleSchema = z.strictObject({
+  name: z.string().trim().min(1).max(40).optional(),
   engine: z.enum(ENGINES),
   model: z.string().min(1).optional(),
 });
@@ -10,6 +11,7 @@ const RoleSchema = z.strictObject({
 const RESERVED_NAMES = ["manager", "developer", "code_reviewer"];
 
 const AdvisorFileSchema = z.strictObject({
+  name: z.string().trim().min(1).max(40).optional(),
   engine: z.enum(ENGINES),
   model: z.string().min(1).optional(),
   description: z.string().trim().min(3).max(160),
@@ -59,7 +61,7 @@ export type Advisor = Omit<TeamFile["advisors"][string], "soul"> & { soul: strin
 export type Team = Omit<TeamFile, "advisors" | "library" | "workers"> & {
   workers?: TeamFile["workers"]; advisors: Record<string, Advisor>; library: Record<string, Advisor> };
 
-export function describeRoles(team: Pick<TeamFile, "roles"> & { workers?: Record<string, RoleSetup>; advisors: Record<string, RoleSetup> }): Array<{ role: string; engine: RoleSetup["engine"]; model: string | null }> {
+export function describeRoles(team: Pick<TeamFile, "roles"> & { workers?: Record<string, RoleSetup>; advisors: Record<string, RoleSetup> }): Array<{ role: string; name: string | null; engine: RoleSetup["engine"]; model: string | null }> {
   const setups = [...Object.entries(team.roles), ...Object.entries(team.workers ?? {}), ...Object.entries(team.advisors)] as Array<[string, RoleSetup]>;
-  return setups.map(([role, setup]) => ({ role, engine: setup.engine, model: setup.model ?? null }));
+  return setups.map(([role, setup]) => ({ role, name: setup.name ?? null, engine: setup.engine, model: setup.model ?? null }));
 }

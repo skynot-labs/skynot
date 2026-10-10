@@ -9,6 +9,7 @@ export interface Proposal {
   action: TeamAction;
   role: string;
   reason: string;
+  focus?: string;
 }
 
 export class TeamService {
@@ -44,17 +45,19 @@ export class TeamService {
       if (!change) return err({ kind: "not_found", message: `no team change ${id}` });
       if (change.status !== "pending") return invalid(`${id} is already ${change.status}`);
       if (type === "team.change_signed") {
-        const problem = this.problemWith(change, change.id);
+        const problem = this.problemWith({ action: change.action, role: change.role, ...(change.focus && { focus: change.focus }) }, change.id);
         if (problem) return invalid(problem);
       }
 
-      await this.log.record([{ type, payload: { changeId: change.id, action: change.action, role: change.role } }]);
+      await this.log.record([{ type, payload: { changeId: change.id, action: change.action, role: change.role, ...(change.focus && { focus: change.focus }) } }]);
       return ok(this.roster.change(id)!);
     });
   }
 
-  private problemWith({ action, role }: Proposal, ignoring?: ChangeId): string | null {
+  private problemWith({ action, role, focus }: Pick<Proposal, "action" | "role" | "focus">, ignoring?: ChangeId): string | null {
     if (action === "hire" && !this.roster.hireable().some((candidate) => candidate.name === role)) return `${role} cannot be hired: it is not in the library or already on the team`;
+    if (action === "refocus" && !this.roster.isMember(role)) return `${role} cannot be refocused: it is not on the team`;
+    if (action === "refocus" && !focus?.trim()) return "a refocus needs the new focus";
     if (action === "dismiss" && !this.roster.isMember(role)) return `${role} cannot be dismissed: it is not on the team`;
     if (this.roster.pending().some((change) => change.role === role && change.id !== ignoring)) return `there is already a pending change for ${role}`;
     return null;

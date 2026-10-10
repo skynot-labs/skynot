@@ -1,6 +1,6 @@
 # Phase 4 · Several projects, a board, and questions that reach the director
 
-**Status:** plan approved by the director; slice 4.1 built, 4.2 to 4.6 not started. See [vision](../vision.md) and [phase 3](phase-3.md) for
+**Status:** plan approved by the director; all slices built, awaiting the director's review. See [vision](../vision.md) and [phase 3](phase-3.md) for
 what exists.
 
 ## Why
@@ -73,6 +73,25 @@ readiness checks per repository (the existing `npm run check`, once per project)
 focus, update the briefing) and the director signs. Editing yml by hand keeps working.
 
 The order is open to change after 4.2: if the inbox or the intake hurts more than the selector, they go first.
+
+## What was built, and where it differs from the plan
+
+- **Order ids stay unique across the shop** (`WO-0001`, `WO-0002` over all projects), not per project, so branch
+  names cannot collide and every command that takes an order id stays unchanged. A project is a field of the order.
+- **A desk per project** holds its team, its conversation and its Manager; the event log, the scheduler, the
+  daily cap and the pause stay the shop's. Events carry a `projectId`; those written before projects existed
+  belong to the first project.
+- **A repository belongs to one project** (the delivery rules are looked up by repository).
+- **The inbox is computed, not stored:** open Manager questions (some about a ticket) and worker questions. A
+  worker raises one by ending its report with `QUESTION: ...`; the service then stops that order without
+  blocking it, and the answer goes back into the worker's prompt. Questions from advisors and the reviewer are not
+  separate: they reach the director through the Manager.
+- **Intake is by label** (`taller:ready` by default); the board is a one-way mirror. A card moves when the order
+  starts, opens a pull request and is delivered; the board is never read as a source of truth.
+- **Per-project daily cap was not built:** the pause is the shop's, and no incident asks for it.
+- **Changing a project without editing files** covers the briefing (a signed text that replaces the file, the
+  file stays untouched) and a new focus for an advisor (appended to its soul). Roles also take an optional
+  display `name`. Adding a role is hiring, which already existed.
 
 ## Coverage of a dev shop
 

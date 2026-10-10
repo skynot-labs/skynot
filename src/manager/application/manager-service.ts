@@ -2,6 +2,7 @@ import { err, newId, ok, type Result } from "../../kernel";
 import type { EventRecorder } from "../../kernel/events";
 import {
   NO_ADVISORS,
+  NO_BRIEFING_DESK,
   NO_TEAM_DESK,
   SYSTEM_PROMPT,
   buildAdvicePrompt,
@@ -11,6 +12,7 @@ import {
   describeIssues,
   type AdvisorBench,
   type AdvisorReply,
+  type BriefingDesk,
   type BriefingSource,
   type DecisionId,
   type ManagerAnswer,
@@ -33,16 +35,19 @@ export interface ManagerDependencies {
   advisors?: AdvisorBench;
   team?: TeamDesk;
   briefing?: BriefingSource;
+  briefingDesk?: BriefingDesk;
 }
 
 export class ManagerService {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly bench: AdvisorBench;
   private readonly teamDesk: TeamDesk;
+  private readonly briefingDesk: BriefingDesk;
 
   constructor(private readonly deps: ManagerDependencies) {
     this.bench = deps.advisors ?? NO_ADVISORS;
     this.teamDesk = deps.team ?? NO_TEAM_DESK;
+    this.briefingDesk = deps.briefingDesk ?? NO_BRIEFING_DESK;
   }
 
   async idle(): Promise<void> {
@@ -79,7 +84,7 @@ export class ManagerService {
   // The team changes while the shop runs, so the rules for an answer are built for every turn.
   private schemas() {
     const onTeam = this.bench.roster().map((advisor) => advisor.name);
-    const choices = { hire: this.teamDesk.hireable().map((role) => role.name), dismiss: onTeam };
+    const choices = { hire: this.teamDesk.hireable().map((role) => role.name), dismiss: onTeam, refocus: onTeam };
     return {
       first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices),
       final: createAnswerSchema(this.deps.desk.specSchema, [], choices),
@@ -168,8 +173,13 @@ export class ManagerService {
       ]);
       return this.reply(answer.message, { decisionId });
     }
+    if (answer.briefing !== null) {
+      const proposed = await this.briefingDesk.propose(answer.briefing);
+      return proposed.ok ? this.reply(`${answer.message}\n\n${proposed.value.text}`) : this.reply(`I could not propose that: ${proposed.error}`);
+    }
     if (answer.team !== null) {
-      const proposed = await this.teamDesk.propose(answer.team);
+      const { focus, ...team } = answer.team;
+      const proposed = await this.teamDesk.propose({ ...team, ...(focus && { focus }) });
       return proposed.ok ? this.reply(`${answer.message}\n\n${proposed.value.text}`) : this.reply(`I could not propose that: ${proposed.error}`);
     }
     return this.reply(answer.message);

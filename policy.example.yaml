@@ -14,6 +14,9 @@ branch_prefix: "taller/"
 labels:
   prefix: "taller:"
   trigger: "taller:implement"
+  # An issue with this label is read by the Manager of its project and becomes a proposed order or a question for
+  # you; nothing starts without your signature. Defaults to the prefix followed by "ready".
+  # intake: "taller:ready"
 
 limits:
   actions_per_order_per_day: 12
