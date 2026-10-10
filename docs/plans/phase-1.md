@@ -1,6 +1,6 @@
 # Phase 1 · Web console and the new core
 
-**Status:** draft, not started. See [vision](../vision.md) for the context.
+**Status:** steps 1 to 8 done on branch `feat/event-log`; step 9 pending. See [vision](../vision.md) for the context.
 
 ## Goal
 
