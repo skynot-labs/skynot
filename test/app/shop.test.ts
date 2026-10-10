@@ -133,6 +133,52 @@ describe("the shop, end to end with simulated engines", () => {
   });
 });
 
+describe("pull requests that conflict after another merge", () => {
+  const twoInReview = async () => {
+    const { shop, vcs } = await openShop();
+    const first = await fileAnOrder(shop);
+    await shop.orderService.sign(first);
+    await shop.flow.idle();
+    await shop.manager.handleMessage("Second idea");
+    await shop.manager.answerDecision(shop.chat.openDecisions()[0]!.id, "Keep it small");
+    const second = shop.chat.messages().at(-1)!.orderId!;
+    await shop.orderService.sign(second);
+    await shop.flow.idle();
+    return { shop, vcs, first, second };
+  };
+
+  it("updates a conflicting pull request by itself, once per merge", async () => {
+    const { shop, vcs, first, second } = await twoInReview();
+    expect(shop.activity.linksFor(second).waitingOn).toEqual([first]);
+
+    vcs.setPullRequestState(shop.repo, shop.orders.get(first)!.pullRequest!, "merged");
+    await shop.watcher.poll();
+    await shop.flow.idle();
+    expect(shop.orders.get(second)?.status).toBe("in_review");
+
+    vcs.setConflicts(shop.repo, shop.orders.get(second)!.pullRequest!, true);
+    await shop.watcher.poll();
+    await shop.flow.idle();
+    await shop.watcher.poll();
+    await shop.flow.idle();
+
+    const followUps = shop.activity.recent(100).filter((entry) => entry.orderId === second && entry.text.startsWith("follow-up requested"));
+    expect(followUps).toHaveLength(1);
+  });
+
+  it("leaves a pull request without conflicts alone", async () => {
+    const { shop, vcs, first, second } = await twoInReview();
+    vcs.setPullRequestState(shop.repo, shop.orders.get(first)!.pullRequest!, "merged");
+
+    await shop.watcher.poll();
+    await shop.flow.idle();
+    await shop.watcher.poll();
+    await shop.flow.idle();
+
+    expect(shop.activity.recent(100).some((entry) => entry.orderId === second && entry.text.startsWith("follow-up requested"))).toBe(false);
+  });
+});
+
 describe("activity", () => {
   it("lists what happened to an order, newest first, with the links GitHub gave", async () => {
     const { shop } = await openShop();

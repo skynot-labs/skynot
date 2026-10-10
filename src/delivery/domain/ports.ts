@@ -18,6 +18,7 @@ export type PullRequestState = "open" | "merged" | "closed";
 export interface Vcs {
   createIssue(repo: string, title: string, body: string): Promise<IssueRef>;
   pullRequestState(repo: string, number: number): Promise<PullRequestState>;
+  pullRequestConflicts(repo: string, number: number): Promise<boolean>;
   addLabel(repo: string, issue: number, label: string): Promise<void>;
   openPullRequest(repo: string, pullRequest: NewPullRequest): Promise<IssueRef>;
 }

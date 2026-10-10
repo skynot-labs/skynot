@@ -19,4 +19,5 @@ export {
   type OrderStatus,
   type WorkOrder,
 } from "./work-order";
+export { blockersOf } from "./sequencing";
 export { CARD_WIDTH, renderCard } from "./card";

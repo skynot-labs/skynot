@@ -33,6 +33,9 @@ export class OrderService {
       const parsed = WorkOrderSpecSchema.safeParse(rawSpec);
       if (!parsed.success) return err({ kind: "invalid_spec", message: describeIssues(parsed.error) });
 
+      const unknown = (parsed.data.dependsOn ?? []).filter((dependency) => !this.orders.get(dependency));
+      if (unknown.length > 0) return err({ kind: "invalid_spec", message: `dependsOn: no such order ${unknown.join(", ")}` });
+
       const id = this.orders.nextId();
       await this.log.record([propose(id, parsed.data)]);
       return ok(this.orders.get(id)!);

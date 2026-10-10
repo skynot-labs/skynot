@@ -129,6 +129,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     repo,
     findOrder: (id) => orders.get(id),
     listOrders: () => orders.list(),
+    ...(config.reportError && { onError: config.reportError }),
     progressOf: (id) => activity.linksFor(id),
   });
   const stopFlow = flow.start();
@@ -149,7 +150,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
 
   await flow.recover();
 
-  const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo });
+  const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo, flow, progressOf: (id) => activity.linksFor(id) });
 
   return {
     team: config.team,

@@ -15,6 +15,7 @@ export const WorkOrderSpecSchema = z.object({
   outOfScope: z.array(z.string().trim().min(3).max(200)).max(8),
   risk: z.enum(["low", "medium", "high"]),
   likelyFiles: z.array(z.string().trim().min(1).max(200)).max(12),
+  dependsOn: z.array(z.string().regex(/^WO-\d{4}$/)).max(5).optional(),
 });
 
 export type Criterion = z.infer<typeof CriterionSchema>;

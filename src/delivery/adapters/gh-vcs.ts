@@ -19,6 +19,11 @@ export class GhVcs implements Vcs {
     return pull.state === "open" ? "open" : "closed";
   }
 
+  async pullRequestConflicts(repo: string, number: number): Promise<boolean> {
+    const pull = JSON.parse(await this.api([`repos/${repo}/pulls/${number}`])) as { mergeable_state: string };
+    return pull.mergeable_state === "dirty";
+  }
+
   async addLabel(repo: string, issue: number, label: string): Promise<void> {
     await this.api(["-X", "POST", `repos/${repo}/issues/${issue}/labels`, "-f", `labels[]=${label}`]);
   }

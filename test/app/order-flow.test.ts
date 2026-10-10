@@ -164,7 +164,7 @@ describe("order flow", () => {
   it("works on two signed orders at the same time and opens a pull request for each", async () => {
     const shop = await createShop(createsFeature);
     const first = await shop.orderService.propose(validSpec());
-    const second = await shop.orderService.propose(validSpec({ title: "Second order" }));
+    const second = await shop.orderService.propose(validSpec({ title: "Second order", likelyFiles: ["src/other.ts"] }));
     if (!first.ok || !second.ok) throw new Error("propose failed");
 
     await shop.orderService.sign(first.value.id);
@@ -173,6 +173,87 @@ describe("order flow", () => {
 
     expect(shop.vcs.pullRequests.map((pullRequest) => pullRequest.head).sort()).toEqual(["taller/wo-0001", "taller/wo-0002"]);
     expect(shop.orders.list().map((order) => order.status)).toEqual(["in_review", "in_review"]);
+  });
+
+  describe("sequencing", () => {
+    const proposeTwo = async (shop: Awaited<ReturnType<typeof createShop>>, second: Parameters<typeof validSpec>[0]) => {
+      const first = await shop.orderService.propose(validSpec());
+      const next = await shop.orderService.propose(validSpec({ title: "Second order", ...second }));
+      if (!first.ok || !next.ok) throw new Error("propose failed");
+      await shop.orderService.sign(first.value.id);
+      await shop.orderService.sign(next.value.id);
+      await shop.flow.idle();
+      return { first: first.value.id, second: next.value.id };
+    };
+
+    it("holds an order that shares files with an earlier one until that one is merged", async () => {
+      const shop = await createShop(createsFeature);
+      const { first, second } = await proposeTwo(shop, {});
+
+      expect(shop.vcs.pullRequests.map((pullRequest) => pullRequest.head)).toEqual(["taller/wo-0001"]);
+      expect(shop.orders.get(second)?.status).toBe("signed");
+      expect(shop.activity.linksFor(second).waitingOn).toEqual([first]);
+
+      await shop.orderService.deliver(first);
+      await shop.flow.idle();
+
+      expect(shop.vcs.pullRequests.map((pullRequest) => pullRequest.head)).toEqual(["taller/wo-0001", "taller/wo-0002"]);
+      expect(shop.activity.linksFor(second).waitingOn).toEqual([]);
+    });
+
+    it("holds an order until the one it declares it depends on is merged, even with other files", async () => {
+      const shop = await createShop(createsFeature);
+      const { first, second } = await proposeTwo(shop, { likelyFiles: ["src/other.ts"], dependsOn: ["WO-0001"] });
+
+      expect(shop.orders.get(second)?.status).toBe("signed");
+      expect(shop.activity.linksFor(second).waitingOn).toEqual([first]);
+
+      await shop.orderService.deliver(first);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(second)?.status).toBe("in_review");
+    });
+
+    it("lets an order go when the one it waited for is discarded", async () => {
+      const shop = await createShop(createsFeature);
+      const early = await shop.orderService.propose(validSpec({ title: "Not ready", likelyFiles: ["src/a.ts"] }));
+      const later = await shop.orderService.propose(validSpec({ title: "Needs it", likelyFiles: ["src/b.ts"], dependsOn: [early.ok ? early.value.id : ""] }));
+      if (!early.ok || !later.ok) throw new Error("propose failed");
+      await shop.orderService.sign(later.value.id);
+      await shop.flow.idle();
+      expect(shop.orders.get(later.value.id)?.status).toBe("signed");
+
+      await shop.orderService.discard(early.value.id);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(later.value.id)?.status).toBe("in_review");
+    });
+
+    it("picks a waiting order up again after a restart instead of calling it blocked", async () => {
+      const shop = await createShop(createsFeature);
+      const { second } = await proposeTwo(shop, {});
+
+      await shop.flow.recover();
+
+      expect(shop.activity.linksFor(second).blocked).toBeNull();
+      expect(shop.activity.linksFor(second).waitingOn).toEqual(["WO-0001"]);
+    });
+
+    it("never waits for an order signed after it, or one that touches other files", async () => {
+      const shop = await createShop(createsFeature);
+
+      const { second } = await proposeTwo(shop, { likelyFiles: ["src/other.ts"] });
+
+      expect(shop.orders.get(second)?.status).toBe("in_review");
+    });
+
+    it("refuses an order that depends on one that does not exist", async () => {
+      const shop = await createShop(createsFeature);
+
+      const result = await shop.orderService.propose(validSpec({ dependsOn: ["WO-0042"] }));
+
+      expect(result).toMatchObject({ ok: false, error: { kind: "invalid_spec", message: expect.stringContaining("WO-0042") } });
+    });
   });
 
   describe("retry", () => {

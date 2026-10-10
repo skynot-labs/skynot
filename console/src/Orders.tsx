@@ -48,6 +48,9 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
       <pre class="card">{order.card}</pre>
 
       {order.blocked && <p class="blocked">Blocked: {order.blocked}</p>}
+      {order.status === "signed" && order.waitingOn.length > 0 && !order.blocked && (
+        <p class="reason">Waiting for {order.waitingOn.join(", ")} to be merged</p>
+      )}
       {order.status === "on_bench" && !order.blocked && (
         <div class="actions">
           <button type="button" onClick={() => act("stop-order")}>Stop</button>

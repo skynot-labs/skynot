@@ -16,9 +16,10 @@ export interface OrderLinks {
   readonly blocked: string | null;
   readonly protectedPaths: readonly string[];
   readonly approvedPaths: readonly string[];
+  readonly waitingOn: readonly string[];
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [] };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [] };
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
@@ -74,6 +75,8 @@ export class ActivityProjection implements Projection {
         return delivery(`protected paths touched: ${(payload.paths as string[]).join(", ")}`);
       case "delivery.protected_paths_approved":
         return delivery(`the director approved: ${(payload.paths as string[]).join(", ")}`);
+      case "delivery.work_waiting":
+        return delivery(`waiting for ${(payload.on as string[]).join(", ")} to be merged`);
       case "delivery.work_retried":
         return delivery("retry requested");
       case "delivery.follow_up_requested":
@@ -136,7 +139,12 @@ export class ActivityProjection implements Projection {
       case "delivery.protected_paths_approved":
         this.links.set(orderId, { ...current, ...UNBLOCKED, approvedPaths: [...new Set([...current.approvedPaths, ...(payload.paths as string[])])] });
         break;
+      case "delivery.work_waiting":
+        this.links.set(orderId, { ...current, waitingOn: payload.on as string[] });
+        break;
       case "orders.work_started":
+        this.links.set(orderId, { ...current, ...UNBLOCKED, waitingOn: [] });
+        break;
       case "delivery.work_retried":
       case "delivery.follow_up_requested":
       case "delivery.pull_request_updated":
