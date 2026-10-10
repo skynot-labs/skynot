@@ -24,10 +24,9 @@ Every page is a real `index.html` with relative links, scripts and assets, so th
 
 ## Publish on GitHub Pages
 
-[`.github/workflows/pages.yml`](workflows/pages.yml) builds the site and deploys `console/dist/github`. It runs only when started by hand, never on push.
+[`.github/workflows/pages.yml`](workflows/pages.yml) builds the site and deploys `console/dist/github`. It runs on every push to `main` that touches the console, and can be started by hand from **Actions**.
 
-1. In the repository's **Settings → Pages**, choose **GitHub Actions** as the source.
-2. In **Actions**, run **Publish Skynot website**.
+Once, in the repository's **Settings → Pages**, choose **GitHub Actions** as the source.
 
 A project site is served at `https://<owner>.github.io/<repository>/`; the organization's root address needs a repository named `<owner>.github.io` instead. See [custom workflows for Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
