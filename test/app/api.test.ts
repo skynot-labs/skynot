@@ -8,6 +8,7 @@ import type { readState } from "../../src/app/http/state";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
+import { FakeEngine } from "../../src/execution";
 import { examplePolicy } from "../governance/fixtures";
 
 const HOST = "127.0.0.1:4747";
@@ -239,6 +240,34 @@ describe("what the studio reads from the state", () => {
       { role: "developer", runs: 1, spentUsd: 0.31, lastOutcome: "completed" },
     ]);
     expect(state.costs.tokens).toEqual({ inputTokens: 248_800, outputTokens: 7_440, cachedInputTokens: 217_200 });
+  });
+
+  it("says the developer's run cost what it reported", async () => {
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+    const state = await getState();
+
+    expect(state.activity.filter((entry) => entry.kind === "run").map((entry) => entry.text)).toContain("developer run finished, $0.31");
+  });
+
+  it("carries no cost for a role whose engine reported none, in its runs, its totals and the logbook", async () => {
+    shop.stop();
+    const silentCodex = new FakeEngine(async () => ({ text: "Criterion 1: covered by the new test. Criterion 2: the negative case is tested." }));
+    shop = await createShop({ policy: examplePolicy(), dataDir, team: shop.team, engines: { claude: createMockManager(), codex: silentCodex }, vcs, workspace: new FakeWorkspace() });
+    api = createApi(shop, { allowedHosts: [HOST] });
+
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+    const state = await getState();
+
+    expect(state.runs[0]).toMatchObject({ role: "developer", engine: "codex", outcome: "completed", costUsd: null });
+    expect(state.agents.find((agent) => agent.role === "developer")).toMatchObject({ runs: 1, spentUsd: null });
+    expect(state.orders[0]?.spentUsd).toBe(0);
+    const logbook = state.activity.filter((entry) => entry.kind === "run").map((entry) => entry.text);
+    expect(logbook).toContain("developer run finished");
+    expect(logbook.some((text) => text.includes("$"))).toBe(false);
   });
 
   it("keeps a question in the answered list once the director answers it", async () => {

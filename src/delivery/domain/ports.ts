@@ -69,7 +69,7 @@ export interface WorkerRunner {
     timeoutMs: number;
     maxUsd: number;
     signal?: AbortSignal;
-  }): Promise<Result<{ report: string; costUsd: number }, string>>;
+  }): Promise<Result<{ report: string; costUsd: number | null }, string>>;
 }
 
 export interface CodeReviewer {

@@ -89,6 +89,41 @@ describe("run history", () => {
     expect(runs.byRole("alpha")).toEqual([{ role: "developer", runs: 1, spentUsd: 0.5, usage: null, lastOutcome: "completed" }]);
   });
 
+  it("reads the zero an old log recorded for codex as no cost, and keeps a zero that claude measured", async () => {
+    const { runs, log } = await openHistory();
+    const finishWithZero = async (runId: string, engine: string) => {
+      await log.record([{ type: "execution.run_requested", payload: { runId, role: engine, engine, access: "read", orderId: "WO-0001", projectId: "alpha" } }]);
+      await log.record([{ type: "execution.run_completed", payload: { runId, costUsd: 0 } }]);
+    };
+    await finishWithZero("run_codex", "codex");
+    await finishWithZero("run_claude", "claude");
+
+    expect(runs.list().map((run) => [run.engine, run.costUsd])).toEqual([["codex", null], ["claude", 0]]);
+    expect(runs.spentOnOrder("WO-0001")).toBe(0);
+  });
+
+  it("keeps the cost codex did report, and gives a role no spend until one of its runs reports a cost", async () => {
+    const { runs, log } = await openHistory();
+    const finish = async (runId: string, role: string, costUsd: number | null) => {
+      await log.record([{ type: "execution.run_requested", payload: { runId, role, engine: "codex", access: "write", orderId: null, projectId: "alpha" } }]);
+      await log.record([{ type: "execution.run_completed", payload: { runId, costUsd, turns: 1, model: "m" } }]);
+    };
+    await finish("run_1", "developer", null);
+    await finish("run_2", "developer", null);
+    await finish("run_3", "reviewer", null);
+    await finish("run_4", "reviewer", 0.4);
+    await finish("run_5", "reviewer", 0.2);
+    await log.record([{ type: "execution.run_requested", payload: { runId: "run_6", role: "tester", engine: "claude", access: "read", orderId: null, projectId: "alpha" } }]);
+    await log.record([{ type: "execution.run_completed", payload: { runId: "run_6", costUsd: 0, turns: 1, model: "m" } }]);
+
+    expect(runs.byRole("alpha").map((role) => [role.role, role.runs, role.spentUsd])).toEqual([
+      ["developer", 2, null],
+      ["reviewer", 3, expect.closeTo(0.6)],
+      ["tester", 1, 0],
+    ]);
+    expect(runs.spentByProject("alpha")).toBeCloseTo(0.6);
+  });
+
   it("lists a project's finished runs newest first, up to the limit", async () => {
     const { runs, log, request, complete, fail } = await openHistory();
     const slow = await request("architect", "alpha");
@@ -136,7 +171,7 @@ describe("run history", () => {
       { role: "developer", runs: 2, spentUsd: 0.75, usage: { inputTokens: 200, outputTokens: 20, cachedInputTokens: 120 }, lastOutcome: "failed" },
       { role: "reviewer", runs: 2, spentUsd: 0.1, usage: null, lastOutcome: "cancelled" },
       { role: "architect", runs: 3, spentUsd: 0.3, usage: null, lastOutcome: "completed" },
-      { role: "designer", runs: 1, spentUsd: 0, usage: null, lastOutcome: null },
+      { role: "designer", runs: 1, spentUsd: null, usage: null, lastOutcome: null },
     ]);
 
     await closeOrphanedRuns(runs, log);

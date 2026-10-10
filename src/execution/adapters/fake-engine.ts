@@ -12,7 +12,7 @@ export class FakeEngine implements RoleEngine {
     this.requests.push(request);
     const answer = await this.answer(request);
     if ("kind" in answer) return err(answer);
-    return ok({ text: "", costUsd: 0, turns: 1, model: "fake", ...answer });
+    return ok({ text: "", costUsd: null, turns: 1, model: "fake", ...answer });
   }
 
   async loginStatus(): Promise<LoginStatus> {

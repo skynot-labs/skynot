@@ -74,7 +74,7 @@ export function parseClaude(stdout: string): Result<EngineResult, EngineFailure>
   return ok({
     text: json.result ?? "",
     structured: json.structured_output,
-    costUsd: json.total_cost_usd ?? 0,
+    costUsd: json.total_cost_usd ?? null,
     turns: json.num_turns ?? 0,
     model: dominantModel(json.modelUsage),
     ...(usage && { usage }),

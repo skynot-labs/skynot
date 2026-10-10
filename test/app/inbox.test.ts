@@ -154,4 +154,26 @@ describe("the logbook of a project", () => {
     ]);
     expect(activity.recent(10, "blog").map((entry) => entry.text)).toEqual(["the shop was paused: maintenance"]);
   });
+
+  it("names what a run cost only when its engine reported it, also for a log that recorded codex as zero", async () => {
+    const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date("2026-10-09T12:00:00.000Z")));
+    const activity = new ActivityProjection("blog");
+    await attachProjection(log, activity);
+    const finish = async (role: string, engine: string, costUsd: number | null) => {
+      await log.record([{ type: "execution.run_requested", payload: { runId: `run_${role}`, role, engine, access: "read", orderId: null, projectId: "blog" } }]);
+      await log.record([{ type: "execution.run_completed", payload: { runId: `run_${role}`, costUsd } }]);
+    };
+
+    await finish("developer", "codex", 0);
+    await finish("reviewer", "codex", null);
+    await finish("architect", "claude", 0);
+    await finish("manager", "claude", 1.5);
+
+    expect(activity.recent(10, "blog").map((entry) => entry.text)).toEqual([
+      "manager run finished, $1.50",
+      "architect run finished, $0.00",
+      "reviewer run finished",
+      "developer run finished",
+    ]);
+  });
 });

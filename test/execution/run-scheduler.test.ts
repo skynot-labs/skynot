@@ -101,6 +101,16 @@ describe("run scheduler", () => {
     expect(runs.list()[0]).toMatchObject({ role: "architect", orderId: "WO-0001", status: "completed", costUsd: 0.25 });
   });
 
+  it("records no cost for a run whose engine reported none", async () => {
+    const { scheduler, log, runs } = await createScheduler(new FakeEngine(() => ({ text: "hi", costUsd: null })), 1);
+
+    const outcome = await scheduler.submit(submission("developer", "WO-0001"));
+
+    expect(outcome).toMatchObject({ ok: true, value: { costUsd: null } });
+    expect((await log.readAfter(0)).at(-1)).toMatchObject({ type: "execution.run_completed", payload: { costUsd: null } });
+    expect(runs.list()[0]).toMatchObject({ status: "completed", costUsd: null });
+  });
+
   it("records the tokens, turns and model a run reports, on success and on failure", async () => {
     const usage = { inputTokens: 1200, outputTokens: 80, cachedInputTokens: 900 };
     let calls = 0;

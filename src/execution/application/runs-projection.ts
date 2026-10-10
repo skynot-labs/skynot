@@ -4,7 +4,7 @@ import { asRunEvent, evolve, outcomeOf, sumUsage, type Run, type RunId, type Run
 export interface RoleUsage {
   readonly role: string;
   readonly runs: number;
-  readonly spentUsd: number;
+  readonly spentUsd: number | null;
   readonly usage: TokenUsage | null;
   readonly lastOutcome: RunOutcome | null;
 }
@@ -52,7 +52,7 @@ export class RunsProjection implements Projection {
     for (const run of this.ofProject(projectId)) byRole.set(run.role, [...(byRole.get(run.role) ?? []), run]);
     return [...byRole].map(([role, runs]) => {
       const last = newestFirst.find((run) => run.role === role);
-      return { role, runs: runs.length, spentUsd: sum(runs), usage: usageOf(runs), lastOutcome: last ? outcomeOf(last) : null };
+      return { role, runs: runs.length, spentUsd: reportedSum(runs), usage: usageOf(runs), lastOutcome: last ? outcomeOf(last) : null };
     });
   }
 
@@ -94,4 +94,9 @@ export class RunsProjection implements Projection {
 
 const usageOf = (runs: Run[]): TokenUsage | null => sumUsage(runs.flatMap((run) => (run.usage ? [run.usage] : [])));
 
-const sum = (runs: Run[]): number => runs.reduce((total, run) => total + (run.costUsd ?? 0), 0);
+const reportedCosts = (runs: Run[]): number[] => runs.flatMap((run) => (run.costUsd === null ? [] : [run.costUsd]));
+
+const reportedSum = (runs: Run[]): number | null => (reportedCosts(runs).length === 0 ? null : sum(runs));
+
+// Only what engines reported: a run without a cost adds nothing, so this is a floor, not the real spend.
+const sum = (runs: Run[]): number => reportedCosts(runs).reduce((total, cost) => total + cost, 0);

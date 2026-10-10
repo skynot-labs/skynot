@@ -29,7 +29,7 @@ export interface Run {
 export type RunEvent =
   | { type: "execution.run_requested"; payload: { runId: RunId; role: string; engine: EngineName; access: Access; orderId: string | null; projectId?: string } }
   | { type: "execution.run_started"; payload: { runId: RunId } }
-  | { type: "execution.run_completed"; payload: { runId: RunId; costUsd: number; turns?: number; model?: string; usage?: TokenUsage } }
+  | { type: "execution.run_completed"; payload: { runId: RunId; costUsd: number | null; turns?: number; model?: string; usage?: TokenUsage } }
   | { type: "execution.run_failed"; payload: { runId: RunId; failure: EngineFailure } };
 
 export function asRunEvent(event: DomainEvent): RunEvent | null {
@@ -67,7 +67,7 @@ export function evolve(run: Run | null, event: RunEvent, at: string, firstProjec
         ...run,
         status: "completed",
         finishedAt: at,
-        costUsd: event.payload.costUsd,
+        costUsd: reportedCost(run.engine, event.payload.costUsd),
         turns: event.payload.turns ?? null,
         model: event.payload.model ?? null,
         usage: event.payload.usage ?? null,
@@ -77,6 +77,11 @@ export function evolve(run: Run | null, event: RunEvent, at: string, firstProjec
       return { ...run, status: "failed", finishedAt: at, costUsd: failure.costUsd ?? null, usage: failure.usage ?? null, failure };
     }
   }
+}
+
+// Logs written before codex could say "not reported" recorded its missing cost as 0.
+export function reportedCost(engine: EngineName, costUsd: number | null): number | null {
+  return engine === "codex" && costUsd === 0 ? null : costUsd;
 }
 
 export function outcomeOf(run: Run): RunOutcome | null {

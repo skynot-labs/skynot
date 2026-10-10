@@ -80,7 +80,7 @@ export class CodexEngine implements RoleEngine {
       return ok({
         text,
         structured: schema ? parseJson(text) : undefined,
-        costUsd: 0,
+        costUsd: null,
         turns,
         model: request.model ?? "codex",
         ...(usage && { usage }),

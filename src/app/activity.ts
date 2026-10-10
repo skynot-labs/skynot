@@ -1,3 +1,4 @@
+import { reportedCost, type EngineName } from "../execution";
 import type { Projection, StoredEvent } from "../kernel/events";
 
 export interface ActivityEntry {
@@ -44,7 +45,7 @@ type Payload = Record<string, unknown>;
 export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
   private readonly links = new Map<string, OrderLinks>();
-  private readonly runOrders = new Map<string, { role: string; orderId: string | null }>();
+  private readonly runOrders = new Map<string, { role: string; engine: EngineName; orderId: string | null }>();
   private readonly orderProjects = new Map<string, string>();
   private readonly runProjects = new Map<string, string>();
 
@@ -162,10 +163,13 @@ export class ActivityProjection implements Projection {
       case "manager.advisor_failed":
         return advice(`${payload.role} could not advise: ${payload.reason}`);
       case "execution.run_requested":
-        this.runOrders.set(payload.runId as string, { role: payload.role as string, orderId });
+        this.runOrders.set(payload.runId as string, { role: payload.role as string, engine: payload.engine as EngineName, orderId });
         return null;
-      case "execution.run_completed":
-        return this.runEntry(payload, `finished, $${(payload.costUsd as number).toFixed(2)}`);
+      case "execution.run_completed": {
+        const engine = this.runOrders.get(payload.runId as string)?.engine;
+        const cost = engine ? reportedCost(engine, (payload.costUsd as number | null | undefined) ?? null) : null;
+        return this.runEntry(payload, cost === null ? "finished" : `finished, $${cost.toFixed(2)}`);
+      }
       case "execution.run_failed":
         return this.runEntry(payload, `failed: ${(payload.failure as { message: string }).message}`);
       default:
