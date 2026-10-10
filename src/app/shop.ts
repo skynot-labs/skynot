@@ -122,6 +122,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     }),
     repo,
     findOrder: (id) => orders.get(id),
+    listOrders: () => orders.list(),
     progressOf: (id) => activity.linksFor(id),
   });
   const stopFlow = flow.start();
@@ -132,6 +133,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     protectedPathsOf: (id) => activity.linksFor(id).protectedPaths,
     ...(config.reportError && { onError: config.reportError }),
   }).start();
+
+  await flow.recover();
 
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo });
 

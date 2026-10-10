@@ -69,6 +69,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
     implementer: new Implementer({ log, vcs, workspace, worker, rules }),
     repo: options.repo ?? "acme/widgets",
     findOrder: (id) => orders.get(id),
+    listOrders: () => orders.list(),
     progressOf: (id) => activity.linksFor(id),
   });
   flow.start();
