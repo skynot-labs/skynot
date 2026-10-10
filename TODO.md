@@ -32,7 +32,7 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (254 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (267 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates
@@ -100,8 +100,6 @@ Administration permission on purpose, so the director sets it in GitHub settings
 
 - `claude` has run once through this code (WO-0001). `codex` never has; its flags were only checked
   against `--help` and unit-tested with a fake process.
-- The "needs the director's signature" message for a protected path suggests an approval that does not
-  exist: the director has to make that change by hand on GitHub. Either build the approval or reword it.
 - A follow-up squashes the branch, so per-commit history is lost; today each order is one commit anyway.
 - The run log used to name the first model in the CLI's `modelUsage`, a small auxiliary one, so every
   earlier run shows haiku. It now names the one that cost the most. Models are chosen per role in `team.yaml`.
@@ -109,9 +107,6 @@ Administration permission on purpose, so the director sets it in GitHub settings
   looks like. `max_parallel` in the policy is the only brake.
 - One repository per run: the flow uses the first repo in `policy.yaml` because orders do not belong to
   a project yet. Projects and teams arrive in phase 2.
-- A blocked order (verification failed, protected path, budget spent) is recorded in the event log and
-  shown in the console with a Retry button, but the Manager does not tell the director in the chat.
-  A retry after a push that already happened may collide on the branch; not tested.
 - The Manager's chat bubble for an answered question reads "Answer to ...: ..."; it is verbose.
 - The console binds to 127.0.0.1 and checks `Host` and `Origin`; there is no login. Fine on a laptop or
   in a container, not for anything exposed. GitHub OAuth behind Tailscale is planned for later.
@@ -134,6 +129,14 @@ Things to know:
 - Whether the advisors are worth their cost in daily use is still open. Removing the `advisors` section
   of `team.yaml` turns them off.
 - WO-0007 (SQLite backend) was proposed during that test and may still be waiting for a signature.
+
+## Blocked orders
+
+A blocked order is announced by the Manager in the chat, with what to do next. When the worker touches
+protected files, the director can approve exactly those files from the order's card; the next run may
+touch them and no others, and the approval is an event in the log. If the blocked order is in review, the
+approval only records the files and the director sends the follow-up again. Pushing a change to
+`.github/workflows/` still needs the Workflows permission on the GitHub token.
 
 ## Next after phase 2 (from `docs/vision.md`)
 

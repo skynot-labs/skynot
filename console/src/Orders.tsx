@@ -48,7 +48,16 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
       <pre class="card">{order.card}</pre>
 
       {order.blocked && <p class="blocked">Blocked: {order.blocked}</p>}
-      {order.blocked && (order.status === "signed" || order.status === "on_bench") && (
+      {order.blocked && order.protectedPaths.length > 0 && (
+        <div class="actions">
+          <button type="button" class="sign" onClick={() => act("approve-protected-paths")}>
+            Approve {order.protectedPaths.join(", ")}
+          </button>
+          {order.status === "on_bench" && <button type="button" onClick={() => act("discard-order")}>Discard</button>}
+          {order.status === "in_review" && <span class="reason">After approving, send the follow-up again.</span>}
+        </div>
+      )}
+      {order.blocked && order.protectedPaths.length === 0 && (order.status === "signed" || order.status === "on_bench") && (
         <div class="actions">
           <button type="button" onClick={() => act("retry-order")}>Retry</button>
           {order.status === "on_bench" && <button type="button" onClick={() => act("discard-order")}>Discard</button>}

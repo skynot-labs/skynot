@@ -23,6 +23,7 @@ import { OrderService, OrdersProjection } from "../orders";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
+import { BlockedNotice } from "./blocked-notice";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
@@ -124,6 +125,13 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     progressOf: (id) => activity.linksFor(id),
   });
   const stopFlow = flow.start();
+  const stopNotice = new BlockedNotice({
+    log,
+    say: (text, orderId) => manager.tell(text, { orderId }),
+    findOrder: (id) => orders.get(id),
+    protectedPathsOf: (id) => activity.linksFor(id).protectedPaths,
+    ...(config.reportError && { onError: config.reportError }),
+  }).start();
 
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repo });
 
@@ -144,6 +152,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     repo,
     stop() {
       stopFlow();
+      stopNotice();
       watcher.stop();
     },
   };

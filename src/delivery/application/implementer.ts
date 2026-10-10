@@ -32,6 +32,7 @@ interface Job {
   repo: RepoRules;
   branch: string;
   dir: string;
+  approved: readonly string[];
 }
 
 type Verified = Job & { report: string };
@@ -39,8 +40,8 @@ type Verified = Job & { report: string };
 export class Implementer {
   constructor(private readonly deps: ImplementerDependencies) {}
 
-  async implement(item: WorkItem, repoName: string, issue: number): Promise<Result<IssueRef, string>> {
-    const outcome = await this.attempt(item, repoName, issue, undefined, async (job) => {
+  async implement(item: WorkItem, repoName: string, issue: number, approved: readonly string[] = []): Promise<Result<IssueRef, string>> {
+    const outcome = await this.attempt(item, repoName, issue, undefined, approved, async (job) => {
       const pushed = await this.commitAndPush(job);
       if (!pushed.ok) return pushed;
       return ok(
@@ -59,8 +60,8 @@ export class Implementer {
     return outcome;
   }
 
-  async followUp(item: WorkItem, repoName: string, issue: number, pullRequest: number, instruction: string): Promise<Result<void, string>> {
-    const outcome = await this.attempt(item, repoName, issue, instruction, (job) => this.commitAndPush(job));
+  async followUp(item: WorkItem, repoName: string, issue: number, pullRequest: number, instruction: string, approved: readonly string[] = []): Promise<Result<void, string>> {
+    const outcome = await this.attempt(item, repoName, issue, instruction, approved, (job) => this.commitAndPush(job));
     const event = outcome.ok
       ? { type: "delivery.pull_request_updated", payload: { orderId: item.id, number: pullRequest } }
       : { type: "delivery.work_blocked", payload: { orderId: item.id, reason: outcome.error } };
@@ -73,6 +74,7 @@ export class Implementer {
     repoName: string,
     issue: number,
     followUp: string | undefined,
+    approved: readonly string[],
     publish: (job: Verified) => Promise<Result<T, string>>,
   ): Promise<Result<T, string>> {
     const { rules, workspace } = this.deps;
@@ -91,7 +93,7 @@ export class Implementer {
     }
 
     try {
-      const job = { item, repoName, issue, repo: repo.value, branch: branch.value, dir };
+      const job = { item, repoName, issue, repo: repo.value, branch: branch.value, dir, approved };
       const report = await this.work(job, followUp);
       return report.ok ? await publish({ ...job, report: report.value }) : report;
     } catch (error) {
@@ -102,7 +104,7 @@ export class Implementer {
   }
 
   private async work(job: Job, followUp: string | undefined): Promise<Result<string, string>> {
-    const { item, repoName, issue, repo, dir } = job;
+    const { item, repoName, issue, repo, dir, approved } = job;
     const { rules, workspace, worker } = this.deps;
 
     if (repo.setupCommand) {
@@ -127,8 +129,11 @@ export class Implementer {
 
       const changes = await workspace.changes(dir);
       if (changes.length === 0) return err("the worker changed nothing");
-      const [touched] = rules.protectedTouched(repoName, changes.map((change) => change.path));
-      if (touched) return err(`it touches ${touched}, which needs the director's signature`);
+      const touched = rules.protectedTouched(repoName, changes.map((change) => change.path)).filter((path) => !approved.includes(path));
+      if (touched.length > 0) {
+        await this.deps.log.record([{ type: "delivery.protected_paths_found", payload: { orderId: item.id, paths: touched } }]);
+        return err(`it touches ${touched.join(", ")}, which is protected`);
+      }
       const removed = deletedTest(changes);
       if (removed) return err(`it deletes the test ${removed}`);
 

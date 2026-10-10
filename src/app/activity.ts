@@ -14,9 +14,12 @@ export interface OrderLinks {
   readonly issueUrl: string | null;
   readonly pullRequestUrl: string | null;
   readonly blocked: string | null;
+  readonly protectedPaths: readonly string[];
+  readonly approvedPaths: readonly string[];
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [] };
+const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
 
@@ -67,6 +70,10 @@ export class ActivityProjection implements Projection {
         return delivery(`pull request #${payload.number} opened`, payload.url as string);
       case "delivery.work_blocked":
         return delivery(`blocked: ${payload.reason}`);
+      case "delivery.protected_paths_found":
+        return delivery(`protected paths touched: ${(payload.paths as string[]).join(", ")}`);
+      case "delivery.protected_paths_approved":
+        return delivery(`the director approved: ${(payload.paths as string[]).join(", ")}`);
       case "delivery.work_retried":
         return delivery("retry requested");
       case "delivery.follow_up_requested":
@@ -114,16 +121,22 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, issue: payload.issue as number, issueUrl: payload.url as string });
         break;
       case "delivery.pull_request_opened":
-        this.links.set(orderId, { ...current, pullRequestUrl: payload.url as string, blocked: null });
+        this.links.set(orderId, { ...current, pullRequestUrl: payload.url as string, ...UNBLOCKED });
         break;
       case "delivery.work_blocked":
         this.links.set(orderId, { ...current, blocked: payload.reason as string });
+        break;
+      case "delivery.protected_paths_found":
+        this.links.set(orderId, { ...current, protectedPaths: payload.paths as string[] });
+        break;
+      case "delivery.protected_paths_approved":
+        this.links.set(orderId, { ...current, ...UNBLOCKED, approvedPaths: [...new Set([...current.approvedPaths, ...(payload.paths as string[])])] });
         break;
       case "orders.work_started":
       case "delivery.work_retried":
       case "delivery.follow_up_requested":
       case "delivery.pull_request_updated":
-        this.links.set(orderId, { ...current, blocked: null });
+        this.links.set(orderId, { ...current, ...UNBLOCKED });
         break;
     }
   }

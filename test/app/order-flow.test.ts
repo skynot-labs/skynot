@@ -74,7 +74,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   flow.start();
 
   const eventTypes = async () => (await log.readAfter(0)).map((event) => event.type).filter((type) => type.startsWith("delivery."));
-  return { flow, orderService, orders, runs, vcs, engine, eventTypes };
+  return { flow, orderService, orders, runs, vcs, engine, eventTypes, log, activity };
 }
 
 const createsFeature: WorkerWork = (dir) => addFiles(dir, { "src/feature.txt": "feature\n" });
@@ -378,6 +378,81 @@ describe("order flow", () => {
       const id = await proposeAndSign(shop);
 
       expect(await shop.flow.discard(id)).toMatchObject({ ok: true, value: { status: "discarded" } });
+    });
+  });
+
+  describe("protected paths", () => {
+    const touching = (...files: string[]): WorkerWork => (dir) => addFiles(dir, { "src/feature.txt": "feature\n", ...Object.fromEntries(files.map((file) => [file, "x\n"])) });
+    const pathsOf = async (shop: Awaited<ReturnType<typeof createShop>>) =>
+      (await shop.log.readAfter(0)).filter((event) => event.type === "delivery.protected_paths_found").map((event) => (event.payload as { paths: string[] }).paths);
+
+    it("records which protected files the worker touched when it blocks", async () => {
+      const shop = await createShop(touching(".github/workflows/lint.yml"));
+
+      const id = await proposeAndSign(shop);
+
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+      expect(await pathsOf(shop)).toEqual([[".github/workflows/lint.yml"]]);
+      expect(shop.activity.linksFor(id)).toMatchObject({ protectedPaths: [".github/workflows/lint.yml"], approvedPaths: [] });
+    });
+
+    it("lets the next run touch exactly the files the director approved", async () => {
+      const shop = await createShop(touching(".github/workflows/lint.yml"));
+      const id = await proposeAndSign(shop);
+
+      const approved = await shop.flow.approveProtected(id);
+      await shop.flow.idle();
+
+      expect(approved.ok).toBe(true);
+      expect(shop.orders.get(id)).toMatchObject({ status: "in_review", pullRequest: 2 });
+      expect(shop.activity.linksFor(id)).toMatchObject({ protectedPaths: [], approvedPaths: [".github/workflows/lint.yml"], blocked: null });
+      expect(await shop.eventTypes()).toEqual([
+        "delivery.issue_opened",
+        "delivery.protected_paths_found",
+        "delivery.work_blocked",
+        "delivery.protected_paths_approved",
+        "delivery.pull_request_opened",
+      ]);
+    });
+
+    it("blocks again on a protected file nobody approved, and keeps the earlier approval", async () => {
+      let runs = 0;
+      const shop = await createShop((dir) => touching(".github/workflows/lint.yml", ...(++runs > 1 ? [".github/CODEOWNERS"] : []))(dir));
+      const id = await proposeAndSign(shop);
+
+      await shop.flow.approveProtected(id);
+      await shop.flow.idle();
+
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+      expect(await pathsOf(shop)).toEqual([[".github/workflows/lint.yml"], [".github/CODEOWNERS"]]);
+      expect(shop.activity.linksFor(id)).toMatchObject({ protectedPaths: [".github/CODEOWNERS"], approvedPaths: [".github/workflows/lint.yml"] });
+    });
+
+    it("approves a protected file blocked in a follow-up without running anything, so the follow-up can be sent again", async () => {
+      let runs = 0;
+      const shop = await createShop((dir) => (++runs === 1 ? touching()(dir) : touching(".github/workflows/lint.yml")(dir)));
+      const id = await proposeAndSign(shop);
+      await shop.flow.followUp(id, "add a workflow");
+      await shop.flow.idle();
+      expect(shop.activity.linksFor(id).protectedPaths).toEqual([".github/workflows/lint.yml"]);
+
+      const approved = await shop.flow.approveProtected(id);
+      expect(approved.ok).toBe(true);
+      expect(shop.engine.requests).toHaveLength(2);
+
+      await shop.flow.followUp(id, "add a workflow");
+      await shop.flow.idle();
+
+      expect(await shop.eventTypes()).toContain("delivery.pull_request_updated");
+    });
+
+    it("refuses an order that is not waiting for approval, and one that does not exist", async () => {
+      const shop = await createShop(async () => undefined);
+      const id = await proposeAndSign(shop);
+
+      expect(await shop.flow.approveProtected(id)).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
+      expect(await shop.flow.approveProtected("WO-0099")).toMatchObject({ ok: false, error: { kind: "not_found" } });
+      expect(shop.engine.requests).toHaveLength(1);
     });
   });
 });

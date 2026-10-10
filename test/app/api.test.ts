@@ -143,6 +143,15 @@ describe("console api", () => {
     expect((await post("/api/commands/discard-team-change", { changeId: "nope" })).status).toBe(400);
   });
 
+  it("refuses to approve protected paths for an order that is not waiting for it, and for one that does not exist", async () => {
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+
+    expect((await post("/api/commands/approve-protected-paths", { orderId: id })).status).toBe(409);
+    expect((await post("/api/commands/approve-protected-paths", { orderId: "WO-0099" })).status).toBe(404);
+  });
+
   it("rejects malformed commands without changing anything", async () => {
     expect((await post("/api/commands/send-message", { text: "   " })).status).toBe(400);
     expect((await post("/api/commands/sign-order", { orderId: "not-an-id" })).status).toBe(400);
