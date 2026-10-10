@@ -6,9 +6,11 @@ context and [phase 1](phase-1.md) for what exists.
 ## Why, and why in slices
 
 The vision describes phase 2 as a role library, a team roster per project, engine and model per role,
-hiring, and advisors in parallel. The pilot gave evidence for only one of those: the worker ran on
-`claude-haiku-5-5`, nobody chose it, and there is nowhere to choose. The rest has no demonstrated pain
-yet, so the phase ships in three slices, each delivered and tried before the next is planned in detail.
+hiring, and advisors in parallel. The pilot gave evidence for only one of those: the model of each run
+was whatever the CLI picked and there was nowhere to choose it. (The run log first reported
+`claude-haiku-5-5` for every run; that was a parsing mistake, the CLI lists a small auxiliary model
+before the one that did the work.) The rest has no demonstrated pain yet, so the phase ships in three
+slices, each delivered and tried before the next is planned in detail.
 
 ## Slice 1 · Engine and model per role
 

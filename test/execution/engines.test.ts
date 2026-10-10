@@ -65,6 +65,14 @@ describe("claude output", () => {
     });
   });
 
+  it("names the model that did the work, not the auxiliary one listed first", () => {
+    const stdout = JSON.stringify({
+      subtype: "success",
+      modelUsage: { "claude-haiku": { costUSD: 0.0001 }, "claude-sonnet": { costUSD: 0.028 } },
+    });
+    expect(parseClaude(stdout)).toMatchObject({ ok: true, value: { model: "claude-sonnet" } });
+  });
+
   it("turns a stopped run and non-JSON output into failures", () => {
     expect(parseClaude(JSON.stringify({ is_error: true, subtype: "error_max_budget_usd" }))).toMatchObject({ ok: false });
     expect(parseClaude("Segmentation fault")).toMatchObject({ ok: false, error: { kind: "failed" } });

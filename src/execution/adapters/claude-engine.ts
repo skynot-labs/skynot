@@ -35,7 +35,13 @@ interface ClaudeJson {
   structured_output?: unknown;
   total_cost_usd?: number;
   num_turns?: number;
-  modelUsage?: Record<string, unknown>;
+  modelUsage?: Record<string, { costUSD?: number }>;
+}
+
+// The CLI also calls a small auxiliary model, and lists it first; the one that did the work cost the most.
+function dominantModel(usage: ClaudeJson["modelUsage"] = {}): string {
+  const [name] = Object.entries(usage).sort(([, a], [, b]) => (b.costUSD ?? 0) - (a.costUSD ?? 0))[0] ?? [];
+  return name ?? "claude";
 }
 
 export function parseClaude(stdout: string): Result<EngineResult, EngineFailure> {
@@ -53,7 +59,7 @@ export function parseClaude(stdout: string): Result<EngineResult, EngineFailure>
     structured: json.structured_output,
     costUsd: json.total_cost_usd ?? 0,
     turns: json.num_turns ?? 0,
-    model: Object.keys(json.modelUsage ?? {})[0] ?? "claude",
+    model: dominantModel(json.modelUsage),
   });
 }
 
