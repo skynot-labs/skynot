@@ -19,6 +19,8 @@ const STAGE_OF: Record<string, BoardStage> = {
 
 // One way only: the log is the truth and the board shows it. A board that cannot be written never stops the work.
 export class BoardMirror {
+  private readonly moving = new Map<string, Promise<void>>();
+
   constructor(private readonly deps: BoardMirrorDependencies) {}
 
   start(): () => void {
@@ -29,7 +31,8 @@ export class BoardMirror {
     const fail = (error: unknown) => this.deps.onError?.(error, event);
     if (event.type === "intake.ticket_taken") {
       const { projectId, url } = event.payload as { projectId: string; url: string };
-      void this.deps.boardOf(projectId)?.place({ url, stage: "proposed" }).catch(fail);
+      const board = this.deps.boardOf(projectId);
+      if (board) this.move(board, url, "proposed", fail);
       return;
     }
     const stage = STAGE_OF[event.type];
@@ -40,6 +43,14 @@ export class BoardMirror {
     if (!order || !board) return;
     const issueUrl = this.deps.issueUrlOf(order.id);
     const cards = [issueUrl, this.deps.ticketUrlOf(order)].filter((url): url is string => url !== null);
-    for (const url of cards) void board.place({ url, stage }).catch(fail);
+    for (const url of cards) this.move(board, url, stage, fail);
+  }
+
+  // Events come fast and each move is two gh calls: a card takes its moves in the order the events happened.
+  private move(board: Board, url: string, stage: BoardStage, fail: (error: unknown) => void): void {
+    const previous = this.moving.get(url) ?? Promise.resolve();
+    const next = previous.then(() => board.place({ url, stage })).catch(fail);
+    this.moving.set(url, next);
+    void next.then(() => this.moving.get(url) === next && this.moving.delete(url));
   }
 }

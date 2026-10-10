@@ -21,6 +21,9 @@ const DEMO: Project = { id: "demo", repo: "demo/todo", baseBranch: "main", setup
 export async function readProjects(policy: Policy, mock = false, dir = PROJECTS_DIR): Promise<Project[]> {
   if (mock && !existsSync(dir)) return [DEMO];
   const projects = existsSync(dir) ? await new YamlProjectCatalog(dir).list() : projectsFromPolicy(policy);
+  // The first project owns the history written before projects existed: the one policy.yaml always named first.
+  const legacy = projects.findIndex((project) => project.repo === policy.repos[0]?.name);
+  if (legacy > 0) projects.unshift(...projects.splice(legacy, 1));
   const twice = projects.find((project, index) => projects.findIndex((other) => other.repo === project.repo) !== index);
   if (twice) throw new Error(`two projects work on ${twice.repo}: a repository belongs to one project`);
   const placeholder = projects.find((project) => project.repo === "OWNER/REPO");
