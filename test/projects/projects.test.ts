@@ -60,7 +60,7 @@ describe("a project's board", () => {
     const usual = parseProjectFile("blog", `${projectYaml()}board: { owner: rodacato, number: 13 }\n`);
     const custom = parseProjectFile("blog", `${projectYaml()}board: { owner: rodacato, number: 13, columns: { in_review: "Reviewing" } }\n`);
 
-    expect(usual).toMatchObject({ ok: true, value: { board: { owner: "rodacato", number: 13, columns: { proposed: "Todo", in_progress: "In Progress", in_review: "In Review", done: "Done" } } } });
+    expect(usual).toMatchObject({ ok: true, value: { board: { owner: "rodacato", number: 13, columns: { proposed: "Todo", in_progress: "In Progress", in_review: "In Progress", done: "Done" } } } });
     expect(custom).toMatchObject({ ok: true, value: { board: { columns: { in_review: "Reviewing", done: "Done" } } } });
     expect(parseProjectFile("blog", `${projectYaml()}board: { owner: rodacato }\n`).ok).toBe(false);
   });

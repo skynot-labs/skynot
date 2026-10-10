@@ -101,6 +101,14 @@ The order is open to change after 4.2: if the inbox or the intake hurts more tha
   move: only an order that has not started can be discarded, and its card is still where it was.
 - `/api/state?project=` with an unknown id answers 404.
 
+## The board with a real token
+
+Tried against a user-owned board with the fine-grained token the shop uses: reading the board works, adding a card
+fails with "resource not found" (also through GraphQL `addProjectV2ItemById`). Fine-grained tokens do not reach
+user-owned Projects v2, so the mirror stays off for such a board until the shop runs with a classic token that has
+the `project` scope (or the board belongs to an organization). A failed move never stops the work. The default
+column for "in review" is "In Progress", because a new GitHub board has no "In Review" option.
+
 ## Coverage of a dev shop
 
 The director judged what the shop does today enough for a dev shop, and wants project management on top, which
