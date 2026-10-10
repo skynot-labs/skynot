@@ -163,6 +163,18 @@ describe("console api", () => {
     expect((await post("/api/commands/stop-run", { runId: "nope" })).status).toBe(400);
   });
 
+  it("shows what the day and each order have cost", async () => {
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+
+    const state = await getState();
+
+    expect(state.costs.total).toBeGreaterThan(0);
+    expect(state.costs.cap).toBe(shop.maxUsdPerDay ?? null);
+    expect(state.orders[0]?.spentUsd).toBeCloseTo(0.31);
+  });
+
   it("pauses and resumes the shop and shows it in the state", async () => {
     expect((await getState()).paused).toBeNull();
 

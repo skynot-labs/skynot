@@ -22,6 +22,7 @@ limits:
 run_budget:
   timeout_seconds: 900
   max_usd: 3.00
+  max_usd_per_day: 10.00
 
 memory:
   max_memory_chars: 6000

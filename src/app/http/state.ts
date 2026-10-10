@@ -22,6 +22,7 @@ export function readState(shop: Shop) {
       proposedAt: order.proposedAt,
       signedAt: order.signedAt,
       deliveredAt: order.deliveredAt,
+      spentUsd: shop.runs.spentOnOrder(order.id),
       ...shop.activity.linksFor(order.id),
     })),
     chat: shop.chat.messages(),
@@ -30,6 +31,7 @@ export function readState(shop: Shop) {
     teamChanges: shop.roster.pending(),
     hireable: shop.roster.hireable(),
     paused: shop.control.paused(),
+    costs: { today: shop.runs.spentOn(new Date().toISOString().slice(0, 10)), total: shop.runs.spentTotal(), cap: shop.maxUsdPerDay ?? null },
     presence: presence(shop),
     activity: shop.activity.recent(ACTIVITY_LIMIT),
   };

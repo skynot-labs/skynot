@@ -26,6 +26,7 @@ export const PolicySchema = z
     run_budget: z.object({
       timeout_seconds: z.number().positive(),
       max_usd: z.number().positive(),
+      max_usd_per_day: z.number().positive().optional(),
     }),
     memory: z.object({
       max_memory_chars: z.number().int().min(500),

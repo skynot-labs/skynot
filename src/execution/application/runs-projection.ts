@@ -24,6 +24,19 @@ export class RunsProjection implements Projection {
     return this.list().filter((run) => run.status === "running");
   }
 
+  // A day is the UTC day, like the daily action budget.
+  spentOn(day: string): number {
+    return sum(this.list().filter((run) => run.finishedAt?.startsWith(day)));
+  }
+
+  spentOnOrder(orderId: string): number {
+    return sum(this.list().filter((run) => run.orderId === orderId));
+  }
+
+  spentTotal(): number {
+    return sum(this.list());
+  }
+
   queuePosition(id: RunId): number | null {
     const index = this.list()
       .filter((run) => run.status === "queued")
@@ -31,3 +44,5 @@ export class RunsProjection implements Projection {
     return index === -1 ? null : index + 1;
   }
 }
+
+const sum = (runs: Run[]): number => runs.reduce((total, run) => total + (run.costUsd ?? 0), 0);

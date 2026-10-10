@@ -32,7 +32,7 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (267 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (304 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates
@@ -129,6 +129,20 @@ Things to know:
 - Whether the advisors are worth their cost in daily use is still open. Removing the `advisors` section
   of `team.yaml` turns them off.
 - WO-0007 (SQLite backend) was proposed during that test and may still be waiting for a signature.
+
+## Phase 3 progress (plan in `docs/plans/phase-3.md`)
+
+| Slice | What | State |
+|---|---|---|
+| 3.1 | Control: stop a run or an order, pause and resume the shop, costs per order and per day, daily cap | Built. Stop tried with the real `claude` (a run aborted after 3 s, no process left); pause and the cap only in tests |
+| 3.2 | Flow: dependencies, chaining by shared files, automatic update of conflicting pull requests | Not started |
+| 3.3 | Several workers and reassigning an order | Not started (after 3.4) |
+| 3.4 | Independent reviewer on another engine, as a gate | Not started |
+
+Controls in the console: Stop next to every working or waiting run and on an order being worked, Pause
+and Resume in the header, today's cost against the cap, and what each order has cost. The daily cap is
+`run_budget.max_usd_per_day` in `policy.yaml` (optional; a day is the UTC day). Stopping blocks the order
+as "stopped by the director", so it can be retried or discarded.
 
 ## Blocked orders
 
