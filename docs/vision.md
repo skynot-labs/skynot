@@ -99,9 +99,10 @@ No secrets in memory. Each important note links its source (issue, PR or directo
 | 1 | Web console: chat with the Manager, work orders, logbook, decisions, over an event log | The whole flow runs without the terminal |
 | 2 | Role library, team roster, per-role engine and model, hiring, advisors in parallel | The Manager proposes a team and consults advisors at once |
 | 3 | Parallel workers, dependency graph, merge queue, independent reviewer | Two developers deliver two orders at the same time, reviewed by someone else |
-| 4 | Greenfield: organization, machine account, the Manager creates the repo with CI, lint and tests | The todo app is built from an empty repository, then extended and fixed |
-| 5 | Curated memory, heartbeat, daily report | The Manager applies an earlier answer to a similar order without asking again |
-| 6 | Deploy on the KVM VM behind Tailscale, and Telegram | It runs without the director's laptop |
+| 4 | Several projects, each with its own team, work taken from GitHub, and an inbox of what waits for the director | Two projects run at once, and a labelled issue becomes an order the director signs |
+| 5 | Greenfield: organization, machine account, the Manager creates the repo with CI, lint and tests | The todo app is built from an empty repository, then extended and fixed |
+| 6 | Curated memory, heartbeat, daily report | The Manager applies an earlier answer to a similar order without asking again |
+| 7 | Deploy on the KVM VM behind Tailscale, and Telegram | It runs without the director's laptop |
 
 ## Not included for now
 
