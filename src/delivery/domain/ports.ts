@@ -1,5 +1,6 @@
 import type { Result } from "../../kernel";
-import type { FileChange } from "./work-item";
+import type { Review } from "./review";
+import type { FileChange, WorkItem } from "./work-item";
 
 export interface IssueRef {
   readonly number: number;
@@ -15,10 +16,15 @@ export interface NewPullRequest {
 
 export type PullRequestState = "open" | "merged" | "closed";
 
+export type ChecksState = "none" | "pending" | "passing" | "failing";
+
 export interface Vcs {
   createIssue(repo: string, title: string, body: string): Promise<IssueRef>;
   pullRequestState(repo: string, number: number): Promise<PullRequestState>;
   pullRequestConflicts(repo: string, number: number): Promise<boolean>;
+  pullRequestDiff(repo: string, number: number): Promise<string>;
+  pullRequestChecks(repo: string, number: number): Promise<ChecksState>;
+  commentOnPullRequest(repo: string, number: number, text: string): Promise<void>;
   addLabel(repo: string, issue: number, label: string): Promise<void>;
   openPullRequest(repo: string, pullRequest: NewPullRequest): Promise<IssueRef>;
 }
@@ -49,6 +55,10 @@ export interface WorkerRunner {
     maxUsd: number;
     signal?: AbortSignal;
   }): Promise<Result<{ report: string; costUsd: number }, string>>;
+}
+
+export interface CodeReviewer {
+  review(input: { item: WorkItem; diff: string; signal?: AbortSignal }): Promise<Result<Review, string>>;
 }
 
 export interface RepoRules {

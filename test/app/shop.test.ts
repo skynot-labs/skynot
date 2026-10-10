@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
+import { readState } from "../../src/app/http/state";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
 import type { EngineName, EngineRequest, RoleEngine } from "../../src/execution";
@@ -130,6 +131,36 @@ describe("the shop, end to end with simulated engines", () => {
     await shop.watcher.poll();
 
     expect(shop.orders.get(id)?.status).toBe("delivered");
+  });
+});
+
+describe("checks on the pull request", () => {
+  it("records each change of the checks once, and an order is ready only while they are not red or running", async () => {
+    const { shop, vcs } = await openShop();
+    const id = await fileAnOrder(shop);
+    await shop.orderService.sign(id);
+    await shop.flow.idle();
+    const ready = () => readState(shop).orders.find((order) => order.id === id)?.ready;
+    const changes = () => shop.activity.recent(50).filter((entry) => entry.text.startsWith("checks:")).map((entry) => entry.text);
+
+    await shop.watcher.poll();
+    expect(changes()).toEqual([]);
+    expect(ready()).toBe(true);
+
+    vcs.setChecks(shop.repo, 2, "pending");
+    await shop.watcher.poll();
+    await shop.watcher.poll();
+    expect(changes()).toEqual(["checks: pending"]);
+    expect(ready()).toBe(false);
+
+    vcs.setChecks(shop.repo, 2, "failing");
+    await shop.watcher.poll();
+    expect(ready()).toBe(false);
+
+    vcs.setChecks(shop.repo, 2, "passing");
+    await shop.watcher.poll();
+    expect(changes()).toEqual(["checks: passing", "checks: failing", "checks: pending"]);
+    expect(ready()).toBe(true);
   });
 });
 

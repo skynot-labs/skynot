@@ -26,7 +26,9 @@ This spends your `claude` subscription quota and writes to the repository named 
 3. `cp team.example.yaml team.yaml` and choose the engine, and optionally the model, of each role. Also
    untracked and yours. A typo stops the service at startup, before anything runs. The optional
    `advisors` section lets the Manager consult read-only roles (see `roles/`) before it proposes an order,
-   and `library` lists roles it may propose to hire; you sign the change in the console.
+   and `library` lists roles it may propose to hire; you sign the change in the console. An optional
+   `code_reviewer` role (another engine or model than the developer) reviews each pull request before you
+   do. Showing the pull request's CI status needs the token's "Checks: read" permission.
 4. `npm run build:console`, then `npm run start`.
 
 | Variable | Default | Meaning |

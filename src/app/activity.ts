@@ -17,9 +17,12 @@ export interface OrderLinks {
   readonly protectedPaths: readonly string[];
   readonly approvedPaths: readonly string[];
   readonly waitingOn: readonly string[];
+  readonly reviews: number;
+  readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[] } | null;
+  readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [] };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], reviews: 0, review: null, checks: null };
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
@@ -75,6 +78,12 @@ export class ActivityProjection implements Projection {
         return delivery(`protected paths touched: ${(payload.paths as string[]).join(", ")}`);
       case "delivery.protected_paths_approved":
         return delivery(`the director approved: ${(payload.paths as string[]).join(", ")}`);
+      case "delivery.review_completed":
+        return delivery(`review round ${payload.round}: ${payload.verdict === "approved" ? "approved" : "changes requested"}. ${payload.summary}`);
+      case "delivery.review_failed":
+        return delivery(`the review failed: ${payload.reason}`);
+      case "delivery.checks_changed":
+        return delivery(`checks: ${payload.state}`);
       case "delivery.work_waiting":
         return delivery(`waiting for ${(payload.on as string[]).join(", ")} to be merged`);
       case "delivery.work_retried":
@@ -139,6 +148,19 @@ export class ActivityProjection implements Projection {
       case "delivery.protected_paths_approved":
         this.links.set(orderId, { ...current, ...UNBLOCKED, approvedPaths: [...new Set([...current.approvedPaths, ...(payload.paths as string[])])] });
         break;
+      case "delivery.review_completed":
+        this.links.set(orderId, {
+          ...current,
+          reviews: current.reviews + 1,
+          review: { verdict: payload.verdict as "approved" | "changes_requested", summary: payload.summary as string, findings: payload.findings as string[] },
+        });
+        break;
+      case "delivery.checks_changed":
+        this.links.set(orderId, { ...current, checks: payload.state as OrderLinks["checks"] });
+        break;
+      case "delivery.pull_request_updated":
+        this.links.set(orderId, { ...current, ...UNBLOCKED, review: null, checks: null });
+        break;
       case "delivery.work_waiting":
         this.links.set(orderId, { ...current, waitingOn: payload.on as string[] });
         break;
@@ -147,7 +169,6 @@ export class ActivityProjection implements Projection {
         break;
       case "delivery.work_retried":
       case "delivery.follow_up_requested":
-      case "delivery.pull_request_updated":
         this.links.set(orderId, { ...current, ...UNBLOCKED });
         break;
     }

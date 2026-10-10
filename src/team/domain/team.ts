@@ -7,7 +7,7 @@ const RoleSchema = z.strictObject({
   model: z.string().min(1).optional(),
 });
 
-const RESERVED_NAMES = ["manager", "developer"];
+const RESERVED_NAMES = ["manager", "developer", "code_reviewer"];
 
 const AdvisorFileSchema = z.strictObject({
   engine: z.enum(ENGINES),
@@ -22,11 +22,16 @@ export const TeamFileSchema = z
     roles: z.strictObject({
       manager: RoleSchema,
       developer: RoleSchema,
+      code_reviewer: RoleSchema.optional(),
     }),
     advisors: z.record(z.string().regex(/^[a-z][a-z0-9-]{1,23}$/), AdvisorFileSchema).default({}),
     library: z.record(z.string().regex(/^[a-z][a-z0-9-]{1,23}$/), AdvisorFileSchema).default({}),
   })
   .superRefine((team, context) => {
+    const { developer, code_reviewer: reviewer } = team.roles;
+    if (reviewer && reviewer.engine === developer.engine && reviewer.model === developer.model) {
+      context.addIssue({ code: "custom", path: ["roles", "code_reviewer"], message: "the code reviewer must use a different engine or model than the developer, who wrote the code" });
+    }
     for (const section of ["advisors", "library"] as const) {
       for (const name of Object.keys(team[section])) {
         if (RESERVED_NAMES.includes(name)) context.addIssue({ code: "custom", path: [section, name], message: `"${name}" is already a role` });
@@ -39,13 +44,13 @@ export const TeamFileSchema = z
 
 export type TeamFile = z.infer<typeof TeamFileSchema>;
 export type RoleName = keyof TeamFile["roles"];
-export type RoleSetup = TeamFile["roles"][RoleName];
+export type RoleSetup = z.infer<typeof RoleSchema>;
 
 // In a Team the soul is the text of the file the team file points to.
 export type Advisor = Omit<TeamFile["advisors"][string], "soul"> & { soul: string };
 export type Team = Omit<TeamFile, "advisors" | "library"> & { advisors: Record<string, Advisor>; library: Record<string, Advisor> };
 
 export function describeRoles(team: Pick<TeamFile, "roles"> & { advisors: Record<string, RoleSetup> }): Array<{ role: string; engine: RoleSetup["engine"]; model: string | null }> {
-  const setups: Array<[string, RoleSetup]> = [...Object.entries(team.roles), ...Object.entries(team.advisors)];
+  const setups = [...Object.entries(team.roles), ...Object.entries(team.advisors)] as Array<[string, RoleSetup]>;
   return setups.map(([role, setup]) => ({ role, engine: setup.engine, model: setup.model ?? null }));
 }

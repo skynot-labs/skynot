@@ -1,4 +1,4 @@
-import type { IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
+import type { ChecksState, IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
 
 export interface FakeIssue {
   repo: string;
@@ -17,7 +17,10 @@ export interface FakePullRequest extends NewPullRequest {
 export class FakeVcs implements Vcs {
   readonly issues: FakeIssue[] = [];
   readonly pullRequests: FakePullRequest[] = [];
+  readonly comments: Array<{ repo: string; number: number; text: string }> = [];
+  diff = "diff --git a/src/feature.txt b/src/feature.txt\n+feature\n";
   private nextNumber = 1;
+  private readonly checks = new Map<string, ChecksState>();
   private readonly conflicting = new Set<string>();
   private readonly states = new Map<string, PullRequestState>();
 
@@ -33,6 +36,22 @@ export class FakeVcs implements Vcs {
 
   async pullRequestConflicts(repo: string, number: number): Promise<boolean> {
     return this.conflicting.has(`${repo}#${number}`);
+  }
+
+  async pullRequestDiff(): Promise<string> {
+    return this.diff;
+  }
+
+  async pullRequestChecks(repo: string, number: number): Promise<ChecksState> {
+    return this.checks.get(`${repo}#${number}`) ?? "none";
+  }
+
+  setChecks(repo: string, number: number, state: ChecksState): void {
+    this.checks.set(`${repo}#${number}`, state);
+  }
+
+  async commentOnPullRequest(repo: string, number: number, text: string): Promise<void> {
+    this.comments.push({ repo, number, text });
   }
 
   setConflicts(repo: string, number: number, conflicts: boolean): void {

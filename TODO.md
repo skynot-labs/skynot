@@ -32,7 +32,7 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (317 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (328 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates
@@ -136,8 +136,8 @@ Things to know:
 |---|---|---|
 | 3.1 | Control: stop a run or an order, pause and resume the shop, costs per order and per day, daily cap | Built. Stop tried with the real `claude` (a run aborted after 3 s, no process left); pause and the cap only in tests |
 | 3.2 | Flow: `dependsOn`, chaining by shared files, automatic update of conflicting pull requests | Built and tested with fakes; not tried with the real CLIs |
-| 3.3 | Several workers and reassigning an order | Not started (after 3.4) |
-| 3.4 | Independent reviewer on another engine, as a gate | Not started |
+| 3.3 | Several workers and reassigning an order | Not started |
+| 3.4 | Independent reviewer on another engine, as a gate, and CI status | Built; the verdict path was tried with the real `codex` on a real diff (12 s), not yet end to end in the shop |
 
 Controls in the console: Stop next to every working or waiting run and on an order being worked, Pause
 and Resume in the header, today's cost against the cap, and what each order has cost. The daily cap is

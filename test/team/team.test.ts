@@ -29,6 +29,15 @@ describe("team file", () => {
     ]);
   });
 
+  it("accepts a code reviewer on another engine or model, and refuses one that matches the developer", () => {
+    const withReviewer = (reviewer: string) => parseTeamFile(`${valid}  code_reviewer: ${reviewer}\n`);
+
+    const other = withReviewer("{ engine: claude }");
+    expect(other.ok && describeRoles(other.value).map((entry) => entry.role)).toEqual(["manager", "developer", "code_reviewer"]);
+    expect(withReviewer("{ engine: codex, model: gpt-5 }").ok).toBe(true);
+    expect(withReviewer("{ engine: codex }")).toMatchObject({ ok: false, error: expect.stringContaining("different engine or model") });
+  });
+
   it("works without advisors and lists them after the roles when present", () => {
     const alone = parseTeamFile(valid);
     const advised = parseTeamFile(withAdvisor);

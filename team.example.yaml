@@ -7,6 +7,11 @@ roles:
     engine: claude
   developer:
     engine: claude
+  # Optional. Reads every pull request's diff before you do; the one who wrote the code never approves it,
+  # so it must differ from the developer in engine or model, or the service refuses to start. Leave it out
+  # and nothing is reviewed.
+  # code_reviewer:
+  #   engine: codex
 
 # Read-only roles the Manager can consult, up to three at once. `soul` is a markdown file, relative to
 # this file; `description` is what the Manager sees when it decides whom to ask. Leave the section out

@@ -138,3 +138,8 @@ button.stop { padding: 0 0.4rem; font-size: 0.78rem; }
 .masthead .pause { margin-left: auto; }
 .notice.paused { border-color: var(--seal); }
 .masthead .cost, .links .spent { color: var(--pencil); font-family: var(--mono); font-size: 0.82rem; }
+
+.verdict { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; align-items: center; margin: 0.4rem 0; }
+.verdict ul { margin: 0.3rem 0 0 1.1rem; padding: 0; }
+.verdict .ready { color: var(--ok, #2d7a3e); }
+.verdict .checks-failing { color: var(--danger, #b3261e); }
