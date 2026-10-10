@@ -71,6 +71,12 @@ without risking your machine, use the [devcontainer](.devcontainer/README.md).
 ```bash
 npm test               # includes the architecture rules
 npm run typecheck
+npm run dev:console    # the console with hot reload on :5173, against the shop on :4747
 ```
+
+The console is the studio: its look comes from `console/src/design/tokens.json`, shown at `/design`. How to add a
+place, a season or a wardrobe look is in [docs/studio-themes.md](docs/studio-themes.md). The public pages served at
+`/github/` and how to publish them are in [docs/github-kit.md](docs/github-kit.md); the GitHub App in
+[docs/github-app.md](docs/github-app.md).
 
 Rules for working here are in [AGENTS.md](AGENTS.md).

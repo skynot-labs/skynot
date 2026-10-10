@@ -1,0 +1,54 @@
+{
+  "product": "skynot",
+  "organization": "skynot-labs",
+  "repository": "skynot",
+  "app": "skynot-labs-ai",
+  "release": "development",
+  "tagline": "Your judgment. A team of agents.",
+  "organizationDescription": "A software lab directed by people, built with agents.",
+  "appDescription": "Connects Skynot to your repositories: issues, branches and pull requests for a team of agents that works on orders you sign.",
+  "permissions": [
+    {
+      "name": "Contents",
+      "scope": "Repository",
+      "access": "Read and write",
+      "reason": "Clone the repository and push work branches.",
+      "optional": false
+    },
+    {
+      "name": "Issues",
+      "scope": "Repository",
+      "access": "Read and write",
+      "reason": "Read labeled tickets, open and label the issue of each order.",
+      "optional": false
+    },
+    {
+      "name": "Pull requests",
+      "scope": "Repository",
+      "access": "Read and write",
+      "reason": "Open pull requests, read their state and diff, post the review verdict.",
+      "optional": false
+    },
+    {
+      "name": "Actions",
+      "scope": "Repository",
+      "access": "Read",
+      "reason": "Read the CI result of a pull request.",
+      "optional": false
+    },
+    {
+      "name": "Metadata",
+      "scope": "Repository",
+      "access": "Read",
+      "reason": "Base access GitHub includes in every installation.",
+      "optional": false
+    },
+    {
+      "name": "Projects",
+      "scope": "Organization",
+      "access": "Read and write",
+      "reason": "Move cards on an organization board, when a project names one.",
+      "optional": true
+    }
+  ]
+}
