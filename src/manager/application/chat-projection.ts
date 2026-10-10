@@ -1,4 +1,4 @@
-import type { Projection, StoredEvent } from "../../kernel/events";
+import { inScope, type Projection, type ProjectScope, type StoredEvent } from "../../kernel/events";
 import { asManagerEvent, type DecisionId, type MessageId } from "../domain";
 
 export interface ChatMessage {
@@ -22,9 +22,11 @@ export class ChatProjection implements Projection {
   private readonly chat: ChatMessage[] = [];
   private readonly decisionsById = new Map<DecisionId, Decision>();
 
+  constructor(private readonly scope?: ProjectScope) {}
+
   apply(stored: StoredEvent): void {
     const event = asManagerEvent(stored);
-    if (!event) return;
+    if (!event || !inScope(stored, this.scope)) return;
 
     switch (event.type) {
       case "manager.message_received":

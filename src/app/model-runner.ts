@@ -8,6 +8,7 @@ export interface ManagerEngineOptions {
   timeoutMs: number;
   model?: string;
   maxUsd?: number;
+  projectId?: string;
 }
 
 export function createManagerRunner(scheduler: RunScheduler, options: ManagerEngineOptions): ModelRunner {
@@ -31,7 +32,7 @@ export function createManagerRunner(scheduler: RunScheduler, options: ManagerEng
         ...(options.maxUsd && { maxUsd: options.maxUsd }),
       };
 
-      const outcome = await scheduler.submit({ role: "manager", engine: options.engine, orderId: null, request });
+      const outcome = await scheduler.submit({ role: "manager", engine: options.engine, orderId: null, ...(options.projectId && { projectId: options.projectId }), request });
       return outcome.ok ? ok(outcome.value.structured ?? parseJson(outcome.value.text)) : err(outcome.error.message);
     },
   };

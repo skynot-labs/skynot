@@ -4,11 +4,13 @@ import { asOrderEvent, evolve, formatOrderId, orderNumber, type OrderId, type Wo
 export class OrdersProjection implements Projection {
   private readonly orders = new Map<OrderId, WorkOrder>();
 
+  constructor(private readonly firstProject = "default") {}
+
   apply(stored: StoredEvent): void {
     const event = asOrderEvent(stored);
     if (!event) return;
 
-    const next = evolve(this.orders.get(event.payload.orderId) ?? null, event, stored.occurredAt);
+    const next = evolve(this.orders.get(event.payload.orderId) ?? null, event, stored.occurredAt, this.firstProject);
     if (next) this.orders.set(next.id, next);
   }
 
@@ -18,6 +20,10 @@ export class OrdersProjection implements Projection {
 
   list(): WorkOrder[] {
     return [...this.orders.values()].sort((a, b) => orderNumber(a.id) - orderNumber(b.id));
+  }
+
+  listFor(projectId: string): WorkOrder[] {
+    return this.list().filter((order) => order.projectId === projectId);
   }
 
   nextId(): OrderId {

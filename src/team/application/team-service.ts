@@ -1,5 +1,5 @@
 import { err, newId, ok, type Result } from "../../kernel";
-import type { EventLog } from "../../kernel/events";
+import type { EventRecorder } from "../../kernel/events";
 import type { ChangeId, TeamAction, TeamChange, TeamError } from "../domain";
 import type { RosterProjection } from "./roster-projection";
 
@@ -15,7 +15,7 @@ export class TeamService {
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
-    private readonly log: EventLog,
+    private readonly log: EventRecorder,
     private readonly roster: RosterProjection,
   ) {}
 

@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { EngineName, RoleEngine } from "../execution";
 import type { Exec } from "../kernel/process";
+import type { Project } from "../projects";
 import type { Team } from "../team";
 
 export interface Finding {
@@ -40,12 +41,39 @@ export function engineUsage(team: Team): EngineUsage {
   return usage;
 }
 
+export interface ShopReadinessInput {
+  exec: Exec;
+  engines: ReadinessInput["engines"];
+  teams: ReadonlyArray<{ project: Project; team: Team }>;
+  dataDir: string;
+}
+
+// The tools and logins are the shop's, checked once; the repository and the token are each project's.
+export async function checkShopReadiness({ exec, engines, teams, dataDir }: ShopReadinessInput): Promise<Finding[]> {
+  const usage: EngineUsage = {};
+  for (const { team } of teams) {
+    for (const [engine, entry] of Object.entries(engineUsage(team)) as Array<[EngineName, { roles: string[]; writes: boolean }]>) {
+      const merged = (usage[engine] ??= { roles: [], writes: false });
+      merged.roles.push(...entry.roles.filter((role) => !merged.roles.includes(role)));
+      merged.writes ||= entry.writes;
+    }
+  }
+  const shared = await Promise.all([checkNode(), checkGit(exec), checkDataDir(dataDir), ...checkEngines({ engines, usage, exec })]);
+  const perProject = await Promise.all(
+    teams.map(async ({ project }) => {
+      const found = await checkGithub(exec, project.repo, project.baseBranch);
+      return teams.length > 1 ? found.map((finding) => ({ ...finding, check: `${project.id}: ${finding.check}` })) : found;
+    }),
+  );
+  return [...shared.flat(), ...perProject.flat()];
+}
+
 const ok = (check: string, detail: string): Finding => ({ check, level: "ok", detail });
 const fail = (check: string, detail: string, fix: string): Finding => ({ check, level: "fail", detail, fix });
 const warn = (check: string, detail: string, fix: string): Finding => ({ check, level: "warn", detail, fix });
 
 export async function checkReadiness(input: ReadinessInput): Promise<Finding[]> {
-  const found = await Promise.all([checkNode(), checkGit(input), checkDataDir(input), ...checkEngines(input), checkGithub(input)]);
+  const found = await Promise.all([checkNode(), checkGit(input.exec), checkDataDir(input.dataDir), ...checkEngines(input), checkGithub(input.exec, input.repo, input.baseBranch)]);
   return found.flat();
 }
 
@@ -54,12 +82,12 @@ function checkNode(): Finding[] {
   return [major >= 22 ? ok("node", `Node ${process.versions.node}`) : fail("node", `Node ${process.versions.node}`, "Node 22 or later is required")];
 }
 
-async function checkGit({ exec }: ReadinessInput): Promise<Finding[]> {
+async function checkGit(exec: Exec): Promise<Finding[]> {
   const result = await exec("git", ["--version"]).catch(() => null);
   return [result?.code === 0 ? ok("git", result.stdout.trim()) : fail("git", "git did not answer", "install git")];
 }
 
-async function checkDataDir({ dataDir }: ReadinessInput): Promise<Finding[]> {
+async function checkDataDir(dataDir: string): Promise<Finding[]> {
   try {
     await mkdir(dataDir, { recursive: true });
     const probe = join(dataDir, ".write-check");
@@ -71,7 +99,7 @@ async function checkDataDir({ dataDir }: ReadinessInput): Promise<Finding[]> {
   }
 }
 
-function checkEngines({ engines, usage, exec }: ReadinessInput): Array<Promise<Finding[]>> {
+function checkEngines({ engines, usage, exec }: Pick<ReadinessInput, "engines" | "usage" | "exec">): Array<Promise<Finding[]>> {
   return (Object.entries(usage) as Array<[EngineName, { roles: string[]; writes: boolean }]>).map(async ([name, { roles, writes }]) => {
     const engine = engines[name];
     const login = engine ? await engine.loginStatus() : { loggedIn: false, detail: `no ${name} engine is configured` };
@@ -94,7 +122,7 @@ async function codexSandbox(exec: Exec, writes: boolean, roles: string[]): Promi
     : warn("codex sandbox", `${cause}: codex can only read what the prompt contains, so the reviewer sees the diff but cannot read the repository or run tests`, fix);
 }
 
-async function checkGithub({ exec, repo, baseBranch }: ReadinessInput): Promise<Finding[]> {
+async function checkGithub(exec: Exec, repo: string, baseBranch: string): Promise<Finding[]> {
   const auth = await exec("gh", ["auth", "status"]).catch(() => null);
   if (auth?.code !== 0) return [fail("github login", "gh is not logged in", "log in with `gh auth login` (see .devcontainer/README.md)")];
 

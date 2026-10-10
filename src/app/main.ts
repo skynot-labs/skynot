@@ -10,7 +10,7 @@ import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { ClaudeEngine, CodexEngine } from "../execution";
 import { exec } from "../kernel/process";
-import { checkReadiness, engineUsage } from "./readiness";
+import { checkShopReadiness } from "./readiness";
 import { createShop } from "./shop";
 
 const mock = process.env.SKYNOT_MOCK === "1";
@@ -22,7 +22,8 @@ const policy = await readPolicy(mock);
 const vcs = new FakeVcs();
 
 const projects = await readProjects(policy, mock);
-const team = await readTeam(mock, projects[0]!.id);
+const teams = Object.fromEntries(await Promise.all(projects.map(async (project) => [project.id, await readTeam(mock, project.id)] as const)));
+const team = teams[projects[0]!.id]!;
 process.on("exit", await lockDataDir(dataDir));
 const shop = await createShop({
   policy,
@@ -30,8 +31,9 @@ const shop = await createShop({
   team,
   projects,
   briefing: briefingStore(policy),
+  teams,
   ...(!mock && {
-    readiness: () => checkReadiness({ exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, usage: engineUsage(team), repo: projects[0]!.repo, baseBranch: projects[0]!.baseBranch, dataDir }),
+    readiness: () => checkShopReadiness({ exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, teams: projects.map((project) => ({ project, team: teams[project.id]! })), dataDir }),
   }),
   reportError: (error, event) => console.error(`handler failed on ${event.type}:`, error),
   ...(mock && {

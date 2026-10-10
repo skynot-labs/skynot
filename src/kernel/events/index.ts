@@ -3,4 +3,5 @@ export type { EventStore } from "./event-store";
 export { InMemoryEventStore } from "./memory-event-store";
 export { JsonlEventStore } from "./jsonl-event-store";
 export { EventLog, type EventHandler, type HandlerErrorReporter } from "./event-log";
+export { inProject, inScope, projectOfEvent, type EventRecorder, type ProjectScope } from "./scope";
 export { attachProjection, LastSequence, type Projection } from "./projection";

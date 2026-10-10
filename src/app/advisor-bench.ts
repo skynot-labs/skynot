@@ -9,6 +9,7 @@ export interface AdvisorBenchOptions {
   cwd: () => Promise<string>;
   timeoutMs: number;
   maxUsd?: number;
+  projectId?: string;
 }
 
 export function createAdvisorBench(scheduler: RunScheduler, advisors: () => Record<string, Advisor>, options: AdvisorBenchOptions): AdvisorBench {
@@ -32,6 +33,7 @@ export function createAdvisorBench(scheduler: RunScheduler, advisors: () => Reco
             role,
             engine: advisor.engine,
             orderId: null,
+            ...(options.projectId && { projectId: options.projectId }),
             request: {
               prompt: question,
               system: advisorSystem(advisor.soul),

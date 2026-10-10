@@ -12,6 +12,7 @@ export interface Run {
   readonly engine: EngineName;
   readonly access: Access;
   readonly orderId: string | null;
+  readonly projectId: string;
   readonly status: RunStatus;
   readonly requestedAt: string;
   readonly startedAt: string | null;
@@ -21,7 +22,7 @@ export interface Run {
 }
 
 export type RunEvent =
-  | { type: "execution.run_requested"; payload: { runId: RunId; role: string; engine: EngineName; access: Access; orderId: string | null } }
+  | { type: "execution.run_requested"; payload: { runId: RunId; role: string; engine: EngineName; access: Access; orderId: string | null; projectId?: string } }
   | { type: "execution.run_started"; payload: { runId: RunId } }
   | { type: "execution.run_completed"; payload: { runId: RunId; costUsd: number; turns: number; model: string } }
   | { type: "execution.run_failed"; payload: { runId: RunId; failure: EngineFailure } };
@@ -30,15 +31,16 @@ export function asRunEvent(event: DomainEvent): RunEvent | null {
   return event.type.startsWith("execution.") ? (event as RunEvent) : null;
 }
 
-export function evolve(run: Run | null, event: RunEvent, at: string): Run | null {
+export function evolve(run: Run | null, event: RunEvent, at: string, firstProject = "default"): Run | null {
   if (event.type === "execution.run_requested") {
-    const { runId, role, engine, access, orderId } = event.payload;
+    const { runId, role, engine, access, orderId, projectId } = event.payload;
     return {
       id: runId,
       role,
       engine,
       access,
       orderId,
+      projectId: projectId ?? firstProject,
       status: "queued",
       requestedAt: at,
       startedAt: null,

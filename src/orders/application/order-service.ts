@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "../../kernel";
-import type { EventLog } from "../../kernel/events";
+import type { EventRecorder } from "../../kernel/events";
 import {
   WorkOrderSpecSchema,
   abandon,
@@ -24,20 +24,23 @@ export class OrderService {
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(
-    private readonly log: EventLog,
+    private readonly log: EventRecorder,
     private readonly orders: OrdersProjection,
   ) {}
 
-  propose(rawSpec: unknown): Promise<OrderResult> {
+  propose(rawSpec: unknown, scope: { projectId?: string; ticket?: number } = {}): Promise<OrderResult> {
     return this.exclusive(async () => {
       const parsed = WorkOrderSpecSchema.safeParse(rawSpec);
       if (!parsed.success) return err({ kind: "invalid_spec", message: describeIssues(parsed.error) });
 
-      const unknown = (parsed.data.dependsOn ?? []).filter((dependency) => !this.orders.get(dependency));
-      if (unknown.length > 0) return err({ kind: "invalid_spec", message: `dependsOn: no such order ${unknown.join(", ")}` });
+      const unknown = (parsed.data.dependsOn ?? []).filter((dependency) => {
+        const found = this.orders.get(dependency);
+        return !found || (scope.projectId !== undefined && found.projectId !== scope.projectId);
+      });
+      if (unknown.length > 0) return err({ kind: "invalid_spec", message: `dependsOn: no such order in this project: ${unknown.join(", ")}` });
 
       const id = this.orders.nextId();
-      await this.log.record([propose(id, parsed.data)]);
+      await this.log.record([propose(id, parsed.data, scope)]);
       return ok(this.orders.get(id)!);
     });
   }

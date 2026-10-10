@@ -14,6 +14,8 @@ export type MinutesBucket = "lt5" | "5-15" | "15-30" | "gt30";
 
 export interface WorkOrder {
   readonly id: OrderId;
+  readonly projectId: string;
+  readonly ticket: number | null;
   readonly status: OrderStatus;
   readonly spec: WorkOrderSpec;
   readonly pullRequest: number | null;
@@ -24,7 +26,7 @@ export interface WorkOrder {
 }
 
 export type OrderEvent =
-  | { type: "orders.proposed"; payload: { orderId: OrderId; spec: WorkOrderSpec } }
+  | { type: "orders.proposed"; payload: { orderId: OrderId; spec: WorkOrderSpec; projectId?: string; ticket?: number } }
   | { type: "orders.signed"; payload: { orderId: OrderId } }
   | { type: "orders.discarded"; payload: { orderId: OrderId } }
   | { type: "orders.work_started"; payload: { orderId: OrderId } }
@@ -41,10 +43,13 @@ export function asOrderEvent(event: DomainEvent): OrderEvent | null {
   return event.type.startsWith("orders.") ? (event as OrderEvent) : null;
 }
 
-export function evolve(order: WorkOrder | null, event: OrderEvent, at: string): WorkOrder | null {
+// The first project owns the orders written before projects existed.
+export function evolve(order: WorkOrder | null, event: OrderEvent, at: string, firstProject = "default"): WorkOrder | null {
   if (event.type === "orders.proposed") {
     return {
       id: event.payload.orderId,
+      projectId: event.payload.projectId ?? firstProject,
+      ticket: event.payload.ticket ?? null,
       status: "awaiting_signature",
       spec: event.payload.spec,
       pullRequest: null,
@@ -72,8 +77,8 @@ export function evolve(order: WorkOrder | null, event: OrderEvent, at: string): 
   }
 }
 
-export function propose(id: OrderId, spec: WorkOrderSpec): OrderEvent {
-  return { type: "orders.proposed", payload: { orderId: id, spec } };
+export function propose(id: OrderId, spec: WorkOrderSpec, scope: { projectId?: string; ticket?: number } = {}): OrderEvent {
+  return { type: "orders.proposed", payload: { orderId: id, spec, ...scope } };
 }
 
 export const sign = (order: WorkOrder) =>
