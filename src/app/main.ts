@@ -72,6 +72,7 @@ void shop.readiness.refresh().then(() => {
   }
 });
 shop.watcher.start(mock ? 2_000 : 30_000);
+shop.intake.start(mock ? 5_000 : 60_000);
 
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
   console.log(`skynot console on http://127.0.0.1:${port}${mock ? "  (simulated engines, nothing leaves this machine)" : ""}`);

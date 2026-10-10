@@ -1,10 +1,12 @@
 import { join } from "node:path";
 import {
+  GhBoard,
   GhVcs,
   GitWorkspace,
   Implementer,
   IssueFiler,
   PullRequestReview,
+  type Board,
   type Vcs,
   type Workspace,
 } from "../delivery";
@@ -30,6 +32,8 @@ import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { BlockedNotice } from "./blocked-notice";
 import { CostGuard } from "./cost-guard";
+import { BoardMirror } from "./board-mirror";
+import { IntakeProjection, IntakeWatcher } from "./intake";
 import { createCodeReviewer } from "./code-reviewer";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
@@ -53,6 +57,8 @@ export interface ShopConfig {
   clock?: Clock;
   projects?: Project[];
   briefing?: BriefingStore;
+  // The board of a project, when it has one; by default the GitHub board its project.yaml names.
+  boardOf?: (project: Project) => Board | undefined;
   readiness?: () => Promise<Finding[]>;
   reportError?: (error: unknown, event: StoredEvent) => void;
 }
@@ -90,6 +96,7 @@ export interface Shop {
   orderService: OrderService;
   flow: OrderFlow;
   watcher: MergeWatcher;
+  intake: IntakeWatcher;
   cursor: LastSequence;
   repo: string;
   readiness: { findings(): readonly Finding[]; refresh(): Promise<void> };
@@ -113,9 +120,10 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const runs = new RunsProjection(first.id);
   const activity = new ActivityProjection(first.id);
   const counts = new ActionCounts();
+  const taken = new IntakeProjection();
   const cursor = new LastSequence();
   const control = new ShopControl(log);
-  for (const projection of [orders, runs, activity, counts, cursor, control]) await attachProjection(log, projection);
+  for (const projection of [orders, runs, activity, counts, cursor, control, taken]) await attachProjection(log, projection);
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
@@ -206,6 +214,17 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     ...(config.reportError && { onError: config.reportError }),
   }).start();
 
+  const boardOfProject = config.boardOf ?? ((project: Project) => (project.board ? new GhBoard(project.board) : undefined));
+  const boards = new Map(projects.map((project) => [project.id, boardOfProject(project)] as const));
+  const stopMirror = new BoardMirror({
+    log,
+    findOrder: (id) => orders.get(id),
+    issueUrlOf: (id) => activity.linksFor(id).issueUrl,
+    ticketUrlOf: (order) => (order.ticket === null ? null : `https://github.com/${deskOf(order).project.repo}/issues/${order.ticket}`),
+    boardOf: (projectId) => boards.get(projectId),
+    ...(config.reportError && { onError: config.reportError }),
+  }).start();
+
   await flow.recover();
 
   let findings: readonly Finding[] = [];
@@ -216,6 +235,14 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     },
   };
 
+  const intake = new IntakeWatcher({
+    log,
+    vcs,
+    intake: taken,
+    label: policy.labels.intake ?? `${policy.labels.prefix}ready`,
+    targets: () => [...desks.values()].map((desk) => ({ projectId: desk.project.id, repo: desk.project.repo, handle: (ticket) => desk.manager.handleTicket(ticket) })),
+    ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "intake", payload: {} } as StoredEvent) }),
+  });
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repoOf: (order) => deskOf(order).project.repo, flow, progressOf: (id) => activity.linksFor(id) });
 
   return {
@@ -236,6 +263,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     orderService,
     flow,
     watcher,
+    intake,
     cursor,
     repo: first.repo,
     reviewing: firstDesk.reviewer !== undefined,
@@ -247,7 +275,9 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       stopNotice();
       stopReviewNotice();
       stopCostGuard();
+      stopMirror();
       watcher.stop();
+      intake.stop();
     },
   };
 }

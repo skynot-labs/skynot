@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createApi } from "../../src/app/http/api";
 import { createShop, type Shop } from "../../src/app/shop";
-import { FakeVcs, FakeWorkspace } from "../../src/delivery";
+import { FakeVcs, FakeWorkspace, type Board, type BoardStage } from "../../src/delivery";
 import { FakeEngine, type EngineRequest, type RoleEngine } from "../../src/execution";
 import { inboxOf } from "../../src/app/inbox";
 import type { Project } from "../../src/projects";
@@ -34,7 +34,7 @@ function recording(engine: RoleEngine) {
   return { requests, recorded: { run: (request: EngineRequest) => (requests.push(request), engine.run(request)), loginStatus: () => engine.loginStatus() } as RoleEngine };
 }
 
-async function openShop(teams: Record<string, Team> = {}, vcs = new FakeVcs(), developer: RoleEngine = createMockDeveloper()) {
+async function openShop(teams: Record<string, Team> = {}, vcs = new FakeVcs(), developer: RoleEngine = createMockDeveloper(), boardOf?: (project: Project) => Board | undefined) {
   const shop = await createShop({
     policy: examplePolicy(),
     dataDir,
@@ -44,6 +44,7 @@ async function openShop(teams: Record<string, Team> = {}, vcs = new FakeVcs(), d
     engines: { claude: createMockManager(), codex: developer },
     vcs,
     workspace: new FakeWorkspace(),
+    ...(boardOf && { boardOf }),
   });
   shops.push(shop);
   return { shop, vcs };
@@ -222,5 +223,86 @@ describe("the director's inbox", () => {
     expect(inboxOf(shop, "blog").map((item) => item.kind)).toEqual(["worker_question"]);
     expect((await call(shop, "/api/commands/answer-question", { orderId: "WO-0099", answer: "green" })).status).toBe(404);
     expect((await call(shop, "/api/commands/answer-question", { orderId: blogOrder, answer: "" })).status).toBe(400);
+  });
+});
+
+describe("work taken from GitHub", () => {
+  const ticket = (number: number, repo = "acme/blog", label = "taller:ready") => ({ repo, label, number, title: `Ticket ${number}`, body: "Please add dark mode.", url: `https://github.com/${repo}/issues/${number}` });
+  const placed = () => {
+    const cards: Array<[string, BoardStage]> = [];
+    const board: Board = { place: async ({ url, stage }) => void cards.push([url, stage]) };
+    return { cards, board };
+  };
+
+  it("hands a labelled issue to the Manager of its project once, and asks the director before it files anything", async () => {
+    const vcs = new FakeVcs();
+    vcs.tickets.push(ticket(7), ticket(8, "acme/blog", "bug"), ticket(9, "acme/shop"));
+    const { shop } = await openShop({}, vcs);
+
+    await shop.intake.poll();
+    await shop.intake.poll();
+
+    expect(shop.desk("blog")!.chat.messages().filter((message) => message.author === "ticket").map((message) => message.text)).toEqual(["#7 Ticket 7"]);
+    expect(shop.desk("shop")!.chat.messages().filter((message) => message.author === "ticket").map((message) => message.text)).toEqual(["#9 Ticket 9"]);
+    expect(shop.orders.list()).toEqual([]);
+    expect(inboxOf(shop, "blog")).toMatchObject([{ kind: "ticket_doubt", ticket: 7, from: "manager" }]);
+  });
+
+  it("files the order from the ticket once the director answers, and closes the ticket with the pull request", async () => {
+    const vcs = new FakeVcs();
+    vcs.tickets.push(ticket(7));
+    const { shop } = await openShop({}, vcs);
+    await shop.intake.poll();
+    const desk = shop.desk("blog")!;
+
+    await desk.manager.answerDecision(desk.chat.openDecisions()[0]!.id, "Keep it small");
+    const order = shop.orders.listFor("blog")[0]!;
+    await shop.orderService.sign(order.id);
+    await shop.flow.idle();
+
+    expect(order.ticket).toBe(7);
+    expect(vcs.issues[0]?.body).toContain("Taken from ticket #7");
+    expect(vcs.pullRequests[0]?.body).toContain("Closes #7");
+  });
+
+  it("does not take a ticket again after a restart", async () => {
+    const vcs = new FakeVcs();
+    vcs.tickets.push(ticket(7));
+    const first = await openShop({}, vcs);
+    await first.shop.intake.poll();
+    first.shop.stop();
+
+    const { shop } = await openShop({}, vcs);
+    await shop.intake.poll();
+
+    expect(shop.desk("blog")!.chat.messages().filter((message) => message.author === "ticket")).toHaveLength(1);
+  });
+
+  it("moves the cards of the ticket and of the order as the order advances, and keeps working when the board fails", async () => {
+    const vcs = new FakeVcs();
+    vcs.tickets.push(ticket(7));
+    const { cards, board } = placed();
+    const { shop } = await openShop({}, vcs, createMockDeveloper(), (candidate) => (candidate.id === "blog" ? board : undefined));
+    await shop.intake.poll();
+    const desk = shop.desk("blog")!;
+    await desk.manager.answerDecision(desk.chat.openDecisions()[0]!.id, "Keep it small");
+    const order = shop.orders.listFor("blog")[0]!;
+
+    await shop.orderService.sign(order.id);
+    await shop.flow.idle();
+    vcs.setPullRequestState("acme/blog", shop.orders.get(order.id)!.pullRequest!, "merged");
+    await shop.watcher.poll();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const ticketCards = cards.filter(([url]) => url.endsWith("/issues/7")).map(([, stage]) => stage);
+    expect(ticketCards).toEqual(["proposed", "in_progress", "in_review", "done"]);
+    expect(cards.filter(([url]) => url.endsWith("/issues/1")).map(([, stage]) => stage)).toEqual(["in_progress", "in_review", "done"]);
+
+    const broken: Board = { place: async () => Promise.reject(new Error("no access")) };
+    const other = await openShop({}, new FakeVcs(), createMockDeveloper(), () => broken);
+    const filed = await fileAnOrder(other.shop, "blog", "Add an RSS feed");
+    await other.shop.orderService.sign(filed);
+    await other.shop.flow.idle();
+    expect(other.shop.orders.get(filed)?.status).toBe("in_review");
   });
 });

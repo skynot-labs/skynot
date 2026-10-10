@@ -18,6 +18,20 @@ export type PullRequestState = "open" | "merged" | "closed";
 
 export type ChecksState = "none" | "pending" | "passing" | "failing";
 
+export interface Ticket {
+  readonly number: number;
+  readonly title: string;
+  readonly body: string;
+  readonly url: string;
+}
+
+export type BoardStage = "proposed" | "in_progress" | "in_review" | "done";
+
+// A project board: where the director sees each ticket and order move.
+export interface Board {
+  place(card: { url: string; stage: BoardStage }): Promise<void>;
+}
+
 export interface Vcs {
   createIssue(repo: string, title: string, body: string): Promise<IssueRef>;
   pullRequestState(repo: string, number: number): Promise<PullRequestState>;
@@ -25,6 +39,7 @@ export interface Vcs {
   pullRequestDiff(repo: string, number: number): Promise<string>;
   pullRequestChecks(repo: string, number: number): Promise<ChecksState>;
   commentOnPullRequest(repo: string, number: number, text: string): Promise<void>;
+  listTickets(repo: string, label: string): Promise<Ticket[]>;
   addLabel(repo: string, issue: number, label: string): Promise<void>;
   openPullRequest(repo: string, pullRequest: NewPullRequest): Promise<IssueRef>;
 }

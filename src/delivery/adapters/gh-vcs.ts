@@ -1,5 +1,5 @@
 import { exec, run, type Exec } from "../../kernel/process";
-import type { ChecksState, IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
+import type { ChecksState, IssueRef, Ticket, NewPullRequest, PullRequestState, Vcs } from "../domain";
 
 interface Created {
   number: number;
@@ -45,6 +45,17 @@ export class GhVcs implements Vcs {
 
   async commentOnPullRequest(repo: string, number: number, text: string): Promise<void> {
     await this.api(["-X", "POST", `repos/${repo}/issues/${number}/comments`, "-f", `body=${text}`]);
+  }
+
+  async listTickets(repo: string, label: string): Promise<Ticket[]> {
+    const issues = JSON.parse(await this.api([`repos/${repo}/issues?state=open&per_page=30&labels=${encodeURIComponent(label)}`])) as Array<{
+      number: number;
+      title: string;
+      body: string | null;
+      html_url: string;
+      pull_request?: unknown;
+    }>;
+    return issues.filter((issue) => !issue.pull_request).map((issue) => ({ number: issue.number, title: issue.title, body: issue.body ?? "", url: issue.html_url }));
   }
 
   async addLabel(repo: string, issue: number, label: string): Promise<void> {

@@ -21,6 +21,13 @@ describe("policy parsing", () => {
     expect(withCap("-3").ok).toBe(false);
   });
 
+  it("takes an intake label under the prefix, and refuses one outside it", () => {
+    const source = example.replace("OWNER/REPO", "a/b");
+
+    expect(parsePolicy(source.replace('trigger: "taller:implement"', 'trigger: "taller:implement"\n  intake: "taller:ready"')).ok).toBe(true);
+    expect(parsePolicy(source.replace('trigger: "taller:implement"', 'trigger: "taller:implement"\n  intake: "ready"'))).toMatchObject({ ok: false, error: expect.stringContaining("labels.intake") });
+  });
+
   it("keeps the placeholder repo parseable, since a project's own file says which repository it works on", () => {
     expect(parsePolicy(example).ok).toBe(true);
   });

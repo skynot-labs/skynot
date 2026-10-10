@@ -71,7 +71,7 @@ export class ManagerService {
       if (decision.answer !== null) return err("that question was already answered");
 
       await this.deps.log.record([{ type: "manager.decision_answered", payload: { decisionId: decision.id, answer } }]);
-      await this.takeTurn(`Answer to "${decision.question}": ${answer}`);
+      await this.takeTurn(`Answer to "${decision.question}": ${answer}`, decision.ticket === null ? undefined : { number: decision.ticket });
       return ok(undefined);
     });
   }
@@ -86,7 +86,8 @@ export class ManagerService {
     };
   }
 
-  private async takeTurn(text: string, ticket?: { number: number; title: string }): Promise<void> {
+  // A title means the ticket just arrived; without one the turn goes on about a ticket already in the conversation.
+  private async takeTurn(text: string, ticket?: { number: number; title?: string }): Promise<void> {
     const { chat, desk, log } = this.deps;
     const schemas = this.schemas();
 
@@ -100,7 +101,7 @@ export class ManagerService {
       message: text,
     });
     await log.record([
-      ticket
+      ticket?.title
         ? { type: "manager.ticket_received", payload: { messageId: newId("msg"), ticket: ticket.number, title: ticket.title, text } }
         : { type: "manager.message_received", payload: { messageId: newId("msg"), text } },
     ]);

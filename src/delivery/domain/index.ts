@@ -1,5 +1,7 @@
 export type { DeliveryEvent } from "./events";
 export type {
+  Board,
+  BoardStage,
   ChecksState,
   CodeReviewer,
   CommandOutcome,
@@ -8,6 +10,7 @@ export type {
   NewPullRequest,
   PullRequestState,
   RepoRules,
+  Ticket,
   Vcs,
   WorkerRunner,
   Workspace,
