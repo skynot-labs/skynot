@@ -73,7 +73,7 @@ describe("worker prompt", () => {
     const prompt = workerPrompt(item, 12, rules);
     expect(prompt).toContain("work order WO-0042 (issue #12)");
     expect(prompt).toContain("Archived items are not exported (verify, test: export.test.ts)");
-    expect(prompt).toContain("Run these yourself until they pass: npm test.");
+    expect(prompt).toContain("each exactly as written, one per call: npm test.");
     expect(prompt).toContain("Do not touch: .github/.");
     expect(prompt).toContain("Do not commit or push");
   });
