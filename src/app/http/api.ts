@@ -4,7 +4,7 @@ import { z } from "zod";
 import { followUpFromReview } from "../../delivery";
 import type { Result } from "../../kernel";
 import type { OrderError, WorkOrder } from "../../orders";
-import { MAX_PROJECT_DESCRIPTION, MAX_PROJECT_NAME, type Project, type ProjectFile, type ProjectRegistry } from "../../projects";
+import { MAX_PROJECT_DESCRIPTION, MAX_PROJECT_NAME, PROJECT_ID, type Project, type ProjectFile, type ProjectRegistry } from "../../projects";
 import type { TeamChange, TeamError } from "../../team";
 import { PREFERENCE_KEY, setPreference } from "../preferences";
 import { registrationProblem, type ProjectsFolder } from "../projects";
@@ -21,7 +21,7 @@ export interface ApiOptions {
 
 const text = z.string().trim().min(1).max(4000);
 const orderId = z.string().regex(/^WO-\d{4}$/);
-const projectId = z.string().regex(/^[a-z][a-z0-9-]{1,39}$/);
+const projectId = z.string().regex(PROJECT_ID);
 const bucket = z.enum(["lt5", "5-15", "15-30", "gt30"]);
 const command = z.string().min(1);
 const registration = z.object({
