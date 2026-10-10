@@ -1,5 +1,5 @@
 import { mkdir, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { TIMED_OUT, exec, run, type Exec } from "../../kernel/process";
 import type { CommandOutcome, FileChange, Workspace } from "../domain";
 
@@ -21,7 +21,11 @@ export class GitWorkspace implements Workspace {
   private readonly cloneRepo: (repo: string, dir: string) => Promise<void>;
   private readonly queues = new Map<string, Promise<unknown>>();
 
-  constructor(private readonly options: GitWorkspaceOptions) {
+  private readonly options: GitWorkspaceOptions;
+
+  constructor(options: GitWorkspaceOptions) {
+    // git resolves relative paths against its own cwd, not ours
+    this.options = { ...options, root: resolve(options.root) };
     this.execute = options.execute ?? exec;
     this.cloneRepo =
       options.clone ?? (async (repo, dir) => void (await run(this.execute, "gh", ["repo", "clone", repo, dir, "--", "--quiet"])));

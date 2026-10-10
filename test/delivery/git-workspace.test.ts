@@ -22,6 +22,16 @@ describe("git workspace", () => {
     expect(await readFile(path.join(dir, "src/app.txt"), "utf8")).toBe("app\n");
   });
 
+  it("keeps worktrees usable when the root is a relative path", async () => {
+    const relative = path.relative(process.cwd(), path.join(sandbox.root, "shop"));
+    const relativeWorkspace = new GitWorkspace({ root: relative, clone: cloneFrom(sandbox.origin) });
+
+    const dir = await relativeWorkspace.prepare("acme/widgets", "main", "taller/wo-0002");
+
+    expect(path.isAbsolute(dir)).toBe(true);
+    expect(await relativeWorkspace.run(dir, "cat src/app.txt", 5000)).toEqual({ ok: true, output: "app" });
+  });
+
   it("gives a reading copy at the tip of the base branch, refreshed on every call", async () => {
     const first = await workspace.readingCopy("acme/widgets", "main");
     expect(await readFile(path.join(first, "src/app.txt"), "utf8")).toBe("app\n");
