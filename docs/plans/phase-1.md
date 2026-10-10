@@ -1,6 +1,11 @@
 # Phase 1 · Web console and the new core
 
-**Status:** steps 1 to 8 done on branch `feat/event-log`; step 9 pending. See [vision](../vision.md) for the context.
+**Status:** done. Step 9 ran on 2026-10-10: three orders were delivered on `rodacato/taller-todo`, each
+under 5 minutes of the director's time. See [vision](../vision.md) for the context.
+
+**Left out on purpose:** the Manager's `write_memory` and `append_journal` operations and the memory
+repo (phase 5), and the `pause` and `resume` commands of the API. The Manager answers with a message, a
+question or an order, nothing else.
 
 ## Goal
 
