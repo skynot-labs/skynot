@@ -9,8 +9,8 @@ import { briefingStore, readProjects } from "./projects";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { ClaudeEngine, CodexEngine } from "../execution";
-import { exec } from "../kernel/process";
 import { checkShopReadiness } from "./readiness";
+import { githubExec } from "./github";
 import { createShop } from "./shop";
 
 const mock = process.env.SKYNOT_MOCK === "1";
@@ -25,6 +25,7 @@ const projects = await readProjects(policy, mock);
 const teams = Object.fromEntries(await Promise.all(projects.map(async (project) => [project.id, await readTeam(mock, project.id)] as const)));
 const team = teams[projects[0]!.id]!;
 process.on("exit", await lockDataDir(dataDir));
+const github = mock ? undefined : await githubExec();
 const shop = await createShop({
   policy,
   dataDir,
@@ -32,8 +33,9 @@ const shop = await createShop({
   projects,
   briefing: briefingStore(policy),
   teams,
-  ...(!mock && {
-    readiness: () => checkShopReadiness({ exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, teams: projects.map((project) => ({ project, team: teams[project.id]! })), dataDir }),
+  ...(github && {
+    exec: github.exec,
+    readiness: () => checkShopReadiness({ exec: github.exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, teams: projects.map((project) => ({ project, team: teams[project.id]! })), dataDir }),
   }),
   reportError: (error, event) => console.error(`handler failed on ${event.type}:`, error),
   ...(mock && {
@@ -75,6 +77,7 @@ shop.watcher.start(mock ? 2_000 : 30_000);
 shop.intake.start(mock ? 5_000 : 60_000);
 
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
+  if (github) console.log(`GitHub: acting as ${github.identity}`);
   console.log(`skynot console on http://127.0.0.1:${port}${mock ? "  (simulated engines, nothing leaves this machine)" : ""}`);
   if (!existsSync(consoleDir)) console.log("The console is not built yet: run `npm run build:console`.");
 });

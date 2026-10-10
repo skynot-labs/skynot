@@ -1,5 +1,5 @@
 import { ClaudeEngine, CodexEngine } from "../execution";
-import { exec } from "../kernel/process";
+import { githubExec } from "./github";
 import { readPolicy, readTeam } from "./config";
 import { readProjects } from "./projects";
 import { checkShopReadiness } from "./readiness";
@@ -8,8 +8,10 @@ const policy = await readPolicy(false);
 const projects = await readProjects(policy);
 const teams = await Promise.all(projects.map(async (project) => ({ project, team: await readTeam(false, project.id) })));
 
+const github = await githubExec();
+console.log(`GitHub: acting as ${github.identity}`);
 const findings = await checkShopReadiness({
-  exec,
+  exec: github.exec,
   engines: { claude: new ClaudeEngine(), codex: new CodexEngine() },
   teams,
   dataDir: process.env.SKYNOT_DATA ?? "data/shop",

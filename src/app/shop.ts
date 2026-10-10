@@ -27,6 +27,7 @@ import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection, type WorkOrder } from "../orders";
 import { BriefingChanges, BriefingService, withSignedChanges, type BriefingStore, type Project } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
+import type { Exec } from "../kernel/process";
 import type { Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
@@ -55,6 +56,8 @@ export interface ShopConfig {
   engines?: Partial<Record<EngineName, RoleEngine>>;
   vcs?: Vcs;
   workspace?: Workspace;
+  // How gh and git are run; main passes one that acts as the GitHub App when it is configured.
+  exec?: Exec;
   clock?: Clock;
   projects?: Project[];
   briefing?: BriefingStore;
@@ -132,8 +135,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, () => control.paused() !== null);
-  const vcs = config.vcs ?? new GhVcs();
-  const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces") });
+  const vcs = config.vcs ?? new GhVcs(config.exec);
+  const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces"), ...(config.exec && { execute: config.exec }) });
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
   const orderService = new OrderService(log, orders);
   const briefingService = new BriefingService(log, briefingChanges);
@@ -221,7 +224,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     ...(config.reportError && { onError: config.reportError }),
   }).start();
 
-  const boardOfProject = config.boardOf ?? ((project: Project) => (project.board ? new GhBoard(project.board) : undefined));
+  const boardOfProject = config.boardOf ?? ((project: Project) => (project.board ? new GhBoard(project.board, config.exec) : undefined));
   const boards = new Map(projects.map((project) => [project.id, boardOfProject(project)] as const));
   const stopMirror = new BoardMirror({
     log,
