@@ -49,7 +49,10 @@ function OrderCard({ order, simulated, reviewing, workers, send }: { order: Orde
 
       {order.blocked && <p class="blocked">Blocked: {order.blocked}</p>}
       {order.status === "signed" && order.waitingOn.length > 0 && !order.blocked && (
-        <p class="reason">Waiting for {order.waitingOn.join(", ")} to be merged</p>
+        <p class="reason">
+          Waiting for {order.waitingOn.join(", ")} to be merged{" "}
+          <button type="button" onClick={() => act("start-now")}>Start now</button>
+        </p>
       )}
       {order.status === "on_bench" && !order.blocked && (
         <div class="actions">

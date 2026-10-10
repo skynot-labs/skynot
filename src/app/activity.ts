@@ -89,6 +89,8 @@ export class ActivityProjection implements Projection {
         return delivery(`checks: ${payload.state}`);
       case "delivery.work_waiting":
         return delivery(`waiting for ${(payload.on as string[]).join(", ")} to be merged`);
+      case "delivery.wait_skipped":
+        return delivery("the director chose not to wait");
       case "delivery.work_retried":
         return delivery("retry requested");
       case "delivery.follow_up_requested":
@@ -170,6 +172,7 @@ export class ActivityProjection implements Projection {
       case "delivery.work_waiting":
         this.links.set(orderId, { ...current, waitingOn: payload.on as string[] });
         break;
+      case "delivery.wait_skipped":
       case "orders.work_started":
         this.links.set(orderId, { ...current, ...UNBLOCKED, waitingOn: [] });
         break;

@@ -342,6 +342,19 @@ describe("order flow", () => {
       expect(shop.orders.get(second)?.status).toBe("in_review");
     });
 
+    it("starts a waiting order when the director chooses not to wait, once", async () => {
+      const shop = await createShop(createsFeature);
+      const { first, second } = await proposeTwo(shop, {});
+      expect(shop.orders.get(second)?.status).toBe("signed");
+
+      expect(await shop.flow.startNow(second)).toMatchObject({ ok: true });
+      await shop.flow.idle();
+
+      expect(shop.orders.get(second)?.status).toBe("in_review");
+      expect(shop.orders.get(first)?.status).toBe("in_review");
+      expect(await shop.flow.startNow(second)).toMatchObject({ ok: false, error: { message: `${second} is not waiting for another order` } });
+    });
+
     it("lets an order go when the one it waited for is discarded", async () => {
       const shop = await createShop(createsFeature);
       const early = await shop.orderService.propose(validSpec({ title: "Not ready", likelyFiles: ["src/a.ts"] }));
