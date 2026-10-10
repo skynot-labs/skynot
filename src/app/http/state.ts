@@ -29,6 +29,7 @@ export function readState(shop: Shop) {
     team: describeRoles({ roles: shop.team.roles, advisors: shop.roster.members() }),
     teamChanges: shop.roster.pending(),
     hireable: shop.roster.hireable(),
+    paused: shop.control.paused(),
     presence: presence(shop),
     activity: shop.activity.recent(ACTIVITY_LIMIT),
   };

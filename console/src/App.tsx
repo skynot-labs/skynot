@@ -30,7 +30,16 @@ export function App() {
         <span class="repo">{state.repo}</span>
         {state.simulated && <span class="badge">simulated engines</span>}
         <span class={`link ${connected ? "up" : "down"}`}>{connected ? "live" : "reconnecting"}</span>
+        <button type="button" class="pause" onClick={() => void send(state.paused ? "/api/commands/resume-shop" : "/api/commands/pause-shop", {})}>
+          {state.paused ? "Resume" : "Pause"}
+        </button>
       </header>
+
+      {state.paused && (
+        <div class="notice paused" role="status">
+          Paused: nothing new starts, and what is running will finish. {state.paused.reason}.
+        </div>
+      )}
 
       {notice && (
         <div class="notice" role="alert">

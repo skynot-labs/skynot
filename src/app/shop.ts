@@ -12,6 +12,7 @@ import {
   CodexEngine,
   RunScheduler,
   RunsProjection,
+  ShopControl,
   type EngineName,
   type RoleEngine,
 } from "../execution";
@@ -55,6 +56,7 @@ export interface Shop {
   chat: ChatProjection;
   runs: RunsProjection;
   scheduler: RunScheduler;
+  control: ShopControl;
   activity: ActivityProjection;
   orderService: OrderService;
   manager: ManagerService;
@@ -81,10 +83,11 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const counts = new ActionCounts();
   const cursor = new LastSequence();
   const roster = new RosterProjection(config.team);
-  for (const projection of [orders, chat, runs, activity, counts, cursor, roster]) await attachProjection(log, projection);
+  const control = new ShopControl(log);
+  for (const projection of [orders, chat, runs, activity, counts, cursor, roster, control]) await attachProjection(log, projection);
 
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
-  const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel);
+  const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, () => control.paused() !== null);
   const vcs = config.vcs ?? new GhVcs();
   const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces") });
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock));
@@ -148,6 +151,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     chat,
     runs,
     scheduler,
+    control,
     activity,
     orderService,
     manager,
