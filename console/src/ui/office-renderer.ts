@@ -7,6 +7,7 @@ import {
   officeLayout,
   assignStudioSeats,
   getStudioLayout,
+  floorPoint,
 } from "./office-layout";
 
 import {
@@ -82,16 +83,7 @@ class Office {
     ctx.clearRect(0, 0, W, H);
     ctx.imageSmoothingEnabled = false;
     this.hits = [];
-    const p = (u: number, v: number, z = 0): Point => [
-      Math.round(
-        officeLayout.projection.x + (u - v) * officeLayout.projection.tileWidth,
-      ),
-      Math.round(
-        officeLayout.projection.y +
-          (u + v) * officeLayout.projection.tileHeight -
-          z,
-      ),
-    ];
+    const p = floorPoint;
     const poly = (points: Point[], fill: string, stroke?: string) => {
       ctx.beginPath();
       points.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
@@ -634,6 +626,8 @@ class Office {
     });
     objects.sort((a, b) => a.depth - b.depth).forEach((object) => object.fn());
     labels.forEach((drawLabel) => drawLabel());
+    const unseated =
+      state.agents.length - seats.filter((seat) => seat.agent).length;
     for (const zone of layout.zones.filter((zone) => zone.id !== "decisions")) {
       ctx.save();
       ctx.translate(
@@ -654,6 +648,18 @@ class Office {
       "#898397",
       "center",
     );
+    if (unseated > 0) {
+      ctx.fillStyle = "#31363fe8";
+      ctx.fillRect(tx - 84, ty + 32, 168, 23);
+      text(
+        `+${unseated} MORE ON THE TEAM`,
+        tx,
+        ty + 48,
+        "12px monospace",
+        "#d7e6d8",
+        "center",
+      );
+    }
   }
   hit(x: number, y: number): Hit | undefined {
     return this.hits
