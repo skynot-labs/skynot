@@ -1,7 +1,7 @@
 import { err, ok } from "../kernel";
 import type { RunScheduler } from "../execution";
 import type { AdvisorBench } from "../manager";
-import type { Team } from "../team";
+import type { Advisor } from "../team";
 
 const MAX_ADVICE_CHARS = 4000;
 
@@ -11,9 +11,9 @@ export interface AdvisorBenchOptions {
   maxUsd?: number;
 }
 
-export function createAdvisorBench(scheduler: RunScheduler, team: Team, options: AdvisorBenchOptions): AdvisorBench {
+export function createAdvisorBench(scheduler: RunScheduler, advisors: () => Record<string, Advisor>, options: AdvisorBenchOptions): AdvisorBench {
   return {
-    roster: () => Object.entries(team.advisors).map(([name, advisor]) => ({ name, description: advisor.description })),
+    roster: () => Object.entries(advisors()).map(([name, advisor]) => ({ name, description: advisor.description })),
 
     async consult(requests) {
       let cwd: string;
@@ -25,7 +25,7 @@ export function createAdvisorBench(scheduler: RunScheduler, team: Team, options:
 
       return Promise.all(
         requests.map(async ({ role, question }) => {
-          const advisor = team.advisors[role];
+          const advisor = advisors()[role];
           if (!advisor) return { role, result: err(`there is no advisor ${role}`) };
 
           const outcome = await scheduler.submit({

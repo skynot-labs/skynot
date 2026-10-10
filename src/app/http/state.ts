@@ -26,7 +26,9 @@ export function readState(shop: Shop) {
     })),
     chat: shop.chat.messages(),
     decisions: shop.chat.openDecisions(),
-    team: describeRoles(shop.team),
+    team: describeRoles({ roles: shop.team.roles, advisors: shop.roster.members() }),
+    teamChanges: shop.roster.pending(),
+    hireable: shop.roster.hireable(),
     presence: presence(shop),
     activity: shop.activity.recent(ACTIVITY_LIMIT),
   };

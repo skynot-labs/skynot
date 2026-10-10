@@ -1,8 +1,10 @@
 import type { ShopState } from "./api";
 
+type Send = (path: string, body: object) => Promise<boolean>;
+
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 
-export function Floor({ state }: { state: ShopState }) {
+export function Floor({ state, send }: { state: ShopState; send: Send }) {
   const { working, waiting } = state.presence;
   const idle = working.length === 0 && waiting.length === 0;
 
@@ -31,6 +33,23 @@ export function Floor({ state }: { state: ShopState }) {
           </li>
         ))}
       </ul>
+
+      {state.teamChanges.map((change) => (
+        <div class="change" key={change.id}>
+          <p>
+            Proposed: <strong>{change.action}</strong> {change.role}. <span class="reason">{change.reason}</span>
+          </p>
+          <div class="actions">
+            <button type="button" class="sign" onClick={() => send("/api/commands/sign-team-change", { changeId: change.id })}>Sign</button>
+            <button type="button" onClick={() => send("/api/commands/discard-team-change", { changeId: change.id })}>Discard</button>
+          </div>
+        </div>
+      ))}
+      {state.hireable.length > 0 && (
+        <p class="hireable">
+          Could be hired: {state.hireable.map((role) => role.name).join(", ")}
+        </p>
+      )}
 
       <h2>Logbook</h2>
       {state.activity.length === 0 && <p class="empty">Nothing has happened yet.</p>}

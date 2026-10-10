@@ -20,13 +20,14 @@ import { systemClock, type Clock } from "../kernel";
 import { attachProjection, EventLog, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection } from "../orders";
-import type { RoleSetup, Team } from "../team";
+import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
 import { createOrderDesk } from "./order-desk";
+import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
 import { createWorkerRunner } from "./worker-runner";
 
@@ -46,6 +47,8 @@ const withModel = ({ model }: RoleSetup) => (model ? { model } : {});
 
 export interface Shop {
   team: Team;
+  roster: RosterProjection;
+  teamService: TeamService;
   log: EventLog;
   orders: OrdersProjection;
   chat: ChatProjection;
@@ -75,7 +78,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const activity = new ActivityProjection();
   const counts = new ActionCounts();
   const cursor = new LastSequence();
-  for (const projection of [orders, chat, runs, activity, counts, cursor]) await attachProjection(log, projection);
+  const roster = new RosterProjection(config.team);
+  for (const projection of [orders, chat, runs, activity, counts, cursor, roster]) await attachProjection(log, projection);
 
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel);
@@ -84,6 +88,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock));
 
   const orderService = new OrderService(log, orders);
+  const teamService = new TeamService(log, roster);
   const manager = new ManagerService({
     log,
     chat,
@@ -95,7 +100,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       maxUsd: policy.run_budget.max_usd,
     }),
     desk: createOrderDesk(orderService, orders),
-    advisors: createAdvisorBench(scheduler, config.team, {
+    team: createTeamDesk(teamService, roster),
+    advisors: createAdvisorBench(scheduler, () => roster.members(), {
       cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
       timeoutMs: MANAGER_TIMEOUT_MS,
       maxUsd: policy.run_budget.max_usd,
@@ -123,6 +129,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
 
   return {
     team: config.team,
+    roster,
+    teamService,
     log,
     orders,
     chat,

@@ -2,6 +2,7 @@ import { err, newId, ok, type Result } from "../../kernel";
 import type { EventLog } from "../../kernel/events";
 import {
   NO_ADVISORS,
+  NO_TEAM_DESK,
   SYSTEM_PROMPT,
   buildAdvicePrompt,
   buildPrompt,
@@ -15,6 +16,7 @@ import {
   type MessageId,
   type ModelRunner,
   type OrderDesk,
+  type TeamDesk,
 } from "../domain";
 import type { ChatProjection } from "./chat-projection";
 
@@ -27,18 +29,17 @@ export interface ManagerDependencies {
   runner: ModelRunner;
   desk: OrderDesk;
   advisors?: AdvisorBench;
+  team?: TeamDesk;
 }
 
 export class ManagerService {
   private queue: Promise<unknown> = Promise.resolve();
   private readonly bench: AdvisorBench;
-  private readonly answerSchema;
-  private readonly finalSchema;
+  private readonly teamDesk: TeamDesk;
 
   constructor(private readonly deps: ManagerDependencies) {
     this.bench = deps.advisors ?? NO_ADVISORS;
-    this.answerSchema = createAnswerSchema(deps.desk.specSchema, this.bench.roster().map((advisor) => advisor.name));
-    this.finalSchema = createAnswerSchema(deps.desk.specSchema);
+    this.teamDesk = deps.team ?? NO_TEAM_DESK;
   }
 
   async idle(): Promise<void> {
@@ -61,24 +62,36 @@ export class ManagerService {
     });
   }
 
+  // The team changes while the shop runs, so the rules for an answer are built for every turn.
+  private schemas() {
+    const onTeam = this.bench.roster().map((advisor) => advisor.name);
+    const choices = { hire: this.teamDesk.hireable().map((role) => role.name), dismiss: onTeam };
+    return {
+      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices),
+      final: createAnswerSchema(this.deps.desk.specSchema, [], choices),
+    };
+  }
+
   private async takeTurn(text: string): Promise<void> {
     const { chat, desk, log } = this.deps;
+    const schemas = this.schemas();
 
     const prompt = buildPrompt({
       orders: desk.overview(),
       advisors: this.bench.roster(),
+      hireable: this.teamDesk.hireable(),
       openQuestions: chat.openDecisions().map((decision) => decision.question),
       conversation: chat.recent(CONVERSATION_WINDOW),
       message: text,
     });
     await log.record([{ type: "manager.message_received", payload: { messageId: newId("msg"), text } }]);
 
-    const first = await this.ask(prompt, this.answerSchema);
+    const first = await this.ask(prompt, schemas.first);
     if (!first.ok) return this.reply(first.error);
     if (first.value.consult.length === 0) return this.act(first.value);
 
     const replies = await this.consult(first.value.consult);
-    const second = await this.ask(buildAdvicePrompt(prompt, replies.map(describeReply)), this.finalSchema);
+    const second = await this.ask(buildAdvicePrompt(prompt, replies.map(describeReply)), schemas.final);
     return second.ok ? this.act(second.value) : this.reply(second.error);
   }
 
@@ -134,6 +147,10 @@ export class ManagerService {
         { type: "manager.decision_asked", payload: { decisionId, question: answer.question, options: answer.options } },
       ]);
       return this.reply(answer.message, { decisionId });
+    }
+    if (answer.team !== null) {
+      const proposed = await this.teamDesk.propose(answer.team);
+      return proposed.ok ? this.reply(`${answer.message}\n\n${proposed.value.text}`) : this.reply(`I could not propose that: ${proposed.error}`);
     }
     return this.reply(answer.message);
   }

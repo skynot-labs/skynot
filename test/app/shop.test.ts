@@ -24,7 +24,7 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
-const defaultTeam: Team = { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {} };
+const defaultTeam: Team = { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {}, library: {} };
 
 function recording(engine: RoleEngine) {
   const requests: EngineRequest[] = [];
@@ -162,7 +162,7 @@ describe("activity", () => {
     it("sends each role's own model to its engine", async () => {
       const manager = recording(createMockManager());
       const developer = recording(createMockDeveloper());
-      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex", model: "developer-model" } }, advisors: {} };
+      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex", model: "developer-model" } }, advisors: {}, library: {} };
       const { shop } = await openShop(new FakeVcs(), team, { claude: manager.recorded, codex: developer.recorded });
 
       const id = await fileAnOrder(shop);
@@ -196,6 +196,7 @@ describe("activity", () => {
         architect: { engine: "claude", description: "design", soul: "You are the architect." },
         reviewer: { engine: "claude", description: "scope", soul: "You are the reviewer." },
       },
+      library: {},
     };
 
     it("consults two advisors at once and files an order that reflects their answers", async () => {
@@ -204,8 +205,8 @@ describe("activity", () => {
         if (!request.schema) return { text: `${request.system?.includes("architect") ? "architect" : "reviewer"}: keep it in one module` };
         answers.push(request.prompt);
         return answers.length === 1
-          ? { structured: { message: "Checking.", question: null, options: [], order: null, consult: [{ role: "architect", question: "Where?" }, { role: "reviewer", question: "Clear?" }] } }
-          : { structured: { message: "Both agree.", question: null, options: [], order: validSpec(), consult: [] } };
+          ? { structured: { message: "Checking.", question: null, options: [], order: null, team: null, consult: [{ role: "architect", question: "Where?" }, { role: "reviewer", question: "Clear?" }] } }
+          : { structured: { message: "Both agree.", question: null, options: [], order: validSpec(), consult: [], team: null } };
       });
       const { shop } = await openShop(new FakeVcs(), team, { claude: engine, codex: createMockDeveloper() });
 
@@ -222,6 +223,64 @@ describe("activity", () => {
         ["advice", "architect advised: architect: keep it in one module"],
         ["advice", "reviewer advised: reviewer: keep it in one module"],
       ]);
+    });
+  });
+
+  describe("hiring", () => {
+    const library = { designer: { engine: "claude" as const, description: "screens", soul: "You are the designer." } };
+    const team: Team = {
+      version: 1,
+      roles: { manager: { engine: "claude" }, developer: { engine: "codex" } },
+      advisors: { architect: { engine: "claude", description: "design", soul: "You are the architect." } },
+      library,
+    };
+    const say = (extra: object) => ({ structured: { message: "Noted.", question: null, options: [], order: null, consult: [], team: null, ...extra } });
+
+    it("changes nothing until the director signs, then the new advisor can be consulted", async () => {
+      const prompts: string[] = [];
+      const answers = [
+        say({ team: { action: "hire", role: "designer", reason: "this order is mostly wording" } }),
+        say({ consult: [{ role: "designer", question: "Is the wording clear?" }] }),
+        say({ message: "Wording reviewed." }),
+      ];
+      const engine = new FakeEngine(async (request) => {
+        if (!request.schema) return { text: "designer: use plain verbs" };
+        prompts.push(request.prompt);
+        return answers.shift()!;
+      });
+      const { shop } = await openShop(new FakeVcs(), team, { claude: engine, codex: createMockDeveloper() });
+
+      await shop.manager.handleMessage("Rewrite the error messages");
+      const [change] = shop.roster.pending();
+      expect(shop.chat.messages().at(-1)?.text).toContain(`Team change ${change!.id}: hire designer`);
+      expect(Object.keys(shop.roster.members())).toEqual(["architect"]);
+      expect(prompts[0]).toContain("- designer: screens");
+
+      await shop.teamService.sign(change!.id);
+      expect(Object.keys(shop.roster.members())).toEqual(["architect", "designer"]);
+      await shop.manager.handleMessage("Check the wording of the new messages");
+
+      expect(prompts[1]).toContain("- designer: screens");
+      expect(prompts[2]).toContain("designer: use plain verbs");
+      expect(shop.runs.list().map((run) => run.role)).toEqual(["manager", "manager", "designer", "manager"]);
+      expect(shop.activity.recent(30).filter((entry) => entry.kind === "advice").map((entry) => entry.text).reverse()).toEqual([
+        "the Manager proposes to hire designer: this order is mostly wording",
+        "designer joined the team",
+        "the Manager asked designer: Is the wording clear?",
+        "designer advised: designer: use plain verbs",
+      ]);
+    });
+
+    it("keeps the signed team after a restart, from the log alone", async () => {
+      const first = await openShop(new FakeVcs(), team);
+      const proposed = await first.shop.teamService.propose({ action: "hire", role: "designer", reason: "wording" });
+      if (!proposed.ok) throw new Error("propose failed");
+      await first.shop.teamService.sign(proposed.value.id);
+      first.shop.stop();
+
+      const { shop: restarted } = await openShop(new FakeVcs(), team);
+
+      expect(Object.keys(restarted.roster.members())).toEqual(["architect", "designer"]);
     });
   });
 });
