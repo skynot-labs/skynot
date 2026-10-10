@@ -103,11 +103,13 @@ The order is open to change after 4.2: if the inbox or the intake hurts more tha
 
 ## The board with a real token
 
-Tried against a user-owned board with the fine-grained token the shop uses: reading the board works, adding a card
-fails with "resource not found" (also through GraphQL `addProjectV2ItemById`). Fine-grained tokens do not reach
-user-owned Projects v2, so the mirror stays off for such a board until the shop runs with a classic token that has
-the `project` scope (or the board belongs to an organization). A failed move never stops the work. The default
-column for "in review" is "In Progress", because a new GitHub board has no "In Review" option.
+Tried against a user-owned board and a private repository. Adding a card needs one token that can do both things:
+write the board and read the issue. The shop's fine-grained token reads the issue and cannot reach a user-owned
+Projects v2 board; a classic token with only the `project` scope writes the board and cannot see a private
+repository, so `gh project item-add` answers "resource not found" with either. With a classic token that has `project` and `repo` a card
+went through every stage on the real board; a public repository or a board owned by an organization were not tried. A failed
+move never stops the work. The default column for "in review" is "In Progress", because a new GitHub board has no
+"In Review" option.
 
 ## Coverage of a dev shop
 
