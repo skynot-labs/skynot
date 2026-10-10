@@ -3,7 +3,7 @@ import type { HttpGateway } from "../adapters/http-gateway";
 import type { Snapshot } from "../contracts";
 
 export function useConsole(gateway: HttpGateway, projectId?: string) {
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [read, setRead] = useState<{ projectId: string | undefined; snapshot: Snapshot } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [revision, setRevision] = useState(0);
@@ -16,7 +16,7 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
       try {
         const value = await gateway.read(projectId);
         if (active && current === request) {
-          setSnapshot(value);
+          setRead({ projectId, snapshot: value });
           setError(null);
         }
       } catch (cause) {
@@ -40,5 +40,7 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
       unwatch?.();
     };
   }, [gateway, projectId, revision]);
+  // A click on the project just left would act on it, so its state is not shown while the next one loads.
+  const snapshot = read && read.projectId === projectId ? read.snapshot : null;
   return { snapshot, error, connected, reload: () => setRevision((value) => value + 1) };
 }

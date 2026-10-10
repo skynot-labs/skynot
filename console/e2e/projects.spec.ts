@@ -74,6 +74,23 @@ test.describe.serial("the director's projects", () => {
     await expect(studio(page, "beta")).toBeVisible();
   });
 
+  test("shows nothing of the project just left while the next one loads", async ({ page }) => {
+    await page.goto("/");
+    await expect(studio(page, "alpha")).toBeVisible();
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    await page.route("**/api/state?project=beta", async (route) => {
+      await held;
+      await route.continue();
+    });
+
+    await projectEntry(page, "beta").click();
+    await expect(studio(page, "alpha")).toBeHidden();
+
+    release();
+    await expect(studio(page, "beta")).toBeVisible();
+  });
+
   test("renames and describes a project, and falls back to the repository's name", async ({ page }) => {
     await openProject(page, "beta");
 
