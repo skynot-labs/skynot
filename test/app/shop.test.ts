@@ -346,4 +346,36 @@ describe("activity", () => {
       expect(shop.chat.messages()).toHaveLength(before);
     });
   });
+
+  describe("pausing", () => {
+    it("holds the Manager's turn while paused and answers when the shop resumes", async () => {
+      const manager = recording(createMockManager());
+      const { shop } = await openShop(new FakeVcs(), defaultTeam, { claude: manager.recorded, codex: createMockDeveloper() });
+      await shop.control.pause("lunch");
+
+      const turn = shop.manager.handleMessage("Export the inventory to CSV");
+      await vi.waitFor(() => expect(shop.runs.list()).toHaveLength(1));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(shop.runs.list()[0]?.status).toBe("queued");
+      expect(manager.requests).toHaveLength(0);
+      expect(shop.activity.recent(5).map((entry) => entry.text)).toContain("the shop was paused: lunch");
+
+      await shop.control.resume();
+      await turn;
+
+      expect(manager.requests).toHaveLength(1);
+      expect(shop.chat.messages().at(-1)?.author).toBe("manager");
+    });
+
+    it("is still paused after a restart", async () => {
+      const first = await openShop();
+      await first.shop.control.pause("overnight");
+      first.shop.stop();
+
+      const { shop } = await openShop();
+
+      expect(shop.control.paused()).toMatchObject({ reason: "overnight" });
+    });
+  });
 });

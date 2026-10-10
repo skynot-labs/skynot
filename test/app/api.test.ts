@@ -163,6 +163,18 @@ describe("console api", () => {
     expect((await post("/api/commands/stop-run", { runId: "nope" })).status).toBe(400);
   });
 
+  it("pauses and resumes the shop and shows it in the state", async () => {
+    expect((await getState()).paused).toBeNull();
+
+    expect((await post("/api/commands/pause-shop", {})).status).toBe(200);
+    expect((await getState()).paused).toMatchObject({ reason: "paused by the director" });
+    expect((await post("/api/commands/pause-shop", {})).status).toBe(409);
+
+    expect((await post("/api/commands/resume-shop", {})).status).toBe(200);
+    expect((await getState()).paused).toBeNull();
+    expect((await post("/api/commands/resume-shop", {})).status).toBe(409);
+  });
+
   it("rejects malformed commands without changing anything", async () => {
     expect((await post("/api/commands/send-message", { text: "   " })).status).toBe(400);
     expect((await post("/api/commands/sign-order", { orderId: "not-an-id" })).status).toBe(400);

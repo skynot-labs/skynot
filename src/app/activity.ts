@@ -80,6 +80,10 @@ export class ActivityProjection implements Projection {
         return delivery(`follow-up requested: ${payload.instruction}`);
       case "delivery.pull_request_updated":
         return delivery(`pull request #${payload.number} updated`);
+      case "control.paused":
+        return { orderId: null, kind: "run" as const, text: `the shop was paused: ${payload.reason}`, url: null };
+      case "control.resumed":
+        return { orderId: null, kind: "run" as const, text: "the shop resumed", url: null };
       case "team.change_proposed":
         return advice(`the Manager proposes to ${payload.action} ${payload.role}: ${payload.reason}`);
       case "team.change_signed":

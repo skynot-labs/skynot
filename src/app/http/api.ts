@@ -117,6 +117,15 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     return (await shop.scheduler.cancel(body.data.runId)) ? context.json({ stopped: true }) : context.json({ error: "that run is not live" }, 409);
   });
 
+  api.post("/api/commands/pause-shop", async (context) => {
+    const paused = await shop.control.pause("paused by the director");
+    return paused.ok ? context.json({ paused: true }) : context.json({ error: paused.error }, 409);
+  });
+  api.post("/api/commands/resume-shop", async (context) => {
+    const resumed = await shop.control.resume();
+    return resumed.ok ? context.json({ paused: false }) : context.json({ error: resumed.error }, 409);
+  });
+
   const changeId = z.string().regex(/^chg_[0-9a-f-]+$/);
   const teamCommand = (path: string, run: (id: string) => Promise<Result<TeamChange, TeamError>>) =>
     api.post(`/api/commands/${path}`, async (context) => {

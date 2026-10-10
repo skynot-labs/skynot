@@ -29,7 +29,13 @@ export class RunScheduler {
     private readonly engines: Partial<Record<EngineName, RoleEngine>>,
     private readonly log: EventLog,
     private readonly maxParallel: number,
-  ) {}
+    private readonly paused: () => boolean = () => false,
+  ) {
+    // after the projections that decide whether the shop is paused have seen the event
+    log.subscribe((event) => {
+      if (event.type === "control.resumed") queueMicrotask(() => this.pump());
+    });
+  }
 
   async submit(submission: RunSubmission): Promise<Outcome> {
     const runId = newId("run");
@@ -76,7 +82,7 @@ export class RunScheduler {
   }
 
   private pump(): void {
-    while (this.running < this.maxParallel && this.waiting.length > 0) {
+    while (!this.paused() && this.running < this.maxParallel && this.waiting.length > 0) {
       const job = this.waiting.shift()!;
       this.running++;
       this.active.set(job.runId, job);
