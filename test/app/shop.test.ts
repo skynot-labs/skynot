@@ -115,6 +115,22 @@ describe("the shop, end to end with simulated engines", () => {
     expect(shop.activity.recent(50).filter((entry) => entry.text.includes("closed without merging"))).toHaveLength(1);
   });
 
+  it("does not report the closed pull request again after a restart", async () => {
+    const first = await openShop();
+    const id = await fileAnOrder(first.shop);
+    await first.shop.orderService.sign(id);
+    await first.shop.flow.idle();
+    first.vcs.setPullRequestState(first.shop.repo, 2, "closed");
+    await first.shop.watcher.poll();
+    first.shop.stop();
+
+    const { shop: restarted } = await openShop(first.vcs);
+    await restarted.watcher.poll();
+
+    expect(restarted.activity.linksFor(id).blocked).toBe("the pull request was closed without merging");
+    expect(restarted.activity.recent(50).filter((entry) => entry.text.includes("closed without merging"))).toHaveLength(1);
+  });
+
   it("keeps polling after GitHub fails once", async () => {
     const { shop, vcs } = await openShop();
     const id = await fileAnOrder(shop);

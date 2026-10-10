@@ -16,8 +16,9 @@ export interface MergeWatcherDependencies {
 const CONFLICT_INSTRUCTION =
   "Other work was merged into the base branch and this pull request now conflicts with it. Bring the branch up to date and resolve the conflicts, keeping what the merged changes did and what this order asked for.";
 
+const CLOSED_UNMERGED = "the pull request was closed without merging";
+
 export class MergeWatcher {
-  private readonly reportedClosed = new Set<string>();
   private readonly syncedAt = new Map<string, number>();
   private timer: NodeJS.Timeout | undefined;
 
@@ -33,7 +34,7 @@ export class MergeWatcher {
   }
 
   async poll(): Promise<void> {
-    const { orders, vcs, repo, orderService, log } = this.deps;
+    const { orders, vcs, repo, orderService, log, progressOf } = this.deps;
     const inReview = orders.list().filter((order) => order.status === "in_review" && order.pullRequest !== null);
 
     for (const order of inReview) {
@@ -41,9 +42,8 @@ export class MergeWatcher {
         const state = await vcs.pullRequestState(repo, order.pullRequest!);
         if (state === "merged") await orderService.deliver(order.id);
         if (state === "open") await this.reportChecks(order.id, order.pullRequest!);
-        if (state === "closed" && !this.reportedClosed.has(order.id)) {
-          this.reportedClosed.add(order.id);
-          await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: "the pull request was closed without merging" } }]);
+        if (state === "closed" && progressOf(order.id).blocked !== CLOSED_UNMERGED) {
+          await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: CLOSED_UNMERGED } }]);
         }
       } catch {
         // GitHub unreachable: the next poll tries again
