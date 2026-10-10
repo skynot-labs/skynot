@@ -1,13 +1,13 @@
 import { existsSync } from "node:fs";
 import type { Policy } from "../governance";
-import { FileBriefingStore, YamlProjectCatalog, type BriefingStore, type Project } from "../projects";
+import { FileBriefingStore, PROJECT_ID, YamlProjectCatalog, type BriefingStore, type Project } from "../projects";
 
 export const PROJECTS_DIR = process.env.SKYNOT_PROJECTS ?? "projects";
 
 // A shop that still lists its repository in policy.yaml works until the director moves it to projects/.
 export function projectsFromPolicy(policy: Policy): Project[] {
   return policy.repos.map((repo) => ({
-    id: repo.name.split("/")[1]!.toLowerCase(),
+    id: idFromRepo(repo.name),
     name: null,
     description: null,
     repo: repo.name,
@@ -16,6 +16,12 @@ export function projectsFromPolicy(policy: Policy): Project[] {
     verifyCommands: repo.verify_commands,
     protectedPaths: repo.protected_paths,
   }));
+}
+
+function idFromRepo(repo: string): string {
+  const id = repo.split("/")[1]!.toLowerCase();
+  if (!PROJECT_ID.test(id)) throw new Error(`policy.yaml lists ${repo}, whose name cannot be a project id. Move it to projects/<id>/project.yaml, with a folder named in lowercase letters, digits and dashes.`);
+  return id;
 }
 
 const DEMO: Project = { id: "demo", name: null, description: null, repo: "demo/todo", baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [".github/"] };

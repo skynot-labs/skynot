@@ -45,6 +45,13 @@ describe("reading the projects", () => {
     expect(await readProjects(examplePolicy(), false, path.join(dir, "none"))).toMatchObject([{ id: "widgets", repo: "acme/widgets" }]);
   });
 
+  it("refuses a repository in policy.yaml whose name cannot be a project id, instead of showing a project no command accepts", () => {
+    const policy = examplePolicy();
+    const dotted = { ...policy, repos: [{ ...policy.repos[0]!, name: "acme/my.repo" }] };
+
+    expect(() => projectsFromPolicy(dotted)).toThrow("policy.yaml lists acme/my.repo, whose name cannot be a project id");
+  });
+
   it("stops with a message that says what to add when there is no project at all", async () => {
     await expect(readProjects({ ...examplePolicy(), repos: [] }, false, path.join(dir, "none"))).rejects.toThrow("projects.example");
   });
