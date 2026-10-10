@@ -81,6 +81,15 @@ function kindOf(state: ShopState, role: string): Agent["kind"] {
   return doesOrders ? "worker" : "advisor";
 }
 
+// The state is typed from the service's own code, so it only fails to map when the two were built from different versions.
+function readSnapshot(state: unknown): Snapshot {
+  try {
+    return mapState(state as ShopState);
+  } catch {
+    throw new Error("The console and the service are different versions. Run `npm run build:console` and restart the service.");
+  }
+}
+
 export class HttpGateway {
   private cursor = 0;
 
@@ -90,7 +99,7 @@ export class HttpGateway {
 
   async read(projectId?: string): Promise<Snapshot> {
     const response = await this.get(projectId);
-    const snapshot = mapState((await response.json()) as ShopState);
+    const snapshot = readSnapshot(await response.json());
     this.cursor = Math.max(this.cursor, snapshot.cursor);
     return snapshot;
   }

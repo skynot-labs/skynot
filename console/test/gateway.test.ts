@@ -337,6 +337,13 @@ describe("HttpGateway", () => {
     await expect(new HttpGateway().read()).rejects.toThrow("unknown host");
   });
 
+  it("says so when the service is an older version than the console", async () => {
+    const { agents: _agents, runs: _runs, ...older } = shopState();
+    answerWith({ status: 200, body: older });
+
+    await expect(new HttpGateway().read()).rejects.toThrow("different versions");
+  });
+
   it("posts a command with its payload", async () => {
     answerWith({ status: 200, body: { id: "wo-1", status: "signed" } });
 
