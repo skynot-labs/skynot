@@ -194,6 +194,26 @@ describe("stopping runs", () => {
     expect(engine.requests[0]?.signal?.aborted).toBe(true);
   });
 
+  it("stops a queued run when the signal of its request is aborted, without waiting for a slot", async () => {
+    const { engine, release } = gatedEngine();
+    const { scheduler, runs, log } = await createScheduler(engine, 1);
+    const first = scheduler.submit(submission("developer", "WO-0001"));
+    await waitFor(() => engine.requests.length === 1);
+    const stop = new AbortController();
+    const second = scheduler.submit({ ...submission("developer", "WO-0002"), request: { ...request, signal: stop.signal } });
+    await waitFor(() => runs.list().length === 2);
+
+    stop.abort();
+
+    expect(await second).toMatchObject({ ok: false, error: { kind: "cancelled" } });
+    const queued = runs.list().find((run) => run.orderId === "WO-0002")!;
+    expect(queued).toMatchObject({ status: "failed", startedAt: null });
+    expect((await log.readAfter(0)).filter((event) => event.type === "execution.run_started")).toHaveLength(1);
+    release();
+    await first;
+    expect(engine.requests).toHaveLength(1);
+  });
+
   it("says no for a run that is not live", async () => {
     const { scheduler } = await createScheduler(new FakeEngine(), 1);
 

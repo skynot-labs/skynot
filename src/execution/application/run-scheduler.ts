@@ -54,12 +54,13 @@ export class RunScheduler {
 
     return new Promise((resolve) => {
       const controller = new AbortController();
-      const outer = submission.request.signal;
-      if (outer?.aborted) controller.abort();
-      else outer?.addEventListener("abort", () => controller.abort(), { once: true });
-
       const request = { ...submission.request, signal: controller.signal };
       this.waiting.push({ runId, submission: { ...submission, request }, controller, resolve });
+
+      const outer = submission.request.signal;
+      const stop = () => void this.cancel(runId);
+      if (outer?.aborted) stop();
+      else outer?.addEventListener("abort", stop, { once: true });
       this.pump();
     });
   }
