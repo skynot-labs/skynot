@@ -126,7 +126,13 @@ export class ActivityProjection implements Projection {
       case "team.change_proposed":
         return advice(`the Manager proposes to ${payload.action} ${payload.role}: ${payload.reason}`);
       case "team.change_signed":
-        return advice(payload.action === "hire" ? `${payload.role} joined the team` : `${payload.role} left the team`);
+        return advice(payload.action === "hire" ? `${payload.role} joined the team` : payload.action === "dismiss" ? `${payload.role} left the team` : `${payload.role} has a new focus: ${payload.focus}`);
+      case "projects.briefing_proposed":
+        return advice(`the Manager proposes a new briefing: ${payload.reason}`);
+      case "projects.briefing_signed":
+        return advice("the briefing was updated");
+      case "projects.briefing_discarded":
+        return advice("the proposal to change the briefing was discarded");
       case "team.change_discarded":
         return advice(`the proposal to ${payload.action} ${payload.role} was discarded`);
       case "manager.answer_rejected":

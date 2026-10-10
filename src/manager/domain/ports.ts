@@ -45,9 +45,10 @@ export interface BriefingSource {
 }
 
 export interface TeamProposal {
-  readonly action: "hire" | "dismiss";
+  readonly action: "hire" | "dismiss" | "refocus";
   readonly role: string;
   readonly reason: string;
+  readonly focus?: string;
 }
 
 export interface TeamDesk {
@@ -56,3 +57,9 @@ export interface TeamDesk {
 }
 
 export const NO_TEAM_DESK: TeamDesk = { hireable: () => [], propose: async () => err("there is no team to change") };
+
+export interface BriefingDesk {
+  propose(proposal: { text: string; reason: string }): Promise<Result<{ text: string }, string>>;
+}
+
+export const NO_BRIEFING_DESK: BriefingDesk = { propose: async () => err("the briefing cannot be changed here") };

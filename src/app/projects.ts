@@ -21,6 +21,8 @@ const DEMO: Project = { id: "demo", repo: "demo/todo", baseBranch: "main", setup
 export async function readProjects(policy: Policy, mock = false, dir = PROJECTS_DIR): Promise<Project[]> {
   if (mock && !existsSync(dir)) return [DEMO];
   const projects = existsSync(dir) ? await new YamlProjectCatalog(dir).list() : projectsFromPolicy(policy);
+  const twice = projects.find((project, index) => projects.findIndex((other) => other.repo === project.repo) !== index);
+  if (twice) throw new Error(`two projects work on ${twice.repo}: a repository belongs to one project`);
   const placeholder = projects.find((project) => project.repo === "OWNER/REPO");
   if (placeholder) throw new Error(`project ${placeholder.id} still lists the placeholder OWNER/REPO: set its repository`);
   if (projects.length === 0) throw new Error(`no project: add a folder to ${dir}/ (see projects.example/) or list a repository in policy.yaml`);

@@ -26,7 +26,9 @@ This spends your `claude` subscription quota and writes to the repository named 
    yours and untracked; only you edit them. A project folder holds `project.yaml`, an optional `team.yaml` (without
    one, the shop's `team.yaml` serves it) and an optional `briefing.md`: private notes the Manager reads at every
    turn, for what must not go in the repository. Vision and architecture belong in the repository itself. Without a `projects/` folder,
-   the `repos` list in `policy.yaml` serves as the only project; with one, that list is ignored.
+   the `repos` list in `policy.yaml` serves as the only project; with one, that list is ignored. Several folders
+   are several projects, each with its own conversation with the Manager, team, orders and briefing; the console
+   gets a selector. A repository belongs to one project.
 3. `cp team.example.yaml team.yaml` and choose the engine, and optionally the model, of each role. Also
    untracked and yours. A typo stops the service at startup, before anything runs. The optional
    `advisors` section lets the Manager consult read-only roles (see `roles/`) before it proposes an order,
@@ -37,6 +39,11 @@ This spends your `claude` subscription quota and writes to the repository named 
    the `codex` sandbox, and what the GitHub token can read and push. Each problem comes with how to fix it.
    The console shows the same list at the top and the server prints it at startup.
 5. `npm run build:console`, then `npm run start`.
+
+Work can also come from GitHub: label an issue `taller:ready` (see `labels.intake` in `policy.example.yaml`) and
+the Manager of that project turns it into a proposed order, or asks you what it needs to know. A project that
+names a `board` in its `project.yaml` gets its cards moved as the orders advance. Everything that waits for an
+answer, from the Manager or from a worker that stopped to ask, is listed under "Waiting for you".
 
 | Variable | Default | Meaning |
 | --- | --- | --- |

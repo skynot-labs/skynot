@@ -148,7 +148,11 @@ as "stopped by the director", so it can be retried or discarded.
 | Slice | What | State |
 |---|---|---|
 | 4.1 | `projects/<name>/` with `project.yaml`, optional `team.yaml` and `briefing.md`; ports `ProjectCatalog`, `BriefingStore`, `TeamRepository` with yml adapters; the Manager reads the briefing | Built; tried with the real `claude`, which used facts that only the briefing held. The director's own setup still runs from `policy.yaml` and `team.yaml` (the fallback); move it to `projects/` when ready |
-| 4.2 to 4.6 | State per project, inbox, intake from GitHub, console, changing a project without editing files | Not started |
+| 4.2 | Orders, chat, team, runs and costs belong to a project; a desk per project | Built, tested with fakes |
+| 4.3 | One inbox: Manager questions and worker questions (`QUESTION:`) | Built, tested with fakes |
+| 4.4 | Intake from labelled issues; board mirror (`gh project`), one way | Built, tested with fakes. The board's write permission checked read-only (`viewerCanUpdate`); no card has been moved yet |
+| 4.5 | Console: project selector, inbox, per-project readiness | Built |
+| 4.6 | The Manager proposes a new briefing or a new focus for an advisor; the director signs | Built, tested with fakes |
 
 ## Readiness
 

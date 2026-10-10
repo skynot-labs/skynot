@@ -17,8 +17,8 @@ async function openTeam(store = new InMemoryEventStore()) {
 }
 
 const names = (roster: RosterProjection) => Object.keys(roster.members());
-const propose = async (team: Awaited<ReturnType<typeof openTeam>>, action: "hire" | "dismiss", role: string) => {
-  const proposed = await team.service.propose({ action, role, reason: "because" });
+const propose = async (team: Awaited<ReturnType<typeof openTeam>>, action: "hire" | "dismiss" | "refocus", role: string, focus?: string) => {
+  const proposed = await team.service.propose({ action, role, reason: "because", ...(focus && { focus }) });
   if (!proposed.ok) throw new Error(proposed.error.message);
   return proposed.value.id;
 };
@@ -113,5 +113,38 @@ describe("roster", () => {
 
     expect(names(restarted.roster)).toEqual(["reviewer", "designer"]);
     expect(restarted.roster.pending().map((change) => change.role)).toEqual(["reviewer"]);
+  });
+});
+
+describe("changing what a member concentrates on", () => {
+  it("adds the focus to the soul only once signed, and keeps it after a restart", async () => {
+    const team = await openTeam();
+    const id = await propose(team, "refocus", "architect", "accessibility of every screen");
+    expect(team.roster.members().architect?.soul).toBe("soul of design");
+    expect(team.roster.pending()).toMatchObject([{ action: "refocus", focus: "accessibility of every screen" }]);
+
+    await team.service.sign(id);
+    expect(team.roster.members().architect?.soul).toBe("soul of design\n\nFocus the director set for this role: accessibility of every screen");
+    expect(names(team.roster)).toEqual(["architect", "reviewer"]);
+
+    const restarted = await openTeam(team.store);
+    expect(restarted.roster.members().architect?.soul).toContain("accessibility of every screen");
+    expect(restarted.roster.members().reviewer?.soul).toBe("soul of scope");
+  });
+
+  it("refuses to refocus someone who is not on the team, or without saying the focus", async () => {
+    const team = await openTeam();
+
+    expect(await team.service.propose({ action: "refocus", role: "designer", reason: "x", focus: "colors" })).toMatchObject({ ok: false, error: { message: expect.stringContaining("not on the team") } });
+    expect(await team.service.propose({ action: "refocus", role: "architect", reason: "x" })).toMatchObject({ ok: false, error: { message: "a refocus needs the new focus" } });
+  });
+
+  it("replaces an earlier focus with the next one signed", async () => {
+    const team = await openTeam();
+    await team.service.sign(await propose(team, "refocus", "architect", "first"));
+    await team.service.sign(await propose(team, "refocus", "architect", "second"));
+
+    expect(team.roster.members().architect?.soul).toContain("second");
+    expect(team.roster.members().architect?.soul).not.toContain("first");
   });
 });

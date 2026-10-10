@@ -5,9 +5,12 @@ const MAX_CONSULTED = 3;
 export interface TeamChoices {
   readonly hire: readonly string[];
   readonly dismiss: readonly string[];
+  readonly refocus?: readonly string[];
 }
 
-export function createAnswerSchema(orderSpec: z.ZodType, advisors: readonly string[] = [], choices: TeamChoices = { hire: [], dismiss: [] }) {
+const MAX_BRIEFING = 1500;
+
+export function createAnswerSchema(orderSpec: z.ZodType, advisors: readonly string[] = [], choices: TeamChoices = { hire: [], dismiss: [], refocus: [] }) {
   return z
     .object({
       message: z.string().trim().min(1).max(600),
@@ -15,7 +18,15 @@ export function createAnswerSchema(orderSpec: z.ZodType, advisors: readonly stri
       options: z.array(z.string().trim().min(1).max(40)).max(3),
       order: orderSpec.nullable(),
       consult: z.array(z.object({ role: z.string(), question: z.string().trim().min(3).max(400) })).max(MAX_CONSULTED),
-      team: z.object({ action: z.enum(["hire", "dismiss"]), role: z.string(), reason: z.string().trim().min(3).max(300) }).nullable(),
+      team: z
+        .object({
+          action: z.enum(["hire", "dismiss", "refocus"]),
+          role: z.string(),
+          reason: z.string().trim().min(3).max(300),
+          focus: z.string().trim().min(3).max(300).nullable().default(null),
+        })
+        .nullable(),
+      briefing: z.object({ text: z.string().trim().min(3).max(MAX_BRIEFING), reason: z.string().trim().min(3).max(300) }).nullable().default(null),
     })
     .superRefine((answer, context) => {
       if (answer.question !== null && answer.order !== null) {
@@ -32,11 +43,18 @@ export function createAnswerSchema(orderSpec: z.ZodType, advisors: readonly stri
         if (answer.question !== null || answer.order !== null || answer.consult.length > 0) {
           context.addIssue({ code: "custom", path: ["team"], message: "propose a team change on its own: leave question, order and consult empty" });
         }
-        const allowed = answer.team.action === "hire" ? choices.hire : choices.dismiss;
+        const allowed = answer.team.action === "hire" ? choices.hire : answer.team.action === "dismiss" ? choices.dismiss : (choices.refocus ?? []);
         if (!allowed.includes(answer.team.role)) {
-          const available = allowed.length ? `available: ${allowed.join(", ")}` : `nobody can be ${answer.team.action === "hire" ? "hired" : "dismissed"} now`;
+          const available = allowed.length ? `available: ${allowed.join(", ")}` : `nobody can be ${answer.team.action === "hire" ? "hired" : answer.team.action === "dismiss" ? "dismissed" : "refocused"} now`;
           context.addIssue({ code: "custom", path: ["team", "role"], message: `cannot ${answer.team.action} "${answer.team.role}"; ${available}` });
         }
+      }
+
+      if (answer.team?.action === "refocus" && answer.team.focus === null) {
+        context.addIssue({ code: "custom", path: ["team", "focus"], message: "a refocus needs the new focus" });
+      }
+      if (answer.briefing !== null && (answer.question !== null || answer.order !== null || answer.consult.length > 0 || answer.team !== null)) {
+        context.addIssue({ code: "custom", path: ["briefing"], message: "propose a briefing change on its own: leave question, order, consult and team empty" });
       }
 
       const seen = new Set<string>();
@@ -60,7 +78,8 @@ export type ManagerAnswer<Order = unknown> = {
   options: string[];
   order: Order | null;
   consult: Array<{ role: string; question: string }>;
-  team: { action: "hire" | "dismiss"; role: string; reason: string } | null;
+  team: { action: "hire" | "dismiss" | "refocus"; role: string; reason: string; focus: string | null } | null;
+  briefing: { text: string; reason: string } | null;
 };
 
 export function describeIssues(error: z.ZodError): string {

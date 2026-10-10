@@ -31,7 +31,7 @@ export function Floor({ state, send }: { state: ShopState; send: Send }) {
       <ul class="presence">
         {state.team.map((member) => (
           <li key={member.role}>
-            <span class="role">{member.role}</span> <span class="engine">({member.engine}, {member.model ?? "default model"})</span>
+            <span class="role">{member.name ?? member.role}</span> {member.name && <span class="engine">[{member.role}] </span>}<span class="engine">({member.engine}, {member.model ?? "default model"})</span>
           </li>
         ))}
       </ul>
@@ -40,10 +40,23 @@ export function Floor({ state, send }: { state: ShopState; send: Send }) {
         <div class="change" key={change.id}>
           <p>
             Proposed: <strong>{change.action}</strong> {change.role}. <span class="reason">{change.reason}</span>
+            {change.focus && <span class="reason"> New focus: {change.focus}</span>}
           </p>
           <div class="actions">
             <button type="button" class="sign" onClick={() => send("/api/commands/sign-team-change", { changeId: change.id })}>Sign</button>
             <button type="button" onClick={() => send("/api/commands/discard-team-change", { changeId: change.id })}>Discard</button>
+          </div>
+        </div>
+      ))}
+      {state.briefingChanges.map((change) => (
+        <div class="change" key={change.id}>
+          <p>
+            Proposed: <strong>new briefing</strong>. <span class="reason">{change.reason}</span>
+          </p>
+          <pre class="briefing">{change.text}</pre>
+          <div class="actions">
+            <button type="button" class="sign" onClick={() => send("/api/commands/sign-briefing-change", { changeId: change.id })}>Sign</button>
+            <button type="button" onClick={() => send("/api/commands/discard-briefing-change", { changeId: change.id })}>Discard</button>
           </div>
         </div>
       ))}

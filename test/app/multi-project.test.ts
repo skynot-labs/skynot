@@ -306,3 +306,36 @@ describe("work taken from GitHub", () => {
     expect(other.shop.orders.get(filed)?.status).toBe("in_review");
   });
 });
+
+describe("changing a project through the Manager", () => {
+  it("proposes a briefing, waits for the signature, and uses the new one on the next turn", async () => {
+    const prompts: string[] = [];
+    let first = true;
+    const manager = new FakeEngine((request) => {
+      prompts.push(request.prompt);
+      const answer = first
+        ? { message: "Noted.", question: null, options: [], order: null, consult: [], team: null, briefing: { text: "Marta reads only Spanish (es-MX).", reason: "the director said so" } }
+        : { message: "Fine.", question: null, options: [], order: null, consult: [], team: null, briefing: null };
+      first = false;
+      return { structured: answer };
+    });
+    const shop = await createShop({ policy: examplePolicy(), dataDir, team: team(), projects: [project("blog"), project("shop")], engines: { claude: manager }, vcs: new FakeVcs(), workspace: new FakeWorkspace(), briefing: { read: async () => "from the file" } });
+    shops.push(shop);
+    const call = (path: string, body: object) => createApi(shop, { allowedHosts: ["console"] }).request(path, { method: "POST", headers: { host: "console", "content-type": "application/json" }, body: JSON.stringify(body) });
+
+    await shop.desk("blog")!.manager.handleMessage("From now on, everything is for Marta, who reads only Spanish.");
+    const [pending] = shop.briefingChanges.pendingFor("blog");
+    expect(pending?.text).toBe("Marta reads only Spanish (es-MX).");
+    expect(shop.briefingChanges.pendingFor("shop")).toEqual([]);
+    expect(shop.desk("blog")!.chat.messages().at(-1)?.text).toContain(`Briefing change ${pending!.id}`);
+
+    await shop.desk("blog")!.manager.handleMessage("Anything else?");
+    expect(prompts.at(-1)).toContain("from the file");
+
+    expect((await call("/api/commands/sign-briefing-change", { changeId: pending!.id })).status).toBe(200);
+    await shop.desk("blog")!.manager.handleMessage("And now?");
+    expect(prompts.at(-1)).toContain("Marta reads only Spanish (es-MX).");
+    expect(prompts.at(-1)).not.toContain("from the file");
+    expect((await call("/api/commands/sign-briefing-change", { changeId: pending!.id })).status).toBe(409);
+  });
+});
