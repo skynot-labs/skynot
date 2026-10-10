@@ -4,10 +4,11 @@ export type ShopState = ReturnType<typeof readState> & { simulated: boolean };
 export type OrderView = ShopState["orders"][number];
 export type ChatView = ShopState["chat"][number];
 export type DecisionView = ShopState["decisions"][number];
+export type InboxView = ShopState["inbox"][number];
 export type MinutesBucket = "lt5" | "5-15" | "15-30" | "gt30";
 
-export async function fetchState(): Promise<ShopState> {
-  const response = await fetch("/api/state");
+export async function fetchState(project?: string): Promise<ShopState> {
+  const response = await fetch(project ? `/api/state?project=${encodeURIComponent(project)}` : "/api/state");
   if (!response.ok) throw new Error(`state failed (${response.status})`);
   return (await response.json()) as ShopState;
 }

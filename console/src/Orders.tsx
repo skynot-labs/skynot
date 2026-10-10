@@ -47,6 +47,8 @@ function OrderCard({ order, simulated, reviewing, workers, send }: { order: Orde
     <article class={`order ${order.status}`}>
       <pre class="card">{order.card}</pre>
 
+      {order.ticket !== null && <p class="reason">From ticket #{order.ticket}</p>}
+      {order.question && <p class="reason">The worker is waiting for your answer: {order.question}</p>}
       {order.blocked && <p class="blocked">Blocked: {order.blocked}</p>}
       {order.status === "signed" && order.waitingOn.length > 0 && !order.blocked && (
         <p class="reason">

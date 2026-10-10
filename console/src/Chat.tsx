@@ -12,7 +12,7 @@ export function Chat({ state, send }: { state: ShopState; send: Send }) {
     const message = text.trim();
     if (!message) return;
     setText("");
-    if (!(await send("/api/commands/send-message", { text: message }))) setText(message);
+    if (!(await send("/api/commands/send-message", { text: message, project: state.project.id }))) setText(message);
   }
 
   return (
@@ -48,7 +48,7 @@ function Message({ message, state, send }: { message: ChatView; state: ShopState
 
   return (
     <li class={`message ${message.author}`}>
-      <span class="who">{message.author === "director" ? "You" : "Manager"}</span>
+      <span class="who">{message.author === "director" ? "You" : message.author === "ticket" ? "Ticket" : "Manager"}</span>
       <p>{intro}</p>
       {order && <pre class="card">{order.card}</pre>}
       {decision && <Question decision={decision} send={send} />}
