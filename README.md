@@ -28,7 +28,7 @@ This spends your `claude` subscription quota and writes to the repository named 
    `advisors` section lets the Manager consult read-only roles (see `roles/`) before it proposes an order,
    and `library` lists roles it may propose to hire; you sign the change in the console. An optional
    `code_reviewer` role (another engine or model than the developer) reviews each pull request before you
-   do. Showing the pull request's CI status needs the token's "Checks: read" permission.
+   do. The pull request's CI status is read from GitHub Actions, so the token needs Actions: read.
 4. `npm run check` verifies what the shop needs without spending quota or writing anything: the CLI logins,
    the `codex` sandbox, and what the GitHub token can read and push. Each problem comes with how to fix it.
    The console shows the same list at the top and the server prints it at startup.

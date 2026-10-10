@@ -30,12 +30,14 @@ export class GhVcs implements Vcs {
 
   async pullRequestChecks(repo: string, number: number): Promise<ChecksState> {
     const pull = JSON.parse(await this.api([`repos/${repo}/pulls/${number}`])) as { head: { sha: string } };
-    const runs = JSON.parse(await this.api([`repos/${repo}/commits/${pull.head.sha}/check-runs`])) as {
-      check_runs: Array<{ status: string; conclusion: string | null }>;
+    // Workflow runs, not check runs: a personal access token has no Checks permission, only Actions.
+    const found = JSON.parse(await this.api([`repos/${repo}/actions/runs?head_sha=${pull.head.sha}`])) as {
+      workflow_runs: Array<{ status: string; conclusion: string | null }>;
     };
-    if (runs.check_runs.length === 0) return "none";
-    if (runs.check_runs.some((run) => ["failure", "cancelled", "timed_out", "action_required"].includes(run.conclusion ?? ""))) return "failing";
-    return runs.check_runs.every((run) => run.status === "completed") ? "passing" : "pending";
+    const runs = found.workflow_runs;
+    if (runs.length === 0) return "none";
+    if (runs.some((run) => ["failure", "cancelled", "timed_out", "action_required"].includes(run.conclusion ?? ""))) return "failing";
+    return runs.every((run) => run.status === "completed") ? "passing" : "pending";
   }
 
   async commentOnPullRequest(repo: string, number: number, text: string): Promise<void> {

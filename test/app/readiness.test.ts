@@ -22,7 +22,7 @@ function world(overrides: Record<string, ExecResult> = {}): Exec {
     "gh api repos/acme/widgets/pulls?per_page=1": done("1"),
     "gh api repos/acme/widgets/issues?per_page=1": done("1"),
     "gh api repos/acme/widgets/commits/main": done("abc123"),
-    "gh api repos/acme/widgets/commits/abc123/check-runs": done("1"),
+    "gh api repos/acme/widgets/actions/runs?head_sha=abc123": done("1"),
     "codex sandbox": done(),
     ...overrides,
   };
@@ -72,12 +72,12 @@ describe("readiness", () => {
   });
 
   it("only warns when the token cannot read CI, because the shop still works without it", async () => {
-    const noChecks = world({ "gh api repos/acme/widgets/commits/abc123/check-runs": done("", 1, "gh: Resource not accessible by personal access token (HTTP 403)") });
+    const noChecks = world({ "gh api repos/acme/widgets/actions/runs?head_sha=abc123": done("", 1, "gh: Resource not accessible by personal access token (HTTP 403)") });
 
     const findings = await readiness(noChecks);
 
-    expect(problems(findings)).toEqual(["warn checks: read"]);
-    expect(findings.find((finding) => finding.check === "checks: read")?.fix).toContain("Checks: read");
+    expect(problems(findings)).toEqual(["warn ci status"]);
+    expect(findings.find((finding) => finding.check === "ci status")?.fix).toContain("Actions: read");
   });
 
   it("warns that the base branch accepts direct pushes", async () => {
