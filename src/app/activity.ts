@@ -4,7 +4,7 @@ export interface ActivityEntry {
   readonly sequence: number;
   readonly at: string;
   readonly orderId: string | null;
-  readonly kind: "order" | "delivery" | "run";
+  readonly kind: "order" | "delivery" | "run" | "advice";
   readonly text: string;
   readonly url: string | null;
 }
@@ -44,6 +44,7 @@ export class ActivityProjection implements Projection {
     const orderId = typeof payload.orderId === "string" ? payload.orderId : null;
     const order = (text: string, url: string | null = null) => ({ orderId, kind: "order" as const, text, url });
     const delivery = (text: string, url: string | null = null) => ({ orderId, kind: "delivery" as const, text, url });
+    const advice = (text: string) => ({ orderId: null, kind: "advice" as const, text, url: null });
 
     switch (event.type) {
       case "orders.proposed":
@@ -72,6 +73,12 @@ export class ActivityProjection implements Projection {
         return delivery(`follow-up requested: ${payload.instruction}`);
       case "delivery.pull_request_updated":
         return delivery(`pull request #${payload.number} updated`);
+      case "manager.consulted":
+        return advice(`the Manager asked ${payload.role}: ${payload.question}`);
+      case "manager.advised":
+        return advice(`${payload.role} advised: ${payload.answer}`);
+      case "manager.advisor_failed":
+        return advice(`${payload.role} could not advise: ${payload.reason}`);
       case "execution.run_requested":
         this.runOrders.set(payload.runId as string, { role: payload.role as string, orderId });
         return null;

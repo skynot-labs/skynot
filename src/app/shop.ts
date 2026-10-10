@@ -22,6 +22,7 @@ import { ChatProjection, ManagerService } from "../manager";
 import { OrderService, OrdersProjection } from "../orders";
 import type { RoleSetup, Team } from "../team";
 import { ActivityProjection } from "./activity";
+import { createAdvisorBench } from "./advisor-bench";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
@@ -94,6 +95,11 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       maxUsd: policy.run_budget.max_usd,
     }),
     desk: createOrderDesk(orderService, orders),
+    advisors: createAdvisorBench(scheduler, config.team, {
+      cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
+      timeoutMs: MANAGER_TIMEOUT_MS,
+      maxUsd: policy.run_budget.max_usd,
+    }),
   });
 
   const flow = new OrderFlow({

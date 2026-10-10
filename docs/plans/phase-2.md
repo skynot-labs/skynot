@@ -1,6 +1,6 @@
 # Phase 2 · Roles and teams
 
-**Status:** draft for the director's review. Nothing here is built. See [vision](../vision.md) for the
+**Status:** slice 1 and slice 2 are built; slice 3 is not planned in detail yet. See [vision](../vision.md) for the
 context and [phase 1](phase-1.md) for what exists.
 
 ## Why, and why in slices

@@ -23,7 +23,7 @@ beforeEach(async () => {
   shop = await createShop({
     policy: examplePolicy(),
     dataDir,
-    team: { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } } },
+    team: { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {} },
     engines: { claude: createMockManager(), codex: createMockDeveloper() },
     vcs,
     workspace: new FakeWorkspace(),
