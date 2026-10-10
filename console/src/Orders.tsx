@@ -174,6 +174,7 @@ function Verdict({ order, reviewing, act }: { order: OrderView; reviewing: boole
         </div>
       )}
       {checks && checks !== "none" && <span class={`reason checks-${checks}`}>{CHECKS_LABEL[checks]}</span>}
+      {review?.verdict === "changes_requested" && <button type="button" class="sign" onClick={() => act("apply-review")}>Send these to the worker</button>}
       {reviewing && (
         <button type="button" onClick={() => act("review-order")}>{review ? "Review again" : "Review"}</button>
       )}

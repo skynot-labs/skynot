@@ -115,6 +115,14 @@ describe("console api", () => {
     expect((await post("/api/commands/retry-order", { orderId: "WO-0099" })).status).toBe(404);
   });
 
+  it("refuses to apply a review that asked for nothing", async () => {
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+
+    expect((await post("/api/commands/apply-review", { orderId: id })).status).toBe(409);
+  });
+
   it("refuses a follow-up on an order without a pull request, an unknown order and an empty instruction", async () => {
     const id = await fileAnOrder();
 
