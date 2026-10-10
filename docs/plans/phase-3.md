@@ -1,6 +1,6 @@
 # Phase 3 · Control, flow and an independent reviewer
 
-**Status:** decisions taken; slice 3.1 built and tried; 3.2 to 3.4 not started. See [vision](../vision.md) and
+**Status:** decisions taken; slices 3.1 and 3.2 built; 3.3 and 3.4 not started. See [vision](../vision.md) and
 [phase 2](phase-2.md) for what exists.
 
 ## Why
@@ -68,5 +68,10 @@ rate-limit backoff until the first real occurrence shows what the error looks li
    connections keep running.
 3. **Reviewer:** a different engine from the author's, and a gate. The card says "reviewed" only after
    approval, and changes requested trigger one automatic follow-up round before the director is asked.
-4. **Conflicts:** the service brings an out-of-date pull request up to date by itself, once per merge that
-   causes it, and the director sees it in the logbook. The merge stays the director's.
+4. **Conflicts:** the service brings a pull request that conflicts after a merge up to date by itself, once
+   per merge, and the director sees it in the logbook. The merge stays the director's. Only conflicts
+   trigger it, not a branch that is merely behind: GitHub merges that one fine and each run costs money.
+   If the worker cannot resolve it the order blocks and the director takes over.
+5. **Chaining (3.2):** an order waits for the orders it declares in `dependsOn` and for earlier signed orders
+   whose `likelyFiles` overlap (same path, or one inside the other's folder), until they are delivered or
+   discarded. A discarded dependency releases the order. The wait is an event, shown on the card.

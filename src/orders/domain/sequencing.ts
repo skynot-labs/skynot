@@ -1,0 +1,16 @@
+import type { WorkOrder } from "./work-order";
+
+const ACTIVE = ["signed", "on_bench", "in_review"];
+
+const within = (parent: string, path: string) => path === parent || path.startsWith(parent.endsWith("/") ? parent : `${parent}/`);
+
+const overlaps = (mine: readonly string[], theirs: readonly string[]) =>
+  mine.some((a) => theirs.some((b) => within(a, b) || within(b, a)));
+
+// Orders signed before this one that must be merged first: the ones it declares, and the ones touching the same files.
+export function blockersOf(order: WorkOrder, all: readonly WorkOrder[]): string[] {
+  const declared = (order.spec.dependsOn ?? []).filter((id) => all.find((other) => other.id === id)?.status !== "discarded");
+  const earlier = all.filter((other) => other.id < order.id && ACTIVE.includes(other.status) && overlaps(order.spec.likelyFiles, other.spec.likelyFiles));
+  const pending = [...declared, ...earlier.map((other) => other.id)].filter((id) => all.find((other) => other.id === id)?.status !== "delivered");
+  return [...new Set(pending)].sort();
+}

@@ -1,7 +1,7 @@
 import type { Implementer, IssueFiler, WorkItem } from "../delivery";
 import { err, ok, type Result } from "../kernel";
 import type { EventLog, StoredEvent } from "../kernel/events";
-import { renderCard, type OrderError, type OrderService, type OrderStatus, type WorkOrder } from "../orders";
+import { blockersOf, renderCard, type OrderError, type OrderService, type OrderStatus, type WorkOrder } from "../orders";
 
 const RETRYABLE: readonly OrderStatus[] = ["signed", "on_bench"];
 
@@ -13,7 +13,14 @@ export interface OrderFlowDependencies {
   repo: string;
   findOrder(id: string): WorkOrder | undefined;
   listOrders(): WorkOrder[];
-  progressOf(id: string): { issue: number | null; blocked: string | null; protectedPaths: readonly string[]; approvedPaths: readonly string[] };
+  onError?: (error: unknown, event: StoredEvent) => void;
+  progressOf(id: string): {
+    issue: number | null;
+    blocked: string | null;
+    protectedPaths: readonly string[];
+    approvedPaths: readonly string[];
+    waitingOn: readonly string[];
+  };
 }
 
 export class OrderFlow {
@@ -26,8 +33,13 @@ export class OrderFlow {
   // A restart drops the runs in flight; an order they left half done would show no way out.
   async recover(): Promise<void> {
     for (const order of this.deps.listOrders()) {
-      const waiting = order.status === "signed" || order.status === "on_bench";
-      if (!waiting || this.running.has(order.id) || this.deps.progressOf(order.id).blocked !== null) continue;
+      const unfinished = order.status === "signed" || order.status === "on_bench";
+      const { blocked, waitingOn } = this.deps.progressOf(order.id);
+      if (!unfinished || this.running.has(order.id) || blocked !== null) continue;
+      if (order.status === "signed" && waitingOn.length > 0) {
+        await this.consider(order.id);
+        continue;
+      }
       await this.deps.log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: "the shop restarted while this order was being worked" } }]);
     }
   }
@@ -119,9 +131,31 @@ export class OrderFlow {
   }
 
   private react(event: StoredEvent): void {
-    if (event.type !== "orders.signed") return;
+    const track = (task: Promise<void>) => {
+      const tracked = task.catch((error) => this.deps.onError?.(error, event)).finally(() => this.inFlight.delete(tracked));
+      this.inFlight.add(tracked);
+    };
+    if (event.type === "orders.signed") track(this.consider((event.payload as { orderId: string }).orderId));
+    if (event.type === "orders.delivered" || event.type === "orders.discarded") track(this.releaseWaiting());
+  }
 
-    this.launch((event.payload as { orderId: string }).orderId);
+  // An order starts once nothing it depends on, or shares files with, is still unmerged.
+  private async consider(orderId: string): Promise<void> {
+    const order = this.deps.findOrder(orderId);
+    if (order?.status !== "signed" || this.running.has(orderId)) return;
+
+    const blockers = blockersOf(order, this.deps.listOrders());
+    if (blockers.length === 0) return this.launch(orderId);
+
+    const { waitingOn } = this.deps.progressOf(orderId);
+    if (blockers.join() === waitingOn.join()) return;
+    await this.deps.log.record([{ type: "delivery.work_waiting", payload: { orderId, on: blockers } }]);
+  }
+
+  private async releaseWaiting(): Promise<void> {
+    for (const order of this.deps.listOrders()) {
+      if (order.status === "signed" && this.deps.progressOf(order.id).waitingOn.length > 0) await this.consider(order.id);
+    }
   }
 
   private launch(orderId: string, task: (signal: AbortSignal) => Promise<void> = (signal) => this.run(orderId, signal)): void {

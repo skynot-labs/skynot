@@ -18,6 +18,7 @@ export class FakeVcs implements Vcs {
   readonly issues: FakeIssue[] = [];
   readonly pullRequests: FakePullRequest[] = [];
   private nextNumber = 1;
+  private readonly conflicting = new Set<string>();
   private readonly states = new Map<string, PullRequestState>();
 
   async createIssue(repo: string, title: string, body: string): Promise<IssueRef> {
@@ -28,6 +29,15 @@ export class FakeVcs implements Vcs {
 
   async pullRequestState(repo: string, number: number): Promise<PullRequestState> {
     return this.states.get(`${repo}#${number}`) ?? "open";
+  }
+
+  async pullRequestConflicts(repo: string, number: number): Promise<boolean> {
+    return this.conflicting.has(`${repo}#${number}`);
+  }
+
+  setConflicts(repo: string, number: number, conflicts: boolean): void {
+    if (conflicts) this.conflicting.add(`${repo}#${number}`);
+    else this.conflicting.delete(`${repo}#${number}`);
   }
 
   setPullRequestState(repo: string, number: number, state: PullRequestState): void {

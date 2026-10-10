@@ -131,7 +131,7 @@ details ul { padding-left: 1.2rem; margin: 0.4rem 0; }
 
 .change { margin: 0.4rem 0 0.8rem; padding: 0.5rem 0.8rem; border: 1px dashed var(--ink); }
 .change p { margin: 0 0 0.3rem; }
-.change .reason, .hireable { color: var(--pencil); font-size: 0.88rem; }
+.change .reason, .order .reason, .hireable { color: var(--pencil); font-size: 0.88rem; }
 
 button.stop { padding: 0 0.4rem; font-size: 0.78rem; }
 
