@@ -123,8 +123,12 @@ async function checkGithub({ exec, repo, baseBranch }: ReadinessInput): Promise<
   const sha = await api(`repos/${repo}/commits/${baseBranch}`, "--jq", ".sha");
   findings.push(
     sha.code !== 0
-      ? warn("checks: read", "could not read the latest commit", "grant the token Contents: read")
-      : await reach("checks: read", `repos/${repo}/commits/${sha.stdout.trim()}/check-runs`, "grant the token Checks: read, or the card never shows CI and \"Ready to merge\" ignores a red build", "warn"),
+      ? warn("ci status", "could not read the latest commit", "grant the token Contents: read")
+      : await api(`repos/${repo}/actions/runs?head_sha=${sha.stdout.trim()}`, "--jq", ".total_count").then(({ code, stderr }) =>
+          code === 0
+            ? ok("ci status", "GitHub Actions runs are readable")
+            : warn("ci status", firstLine(stderr), "grant the token Actions: read, or the card never shows CI and \"Ready to merge\" ignores a red build"),
+        ),
   );
   findings.push(await checkPush(exec, repo));
   return findings;

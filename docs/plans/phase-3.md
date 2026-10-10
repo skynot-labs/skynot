@@ -66,7 +66,7 @@ the card here.
   after round two the director is told in the chat.
 - "Ready to merge" on the card means approved by the reviewer and CI neither red nor running. The merge is
   still the director's; GitHub is not asked to block it.
-- CI status comes from check runs, polled with the merge watcher. Legacy commit statuses are not read.
+- CI status comes from GitHub Actions workflow runs of the pull request's head commit, polled with the merge watcher. A personal access token has no Checks permission, so check runs and legacy commit statuses are not read.
 
 ## Decisions taken building 3.3
 
