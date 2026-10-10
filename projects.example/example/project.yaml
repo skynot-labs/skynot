@@ -8,7 +8,7 @@ verify_commands: ["npm run typecheck", "npm test"]
 # Files the worker may not touch without the director's signature.
 protected_paths: [".github/", ".claude/", ".mcp.json", "AGENTS.md", "CLAUDE.md", "vitest.config*"]
 
-# Optional: a GitHub project board whose Status column follows the orders (Todo, In Progress, In Review, Done).
+# Optional: a GitHub project board whose Status column follows the orders (Todo, In Progress, Done: the options of a new GitHub board; add "In Review" and name it below to use it).
 # The names are the usual ones; list `columns` only to rename them.
 # board:
 #   owner: your-login

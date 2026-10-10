@@ -35,7 +35,7 @@ export interface ProjectBoard {
   readonly columns: Readonly<Record<"proposed" | "in_progress" | "in_review" | "done", string>>;
 }
 
-const DEFAULT_COLUMNS = { proposed: "Todo", in_progress: "In Progress", in_review: "In Review", done: "Done" } as const;
+const DEFAULT_COLUMNS = { proposed: "Todo", in_progress: "In Progress", in_review: "In Progress", done: "Done" } as const;
 
 function columnsOf(given: Partial<Record<keyof typeof DEFAULT_COLUMNS, string | undefined>> = {}): ProjectBoard["columns"] {
   return {
