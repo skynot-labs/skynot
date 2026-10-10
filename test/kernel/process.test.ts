@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import { CANCELLED, TIMED_OUT, exec } from "../../src/kernel/process";
 
 describe("exec", () => {
@@ -31,6 +34,26 @@ describe("exec", () => {
     expect(result.code).toBe(CANCELLED);
     expect(result.stdout).not.toContain("never");
     expect(Date.now() - started).toBeLessThan(2000);
+  });
+
+  it("takes its running commands down when the process exits", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "skynot-exit-"));
+    const pidFile = path.join(dir, "pid");
+    const script = path.join(dir, "leaver.mts");
+    await writeFile(
+      script,
+      `import { existsSync } from "node:fs";
+       import { exec } from ${JSON.stringify(path.resolve("src/kernel/process.ts"))};
+       void exec("sh", ["-c", "echo $$ > ${pidFile}; sleep 30"]);
+       const poll = setInterval(() => { if (existsSync(${JSON.stringify(pidFile)})) { clearInterval(poll); process.exit(0); } }, 10);`,
+    );
+
+    await exec(process.execPath, ["--import", "tsx", script]);
+
+    const pid = Number(await readFile(pidFile, "utf8"));
+    expect(pid).toBeGreaterThan(0);
+    await vi.waitFor(() => expect(() => process.kill(pid, 0)).toThrow());
+    await rm(dir, { recursive: true, force: true });
   });
 
   it("does not start work for a signal that is already aborted", async () => {

@@ -37,6 +37,10 @@ function killGroup(pid: number | undefined): void {
   }
 }
 
+// Each child leads its own process group, so no signal sent to this process reaches it.
+const running = new Set<number>();
+process.on("exit", () => running.forEach(killGroup));
+
 export const exec: Exec = (command, args, options = {}) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -45,6 +49,12 @@ export const exec: Exec = (command, args, options = {}) =>
       stdio: ["pipe", "pipe", "pipe"],
       detached: true,
     });
+    const pid = child.pid;
+    if (pid !== undefined) running.add(pid);
+    const settled = () => {
+      clearTimeout(timer);
+      if (pid !== undefined) running.delete(pid);
+    };
     let stdout = "";
     let stderr = "";
     // Kill the whole group: a shell's grandchildren would otherwise keep the pipes open.
@@ -63,11 +73,11 @@ export const exec: Exec = (command, args, options = {}) =>
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
     child.on("error", (error) => {
-      clearTimeout(timer);
+      settled();
       reject(error);
     });
     child.on("close", (code, signal) => {
-      clearTimeout(timer);
+      settled();
       options.signal?.removeEventListener("abort", cancel);
       resolve({ stdout, stderr, code: cancelled ? CANCELLED : signal ? TIMED_OUT : (code ?? 1) });
     });

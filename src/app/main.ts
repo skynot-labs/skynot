@@ -70,7 +70,9 @@ serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
   if (!existsSync(consoleDir)) console.log("The console is not built yet: run `npm run build:console`.");
 });
 
-process.on("SIGINT", () => {
-  shop.stop();
-  process.exit(0);
-});
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    shop.stop();
+    process.exit(0);
+  });
+}
