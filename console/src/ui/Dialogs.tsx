@@ -71,14 +71,10 @@ export function ManagerChat({
 }) {
   const [message, setMessage] = useState("");
   const list = useRef<HTMLDivElement>(null);
-  const working = project.agents.some(
-    (agent) =>
-      agent.kind === "manager" &&
-      (agent.status === "working" || agent.status === "queued"),
-  );
+  const manager = project.agents.find((agent) => agent.kind === "manager");
   useEffect(() => {
     if (list.current) list.current.scrollTop = list.current.scrollHeight;
-  }, [project.chat, working]);
+  }, [project.chat, manager?.status]);
   async function submit(event: Event) {
     event.preventDefault();
     const text = message.trim();
@@ -114,10 +110,12 @@ export function ManagerChat({
             The team starts by understanding the intent.
           </div>
         )}
-        {working && (
+        {(manager?.status === "working" || manager?.status === "queued") && (
           <p class="chat-working" role="status">
             <span class="tiny-led" />
-            The Manager is working on it…
+            {manager.status === "working"
+              ? "The Manager is working on it…"
+              : "The Manager's turn is waiting in line."}
           </p>
         )}
       </div>
@@ -232,7 +230,7 @@ export function RegisterProject({
             required
             minLength={2}
             maxLength={40}
-            pattern="[a-z][a-z0-9-]+"
+            pattern="[a-z][a-z0-9\-]+"
             title="Lowercase letters, digits and hyphens. Starts with a letter, 2 to 40 characters."
             placeholder="my-project"
             autocomplete="off"

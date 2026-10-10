@@ -321,7 +321,7 @@ export function AvatarEditor({
       </div>
       <div class="avatar-editor-footer">
         <p class="form-note">
-          Saved per agent and project, in this browser.
+          Saved per agent and project, for every browser.
         </p>
         <div class="modal-actions">
           <button

@@ -516,7 +516,8 @@ export function App() {
                     <small> to decide</small>
                   </strong>
                   <span class="stat-detail">
-                    {project.inbox.length} questions ·{" "}
+                    {project.inbox.length}{" "}
+                    {project.inbox.length === 1 ? "question" : "questions"} ·{" "}
                     {pending - project.inbox.length} to sign
                   </span>
                 </div>

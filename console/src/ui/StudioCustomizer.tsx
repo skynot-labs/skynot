@@ -231,7 +231,7 @@ export function StudioCustomizer({
         </div>
       </div>
       <footer class="studio-editor-footer">
-        <p>Saved for this project only, in this browser.</p>
+        <p>Saved for this project only, for every browser.</p>
         <div>
           <button
             class="secondary-button"
