@@ -26,18 +26,17 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 
 ## State on 2026-10-10
 
-- Repository: `rodacato/skynot` (private). `origin` is configured locally. **Nothing has been pushed.**
-- Local `main` has 4 commits (skeleton). **All later work is on branch `feat/event-log`** (see
-  `git log`). The director will rebase onto `main` and push by hand: a local hook blocks agents from
-  pushing or merging into `main`, on purpose.
+- Repository: `rodacato/skynot` (private). `main` holds phase 1. Phase 2 slices 1 and 2 are on the
+  branch `feat/advisors`, in one pull request. A local hook blocks agents from pushing or merging into
+  `main`, on purpose; the director merges.
 - Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
   of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (195 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (227 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
-- `policy.yaml` exists locally (untracked) and points at `rodacato/taller-todo`. The tracked template
-  is `policy.example.yaml`.
+- `policy.yaml` and `team.yaml` exist locally (untracked) and are the director's. The tracked templates
+  are `policy.example.yaml` and `team.example.yaml`.
 
 ## Phase 1 progress (plan in `docs/plans/phase-1.md`)
 
@@ -118,10 +117,26 @@ Administration permission on purpose, so the director sets it in GitHub settings
 - No README yet, and `docs/` only holds the vision, this plan and one ADR.
 - The pull request check against GitHub is polling (`MergeWatcher`, 30 s). Webhooks are not planned.
 
-## Next after phase 1 (from `docs/vision.md`)
+## Phase 2 progress (plan in `docs/plans/phase-2.md`)
 
-Phase 2: role library, team roster per project, per-role engine and model, hiring, advisors in
-parallel. Phase 3: parallel workers, dependency graph, merge queue, independent reviewer. Phase 4: a
+| Slice | What | State |
+|---|---|---|
+| 1 | Engine and model per role in `team.yaml` | Done and tried with the real `claude` (Sonnet on the developer) |
+| 2 | Advisors consulted in parallel by the Manager | Done and tried once with the real `claude`: one consultation took the order from "scalable storage" to a SQLite-only order with a frozen fixture, for about $0.22 against $0.03 for a plain turn |
+| 3 | Team proposal and hiring | Not planned in detail, and not recommended yet: no pain shown |
+
+Things to know:
+
+- A rejected Manager answer is retried and the reason is not logged. One cause (options over 40
+  characters) was found by reproducing the call; the prompt now states the limit. A
+  `manager.answer_rejected` event would make the next one visible.
+- Whether the advisors are worth their cost in daily use is still open. Removing the `advisors` section
+  of `team.yaml` turns them off.
+- WO-0007 (SQLite backend) was proposed during that test and may still be waiting for a signature.
+
+## Next after phase 2 (from `docs/vision.md`)
+
+Phase 3: parallel workers, dependency graph, merge queue, independent reviewer. Phase 4: a
 GitHub organization and machine account, and the shop builds a todo app from an empty repo. Phase 5:
 curated memory, heartbeat, daily report. Phase 6: deploy on the KVM VM behind Tailscale, and Telegram.
 
