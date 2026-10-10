@@ -7,3 +7,16 @@ roles:
     engine: claude
   developer:
     engine: claude
+
+# Read-only roles the Manager can consult, up to three at once. `soul` is a markdown file, relative to
+# this file; `description` is what the Manager sees when it decides whom to ask. Leave the section out
+# and the Manager works alone.
+advisors:
+  architect:
+    engine: claude
+    description: how a change fits the existing code, and its risks
+    soul: roles/architect.md
+  reviewer:
+    engine: claude
+    description: skeptical review of a proposed order's scope and criteria
+    soul: roles/reviewer.md

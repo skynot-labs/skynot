@@ -4,7 +4,7 @@ import { createOrderDesk } from "../../src/app/order-desk";
 import { FakeEngine, RunScheduler } from "../../src/execution";
 import { err, fixedClock, ok, type Result } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
-import { ChatProjection, ManagerService, createAnswerSchema, type ModelRunner } from "../../src/manager";
+import { ChatProjection, ManagerService, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner } from "../../src/manager";
 import { OrderService, OrdersProjection, WorkOrderSpecSchema } from "../../src/orders";
 import { validSpec } from "../orders/fixtures";
 
@@ -24,9 +24,9 @@ function scriptedRunner(script: Script) {
 }
 
 const say = (message: string, extra: Record<string, unknown> = {}) =>
-  ok({ message, question: null, options: [], order: null, ...extra });
+  ok({ message, question: null, options: [], order: null, consult: [], ...extra });
 
-async function createManager(script: Script) {
+async function createManager(script: Script, advisors?: AdvisorBench) {
   const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date("2026-10-09T12:00:00.000Z")));
   const orders = new OrdersProjection();
   const chat = new ChatProjection();
@@ -34,13 +34,13 @@ async function createManager(script: Script) {
   await attachProjection(log, chat);
   const orderService = new OrderService(log, orders);
   const { runner, prompts } = scriptedRunner(script);
-  const manager = new ManagerService({ log, chat, runner, desk: createOrderDesk(orderService, orders) });
+  const manager = new ManagerService({ log, chat, runner, desk: createOrderDesk(orderService, orders), ...(advisors && { advisors }) });
   return { manager, chat, orders, orderService, prompts, log };
 }
 
 describe("answer schema", () => {
   const schema = createAnswerSchema(WorkOrderSpecSchema);
-  const reply = { message: "Done.", question: null, options: [], order: null };
+  const reply = { message: "Done.", question: null, options: [], order: null, consult: [] };
 
   it("accepts a plain reply, a question with options, and an order", () => {
     expect(schema.safeParse(reply).success).toBe(true);
@@ -251,5 +251,107 @@ describe("manager runner", () => {
       ok: false,
       error: "codex timed out",
     });
+  });
+});
+
+describe("consulting advisors", () => {
+  const roster = [
+    { name: "architect", description: "how a change fits the code" },
+    { name: "reviewer", description: "skeptical review of the scope" },
+  ];
+
+  function bench(answer: (request: AdvisorRequest) => AdvisorReply["result"] = () => ok("advice")) {
+    const calls: AdvisorRequest[][] = [];
+    const advisors: AdvisorBench = {
+      roster: () => roster,
+      async consult(requests) {
+        calls.push([...requests]);
+        return requests.map((request) => ({ role: request.role, result: answer(request) }));
+      },
+    };
+    return { advisors, calls };
+  }
+
+  const consult = (...roles: string[]) =>
+    say("Let me check.", { consult: roles.map((role) => ({ role, question: `What do you think, ${role}?` })) });
+
+  const eventTypes = async (log: Awaited<ReturnType<typeof createManager>>["log"]) =>
+    (await log.readAfter(0)).map((event) => event.type).filter((type) => type.startsWith("manager.") && type !== "manager.message_received");
+
+  it("asks the advisors once, hands their answers back and acts on the final answer", async () => {
+    const { advisors, calls } = bench((request) => ok(`${request.role} says: split it`));
+    const { manager, chat, prompts, log } = await createManager([consult("architect", "reviewer"), say("Two steps, then.")], advisors);
+
+    await manager.handleMessage("Rework the export");
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.map((request) => request.role)).toEqual(["architect", "reviewer"]);
+    expect(prompts[0]).toContain("- architect: how a change fits the code");
+    expect(prompts[1]).toContain("architect says: split it");
+    expect(prompts[1]).toContain("Do not consult again");
+    expect(chat.messages().at(-1)?.text).toBe("Two steps, then.");
+    expect(await eventTypes(log)).toEqual(["manager.consulted", "manager.consulted", "manager.advised", "manager.advised", "manager.replied"]);
+  });
+
+  it("keeps going when an advisor fails, and tells the Manager", async () => {
+    const { advisors } = bench((request) => (request.role === "reviewer" ? err("it timed out") : ok("fine")));
+    const { manager, chat, prompts, log } = await createManager([consult("architect", "reviewer"), say("Going on without the reviewer.")], advisors);
+
+    await manager.handleMessage("Rework the export");
+
+    expect(prompts[1]).toContain("(could not answer: it timed out)");
+    expect(chat.messages().at(-1)?.text).toBe("Going on without the reviewer.");
+    expect(await eventTypes(log)).toContain("manager.advisor_failed");
+  });
+
+  it("treats a bench that throws as every advisor failing", async () => {
+    const advisors: AdvisorBench = { roster: () => roster, consult: async () => Promise.reject(new Error("bench down")) };
+    const { manager, chat, prompts } = await createManager([consult("architect"), say("Alone, then.")], advisors);
+
+    await manager.handleMessage("Rework the export");
+
+    expect(prompts[1]).toContain("(could not answer: bench down)");
+    expect(chat.messages().at(-1)?.text).toBe("Alone, then.");
+  });
+
+  it("sends an unknown advisor back to the model with the list of real ones", async () => {
+    const { advisors, calls } = bench();
+    const { manager, prompts } = await createManager([consult("oracle"), consult("architect"), say("Done.")], advisors);
+
+    await manager.handleMessage("Rework the export");
+
+    expect(prompts[1]).toContain('unknown advisor "oracle"; available: architect, reviewer');
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not let the Manager consult a second time in the same turn", async () => {
+    const { advisors, calls } = bench();
+    const { manager, chat, prompts } = await createManager([consult("architect"), consult("reviewer"), say("Final.")], advisors);
+
+    await manager.handleMessage("Rework the export");
+
+    expect(calls).toHaveLength(1);
+    expect(prompts[2]).toContain("you cannot consult now");
+    expect(chat.messages().at(-1)?.text).toBe("Final.");
+  });
+
+  it("tells the model it cannot consult when the team has no advisors", async () => {
+    const { manager, prompts } = await createManager([consult("architect"), say("Alone.")]);
+
+    await manager.handleMessage("Rework the export");
+
+    expect(prompts[0]).toContain("(none)");
+    expect(prompts[1]).toContain("you cannot consult now");
+  });
+
+  it("rejects a consultation that also asks or proposes, and the same advisor twice", () => {
+    const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"]);
+    const base = { message: "x", question: null, options: [], order: null, consult: [{ role: "architect", question: "Thoughts?" }] };
+
+    expect(schema.safeParse(base).success).toBe(true);
+    expect(schema.safeParse({ ...base, question: "Which one?" }).success).toBe(false);
+    expect(schema.safeParse({ ...base, order: validSpec() }).success).toBe(false);
+    expect(schema.safeParse({ ...base, consult: [...base.consult, ...base.consult] }).success).toBe(false);
+    expect(schema.safeParse({ ...base, consult: Array(4).fill({ role: "architect", question: "Thoughts?" }) }).success).toBe(false);
   });
 });

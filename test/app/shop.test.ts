@@ -7,7 +7,9 @@ import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
 import type { EngineName, EngineRequest, RoleEngine } from "../../src/execution";
 import type { Team } from "../../src/team";
+import { FakeEngine } from "../../src/execution";
 import { examplePolicy } from "../governance/fixtures";
+import { validSpec } from "../orders/fixtures";
 
 let dataDir: string;
 let shops: Shop[];
@@ -22,7 +24,7 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
-const defaultTeam: Team = { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } } };
+const defaultTeam: Team = { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {} };
 
 function recording(engine: RoleEngine) {
   const requests: EngineRequest[] = [];
@@ -160,7 +162,7 @@ describe("activity", () => {
     it("sends each role's own model to its engine", async () => {
       const manager = recording(createMockManager());
       const developer = recording(createMockDeveloper());
-      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex", model: "developer-model" } } };
+      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex", model: "developer-model" } }, advisors: {} };
       const { shop } = await openShop(new FakeVcs(), team, { claude: manager.recorded, codex: developer.recorded });
 
       const id = await fileAnOrder(shop);
@@ -183,6 +185,43 @@ describe("activity", () => {
       await shop.flow.idle();
 
       expect(shop.runs.list().map((run) => [run.role, run.engine])).toEqual([["manager", "claude"], ["manager", "claude"], ["developer", "codex"]]);
+    });
+  });
+
+  describe("advisors", () => {
+    const team: Team = {
+      version: 1,
+      roles: { manager: { engine: "claude" }, developer: { engine: "codex" } },
+      advisors: {
+        architect: { engine: "claude", description: "design", soul: "You are the architect." },
+        reviewer: { engine: "claude", description: "scope", soul: "You are the reviewer." },
+      },
+    };
+
+    it("consults two advisors at once and files an order that reflects their answers", async () => {
+      const answers: string[] = [];
+      const engine = new FakeEngine(async (request) => {
+        if (!request.schema) return { text: `${request.system?.includes("architect") ? "architect" : "reviewer"}: keep it in one module` };
+        answers.push(request.prompt);
+        return answers.length === 1
+          ? { structured: { message: "Checking.", question: null, options: [], order: null, consult: [{ role: "architect", question: "Where?" }, { role: "reviewer", question: "Clear?" }] } }
+          : { structured: { message: "Both agree.", question: null, options: [], order: validSpec(), consult: [] } };
+      });
+      const { shop } = await openShop(new FakeVcs(), team, { claude: engine, codex: createMockDeveloper() });
+
+      await shop.manager.handleMessage("Rework the export");
+
+      expect(answers[1]).toContain("architect: keep it in one module");
+      expect(answers[1]).toContain("reviewer: keep it in one module");
+      expect(shop.orders.list()).toHaveLength(1);
+      expect(shop.runs.list().map((run) => run.role)).toEqual(["manager", "architect", "reviewer", "manager"]);
+      const logbook = shop.activity.recent(20).map((entry) => [entry.kind, entry.text]).reverse();
+      expect(logbook.filter(([kind]) => kind === "advice")).toEqual([
+        ["advice", "the Manager asked architect: Where?"],
+        ["advice", "the Manager asked reviewer: Clear?"],
+        ["advice", "architect advised: architect: keep it in one module"],
+        ["advice", "reviewer advised: reviewer: keep it in one module"],
+      ]);
     });
   });
 });

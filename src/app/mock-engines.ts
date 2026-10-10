@@ -8,10 +8,10 @@ export function createMockManager(): FakeEngine {
     const idea = firstIdea(request.prompt, message);
 
     if (message.startsWith("Answer to ")) {
-      return { structured: { message: "That settles it. Filing the order.", question: null, options: [], order: mockOrder(idea) } };
+      return { structured: { message: "That settles it. Filing the order.", question: null, options: [], order: mockOrder(idea), consult: [] } };
     }
     if (message.toLowerCase().startsWith("/ping")) {
-      return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], order: null } };
+      return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], order: null, consult: [] } };
     }
     return {
       structured: {
@@ -19,6 +19,7 @@ export function createMockManager(): FakeEngine {
         question: `Keep "${shorten(idea, 40)}" small, or cover the edge cases too?`,
         options: ["Keep it small", "Cover edge cases"],
         order: null,
+        consult: [],
       },
     };
   };

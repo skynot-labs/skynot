@@ -24,7 +24,8 @@ This spends your `claude` subscription quota and writes to the repository named 
 2. `cp policy.example.yaml policy.yaml` and set your repository. `policy.yaml` is yours and untracked;
    only you edit it.
 3. `cp team.example.yaml team.yaml` and choose the engine, and optionally the model, of each role. Also
-   untracked and yours. A typo stops the service at startup, before anything runs.
+   untracked and yours. A typo stops the service at startup, before anything runs. The optional
+   `advisors` section lets the Manager consult read-only roles (see `roles/`) before it proposes an order.
 4. `npm run build:console`, then `npm run start`.
 
 | Variable | Default | Meaning |

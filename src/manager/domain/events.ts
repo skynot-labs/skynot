@@ -11,7 +11,10 @@ export type ManagerEvent =
       payload: { messageId: MessageId; text: string; orderId: string | null; decisionId: DecisionId | null };
     }
   | { type: "manager.decision_asked"; payload: { decisionId: DecisionId; question: string; options: string[] } }
-  | { type: "manager.decision_answered"; payload: { decisionId: DecisionId; answer: string } };
+  | { type: "manager.decision_answered"; payload: { decisionId: DecisionId; answer: string } }
+  | { type: "manager.consulted"; payload: { role: string; question: string } }
+  | { type: "manager.advised"; payload: { role: string; answer: string } }
+  | { type: "manager.advisor_failed"; payload: { role: string; reason: string } };
 
 export function asManagerEvent(event: DomainEvent): ManagerEvent | null {
   return event.type.startsWith("manager.") ? (event as ManagerEvent) : null;

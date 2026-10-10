@@ -1,1 +1,1 @@
-export { ENGINES, TeamSchema, describeRoles, type RoleName, type RoleSetup, type Team } from "./team";
+export { ENGINES, TeamFileSchema, describeRoles, type Advisor, type RoleName, type RoleSetup, type Team, type TeamFile } from "./team";
