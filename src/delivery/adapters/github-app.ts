@@ -111,7 +111,10 @@ export async function accountOf(execute: Exec, command: string, args: readonly s
 export function asGithubApp(execute: Exec, tokens: Pick<GithubAppTokens, "token">, account?: string): Exec {
   return async (command, args, options = {}) => {
     if (command !== "gh" && command !== "git") return execute(command, args, options);
-    const token = await tokens.token(account ?? (await accountOf(execute, command, args, options.cwd)));
+    const about = account ?? (await accountOf(execute, command, args, options.cwd));
+    // git outside any clone and about no account, as `git --version`, talks to nobody
+    if (!about && command === "git" && !options.cwd) return execute(command, args, options);
+    const token = await tokens.token(about);
     const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
     return execute(command, args, {
       ...options,

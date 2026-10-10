@@ -12,6 +12,7 @@ const github = await githubExec();
 console.log(`GitHub: acting as ${github.identity}`);
 const findings = await checkShopReadiness({
   exec: github.exec,
+  execFor: github.execFor,
   engines: { claude: new ClaudeEngine(), codex: new CodexEngine() },
   teams,
   dataDir: process.env.SKYNOT_DATA ?? "data/shop",
