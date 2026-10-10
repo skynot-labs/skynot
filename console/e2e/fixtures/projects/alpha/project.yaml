@@ -1,0 +1,7 @@
+version: 1
+# The comment a describe-project must keep.
+repo: acme/alpha
+base_branch: main
+setup_command: null
+verify_commands: ["npm test"]
+protected_paths: [".github/"]

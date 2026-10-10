@@ -72,6 +72,7 @@ without risking your machine, use the [devcontainer](.devcontainer/README.md).
 ```bash
 npm test               # includes the architecture rules
 npm run typecheck
+npm run test:e2e       # builds the console and walks it in a browser against a simulated shop
 npm run dev:console    # the console with hot reload on :5173, against the shop on :4747
 ```
 

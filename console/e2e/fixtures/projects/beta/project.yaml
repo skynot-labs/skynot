@@ -1,0 +1,6 @@
+version: 1
+repo: acme/beta
+base_branch: main
+setup_command: null
+verify_commands: ["npm test"]
+protected_paths: []
