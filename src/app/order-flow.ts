@@ -119,6 +119,20 @@ export class OrderFlow {
     return ok(order);
   }
 
+  // The chain exists to avoid conflicts; if the director takes the risk, the follow-up on conflicts covers it.
+  async startNow(orderId: string): Promise<Result<WorkOrder, OrderError>> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    if (order.status !== "signed" || this.deps.progressOf(orderId).waitingOn.length === 0) {
+      return err({ kind: "invalid_transition", message: `${orderId} is not waiting for another order` });
+    }
+    if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
+
+    await this.claim(orderId, { type: "delivery.wait_skipped", payload: { orderId } });
+    this.launch(orderId);
+    return ok(order);
+  }
+
   // The director signs the exact protected files the worker touched; the next run may touch those, no others.
   async approveProtected(orderId: string): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
