@@ -2,6 +2,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActivityProjection } from "../../src/app/activity";
 import { createDeliveryRules } from "../../src/app/delivery-rules";
+import { projectsFromPolicy } from "../../src/app/projects";
 import { OrderFlow } from "../../src/app/order-flow";
 import { createWorkerRunner } from "../../src/app/worker-runner";
 import { FakeVcs, GitWorkspace, Implementer, IssueFiler, PullRequestReview, type CodeReviewer, type Review } from "../../src/delivery";
@@ -59,7 +60,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
     return { text: "evidence: test -f src/feature.txt" };
   });
   const scheduler = new RunScheduler({ claude: engine }, log, policy.limits.max_parallel);
-  const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock));
+  const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projectsFromPolicy(policy));
   const vcs = new FakeVcs();
   const workspace = new GitWorkspace({ root: path.join(sandbox.root, "shop"), clone: cloneFrom(sandbox.origin) });
   const worker = createWorkerRunner(scheduler, { workers: () => WORKERS, assigneeOf: (id) => activity.linksFor(id).worker });

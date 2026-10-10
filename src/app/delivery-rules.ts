@@ -1,28 +1,20 @@
 import type { DeliveryRules } from "../delivery";
-import {
-  checkBranch,
-  checkLabel,
-  protectedPathsTouched,
-  repoPolicy,
-  type ActionBudget,
-  type Policy,
-  type PolicyViolation,
-} from "../governance";
+import { checkBranch, checkLabel, protectedPathsTouched, type ActionBudget, type Policy, type PolicyViolation } from "../governance";
 import { err, ok, type Result } from "../kernel";
+import type { Project } from "../projects";
 
 const asMessage = <T>(result: Result<T, PolicyViolation>): Result<T, string> => (result.ok ? result : err(result.error.message));
 
-export function createDeliveryRules(policy: Policy, budget: ActionBudget): DeliveryRules {
+export function createDeliveryRules(policy: Policy, budget: ActionBudget, projects: readonly Project[]): DeliveryRules {
   return {
     maxRounds: policy.limits.max_rounds,
     workerTimeoutMs: policy.run_budget.timeout_seconds * 1000,
     workerMaxUsd: policy.run_budget.max_usd,
 
     repo(name) {
-      const found = asMessage(repoPolicy(policy, name));
-      if (!found.ok) return found;
-      const { base_branch, setup_command, verify_commands, protected_paths } = found.value;
-      return ok({ baseBranch: base_branch, setupCommand: setup_command, verifyCommands: verify_commands, protectedPaths: protected_paths });
+      const project = projects.find((candidate) => candidate.repo === name);
+      if (!project) return err(`repository "${name}" belongs to no project`);
+      return ok({ baseBranch: project.baseBranch, setupCommand: project.setupCommand, verifyCommands: project.verifyCommands, protectedPaths: project.protectedPaths });
     },
 
     branchFor(orderId) {
@@ -37,8 +29,8 @@ export function createDeliveryRules(policy: Policy, budget: ActionBudget): Deliv
     },
 
     protectedTouched(repoName, paths) {
-      const found = repoPolicy(policy, repoName);
-      return found.ok ? protectedPathsTouched(found.value, paths) : [...paths];
+      const project = projects.find((candidate) => candidate.repo === repoName);
+      return project ? protectedPathsTouched({ protected_paths: [...project.protectedPaths] }, paths) : [...paths];
     },
 
     async spend(orderId) {

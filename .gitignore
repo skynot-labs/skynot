@@ -7,6 +7,7 @@ data/
 !.env.example
 policy.yaml
 team.yaml
+projects/
 .devcontainer/.host.env
 .devcontainer/local.env
 *.log

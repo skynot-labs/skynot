@@ -3,8 +3,6 @@ import { parse } from "yaml";
 import { err, ok, type Result } from "../../kernel";
 import { PolicySchema, type Policy } from "../domain";
 
-const PLACEHOLDER_REPO = "OWNER/REPO";
-
 export function parsePolicy(source: string): Result<Policy, string> {
   let raw: unknown;
   try {
@@ -17,9 +15,6 @@ export function parsePolicy(source: string): Result<Policy, string> {
   if (!parsed.success) {
     const detail = parsed.error.issues.map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`).join("; ");
     return err(`policy.yaml is invalid: ${detail}`);
-  }
-  if (parsed.data.repos.some((repo) => repo.name === PLACEHOLDER_REPO)) {
-    return err(`policy.yaml still lists the placeholder ${PLACEHOLDER_REPO}`);
   }
   return ok(parsed.data);
 }

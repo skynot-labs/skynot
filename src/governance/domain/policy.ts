@@ -11,7 +11,7 @@ const RepoPolicySchema = z.object({
 export const PolicySchema = z
   .object({
     version: z.literal(1),
-    repos: z.array(RepoPolicySchema).min(1),
+    repos: z.array(RepoPolicySchema).default([]),
     branch_prefix: z.string().min(1),
     labels: z.object({
       prefix: z.string().min(1),

@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { FakeVcs, FakeWorkspace } from "../delivery";
 import { readPolicy, readTeam } from "./config";
 import { lockDataDir } from "./data-lock";
+import { briefingStore, readProjects } from "./projects";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { ClaudeEngine, CodexEngine } from "../execution";
@@ -20,14 +21,17 @@ const consoleDir = "console/dist";
 const policy = await readPolicy(mock);
 const vcs = new FakeVcs();
 
-const team = await readTeam(mock);
+const projects = await readProjects(policy, mock);
+const team = await readTeam(mock, projects[0]!.id);
 process.on("exit", await lockDataDir(dataDir));
 const shop = await createShop({
   policy,
   dataDir,
   team,
+  projects,
+  briefing: briefingStore(policy),
   ...(!mock && {
-    readiness: () => checkReadiness({ exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, usage: engineUsage(team), repo: policy.repos[0]!.name, baseBranch: policy.repos[0]!.base_branch, dataDir }),
+    readiness: () => checkReadiness({ exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, usage: engineUsage(team), repo: projects[0]!.repo, baseBranch: projects[0]!.baseBranch, dataDir }),
   }),
   reportError: (error, event) => console.error(`handler failed on ${event.type}:`, error),
   ...(mock && {

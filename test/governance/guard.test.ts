@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { checkBranch, checkLabel, protectedPathsTouched, repoPolicy } from "../../src/governance";
+import { checkBranch, checkLabel, protectedPathsTouched } from "../../src/governance";
 import { examplePolicy } from "./fixtures";
 
 const policy = examplePolicy();
 const repo = policy.repos[0]!;
 
 describe("guard", () => {
-  it("finds an allowed repo and refuses an unknown one", () => {
-    expect(repoPolicy(policy, "acme/widgets")).toMatchObject({ ok: true, value: { name: "acme/widgets" } });
-    expect(repoPolicy(policy, "acme/other")).toMatchObject({ ok: false, error: { kind: "repo_not_allowed" } });
-  });
-
   it("only allows branches under the configured prefix", () => {
     expect(checkBranch(policy, "taller/wo-0001").ok).toBe(true);
     expect(checkBranch(policy, "main")).toMatchObject({ ok: false, error: { kind: "branch_outside_prefix" } });

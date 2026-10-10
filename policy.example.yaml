@@ -1,5 +1,7 @@
 version: 1
 
+# Used only when there is no projects/ folder; otherwise each project's own project.yaml says which repository
+# it works on (see projects.example/).
 repos:
   - name: OWNER/REPO
     base_branch: main

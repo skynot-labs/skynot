@@ -21,8 +21,8 @@ describe("policy parsing", () => {
     expect(withCap("-3").ok).toBe(false);
   });
 
-  it("refuses to start with the placeholder repo", () => {
-    expect(parsePolicy(example)).toMatchObject({ ok: false, error: expect.stringContaining("OWNER/REPO") });
+  it("keeps the placeholder repo parseable, since a project's own file says which repository it works on", () => {
+    expect(parsePolicy(example).ok).toBe(true);
   });
 
   it("rejects a trigger label outside the label prefix", () => {

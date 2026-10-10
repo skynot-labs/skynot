@@ -39,6 +39,11 @@ export interface AdvisorBench {
 
 export const NO_ADVISORS: AdvisorBench = { roster: () => [], consult: async () => [] };
 
+// The director's private notes about the project, which must not reach the repository.
+export interface BriefingSource {
+  read(): Promise<string | null>;
+}
+
 export interface TeamProposal {
   readonly action: "hire" | "dismiss";
   readonly role: string;

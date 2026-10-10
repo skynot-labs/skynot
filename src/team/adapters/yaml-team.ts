@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { parse } from "yaml";
+import { access } from "node:fs/promises";
 import { err, ok, type Result } from "../../kernel";
-import { TeamFileSchema, type Advisor, type Team, type TeamFile } from "../domain";
+import { TeamFileSchema, type Advisor, type Team, type TeamFile, type TeamRepository } from "../domain";
 
 export function parseTeamFile(source: string): Result<TeamFile, string> {
   let raw: unknown;
@@ -49,4 +50,18 @@ async function readSoul(path: string): Promise<Result<string, string>> {
     return err(`could not be read: ${(error as Error).message}`);
   }
   return text ? ok(text) : err("is empty");
+}
+
+// A project's own <dir>/<id>/team.yaml wins; without one the shop's team.yaml serves every project.
+export class YamlTeamRepository implements TeamRepository {
+  constructor(
+    private readonly projectsDir: string,
+    private readonly sharedFile: string,
+  ) {}
+
+  async forProject(projectId: string): Promise<Result<Team, string>> {
+    const own = `${this.projectsDir}/${projectId}/team.yaml`;
+    const file = await access(own).then(() => own, () => this.sharedFile);
+    return loadTeam(file);
+  }
 }
