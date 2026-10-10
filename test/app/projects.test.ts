@@ -33,6 +33,13 @@ describe("reading the projects", () => {
     expect((await readProjects(examplePolicy(), false, dir)).map((project) => project.id)).toEqual(["widgets", "alpha"]);
   });
 
+  it("uses policy.yaml when the folder holds only things that are not projects", async () => {
+    await mkdir(path.join(dir, "some-app"));
+    await writeFile(path.join(dir, "some-app", "package.json"), "{}");
+
+    expect(await readProjects(examplePolicy(), false, dir)).toMatchObject([{ id: "widgets" }]);
+  });
+
   it("falls back to the repository listed in policy.yaml, so an existing shop keeps working", async () => {
     expect(await readProjects(examplePolicy(), false, path.join(dir, "none"))).toMatchObject([{ id: "widgets", repo: "acme/widgets" }]);
   });

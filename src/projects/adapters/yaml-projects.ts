@@ -30,9 +30,10 @@ export class YamlProjectCatalog implements ProjectCatalog {
     const entries = await readdir(this.dir, { withFileTypes: true }).catch(() => []);
     const projects: Project[] = [];
     for (const entry of entries.filter((candidate) => candidate.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!PROJECT_ID.test(entry.name)) throw new Error(`${this.dir}/${entry.name}: a project folder is named in lowercase letters, digits and dashes`);
       const source = await readFile(join(this.dir, entry.name, "project.yaml"), "utf8").catch(() => null);
-      if (source === null) throw new Error(`${this.dir}/${entry.name} has no project.yaml`);
+      // a folder without project.yaml is something else that lives there, not a project
+      if (source === null) continue;
+      if (!PROJECT_ID.test(entry.name)) throw new Error(`${this.dir}/${entry.name}: a project folder is named in lowercase letters, digits and dashes`);
       const project = parseProjectFile(entry.name, source);
       if (!project.ok) throw new Error(project.error);
       projects.push(project.value);
