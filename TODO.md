@@ -89,8 +89,9 @@ More things the real run exposed, all fixed on `feat/event-log`:
   now be discarded (`abandon`).
 - A pull request that conflicts with `main` had no way to be fixed. There is now a `follow-up` command
   and form: the branch is squashed onto the current base (`git merge --squash`), the worker resolves
-  conflicts and applies the director's text, and one commit is force-pushed to the same PR. Tested only
-  with local repos and a fake engine, **never against GitHub or the real `claude`**.
+  conflicts and applies the director's text, and one commit is force-pushed to the same PR. Tried for real
+  on 2026-10-10: PR #17 of `taller-todo` conflicted with #16, one follow-up made it mergeable with a
+  single commit, no conflict markers, for $0.07.
 
 Branch protection (pull request required) is still not set on either repo: the token has no
 Administration permission on purpose, so the director sets it in GitHub settings.
@@ -127,9 +128,9 @@ Administration permission on purpose, so the director sets it in GitHub settings
 
 Things to know:
 
-- A rejected Manager answer is retried and the reason is not logged. One cause (options over 40
-  characters) was found by reproducing the call; the prompt now states the limit. A
-  `manager.answer_rejected` event would make the next one visible.
+- A rejected Manager answer is retried. One cause (options over 40 characters) was found by reproducing
+  the call and the prompt now states the limit; the reason of every rejection is now logged as
+  `manager.answer_rejected` and shown in the logbook.
 - Whether the advisors are worth their cost in daily use is still open. Removing the `advisors` section
   of `team.yaml` turns them off.
 - WO-0007 (SQLite backend) was proposed during that test and may still be waiting for a signature.
