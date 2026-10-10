@@ -24,14 +24,16 @@ worktree, the service verifies the change and opens a pull request, and the dire
 on GitHub. The pilot goal is to measure how many of the director's minutes each well-solved task costs.
 The long-term shape (teams of roles, parallel workers, a game-style office) is in `docs/vision.md`.
 
-## State on 2026-10-09
+## State on 2026-10-10
 
 - Repository: `rodacato/skynot` (private). `origin` is configured locally. **Nothing has been pushed.**
 - Local `main` has 4 commits (skeleton). **All later work is on branch `feat/event-log`** (see
   `git log`). The director will rebase onto `main` and push by hand: a local hook blocks agents from
   pushing or merging into `main`, on purpose.
+- Pilot repo: `rodacato/taller-todo` (private) is published, with PR #2 merged by the director. A clone
+  of it lives in `examples/taller-todo` (ignored by git and by vitest); it is only a convenience copy.
 - GitHub Project: private board "skynot" (#13), linked to the repo. Empty.
-- Tests: `npm test` (175 tests) and `npm run typecheck` (server and console) pass.
+- Tests: `npm test` (182 tests) and `npm run typecheck` (server and console) pass.
 - Run it without any cost: `npm run build:console`, then `npm run dev`, then open
   `http://127.0.0.1:4747`. Simulated engines, fake GitHub, nothing leaves the machine.
 - `policy.yaml` exists locally (untracked) and points at `rodacato/taller-todo`. The tracked template
@@ -49,49 +51,46 @@ The long-term shape (teams of roles, parallel workers, a game-style office) is i
 | 6 | Manager | Done |
 | 7 | Delivery (worktree, verification, PR) | Done |
 | 8 | Console (API, SSE, web client) | Done, walked through in a browser with simulated engines |
-| 9 | Real run against the pilot repo | **Not started** |
-| Extra | Devcontainer for autonomous work (ADR 0001) | Written, **never built** |
+| 9 | Real run against the pilot repo | **Done once** (WO-0001, PR #2 merged); minutes still to record in the console |
+| Extra | Devcontainer for autonomous work (ADR 0001) | Written. The run happened inside a devcontainer, but the ADR's security model (scoped token, hook, branch protection) was not audited |
 
 Phase 1 is finished when step 9 works once: from the console, an idea becomes a signed order, a real
 worker opens a pull request on `rodacato/taller-todo`, the director merges it, and the minutes are
 recorded.
 
-## Next: step 9, the real run
+## Step 9: the real run (2026-10-10)
 
-Blockers, in order:
+WO-0001 ("`done <id>`: confirmation and id validation") went from a chat idea to a merged pull request on
+`rodacato/taller-todo`. Manager and worker were both `claude`; the worker run took 26 s and cost $0.09
+(it ran on `claude-haiku-5-5`, which the director did not choose on purpose). CI passed.
 
-1. **Publish the pilot repo.** `/Users/adriancastillo/Workspace/learning/taller-todo` is a local git repo
-   with `.github`, `AGENTS.md`, `src`, `test`, and scripts `typecheck` and `test`. It may have no
-   commits yet and has no GitHub repo. Needed: commit, then
-   `gh repo create rodacato/taller-todo --private --source . --remote origin`, then the director pushes
-   `main`. An agent in this repo cannot do it because its shell is pinned to the skynot directory (see
-   "Working agreements"). Either the director runs those commands, or opens a session in that folder,
-   or allows `git -C` for that path.
-2. **Decide where the real run happens.** Preferred: inside the devcontainer, so the worker's code and
-   the `npm ci`, `typecheck` and `test` the service runs on it never touch the host home. That needs the
-   devcontainer built and opened for the first time (`.devcontainer/README.md`), the scoped token, and
-   logins for `gh`, `claude` and `codex`. Fallback: run on the host and accept the exposure for a toy
-   repo.
-3. **Engines.** Proposed: Manager and worker both `claude` (`SKYNOT_MANAGER_ENGINE`,
-   `SKYNOT_WORKER_ENGINE`). `codex` has no per-command allowlist, so its isolation is weaker; compare it
-   later. The real run spends the director's subscription quota (budget per run is in `policy.yaml`).
-   Ask before starting it.
-4. **Branch protection** on `rodacato/taller-todo` and `rodacato/skynot`, with required pull requests,
-   because nothing else stops a bad push to `main` inside the container.
+Surprises, all fixed and committed on `feat/event-log`:
 
-Then: `npm run start`, send a small idea in the console, answer the question, sign, watch it, merge the
-pull request on GitHub, record the minutes. Note every surprise in this file.
+- `spawn sh ENOENT`: the workspace root was relative, so git resolved the worktree path from the clone
+  while commands ran from the server cwd. The root is now resolved to absolute. Tests used absolute temp
+  dirs, which is why nothing caught it.
+- A command timeout killed only the shell, not its children, so a hung `npm test` would never stop. It
+  now kills the process group.
+- vitest also ran the pilot repo's tests (from `examples/` and `data/`). `vitest.config.ts` excludes them.
+- A blocked order had no way out. There is now a `retry-order` command and a Retry button; it reuses the
+  issue and does not start the work twice.
+
+Still to do for step 9: record the minutes bucket in the console, and decide whether one task is enough
+evidence. Branch protection (pull request required) is still not set on either repo: the token has no
+Administration permission on purpose, so the director sets it in GitHub settings.
 
 ## Known gaps and limits
 
-- The real `claude` and `codex` CLIs have never been run through this code. Their flags were checked
-  against `--help` and the argument builders are unit-tested with a fake process, nothing more.
+- `claude` has run once through this code (WO-0001). `codex` never has; its flags were only checked
+  against `--help` and unit-tested with a fake process.
+- The worker's model is whatever the `claude` CLI picks; there is no per-role model setting yet.
 - Rate limits of the subscriptions are not handled: no backoff, and nobody knows yet what the error
   looks like. `max_parallel` in the policy is the only brake.
 - One repository per run: the flow uses the first repo in `policy.yaml` because orders do not belong to
   a project yet. Projects and teams arrive in phase 2.
 - A blocked order (verification failed, protected path, budget spent) is recorded in the event log and
-  shown in the console, but the Manager does not tell the director in the chat.
+  shown in the console with a Retry button, but the Manager does not tell the director in the chat.
+  A retry after a push that already happened may collide on the branch; not tested.
 - The Manager's chat bubble for an answered question reads "Answer to ...: ..."; it is verbose.
 - The console binds to 127.0.0.1 and checks `Host` and `Origin`; there is no login. Fine on a laptop or
   in a container, not for anything exposed. GitHub OAuth behind Tailscale is planned for later.
@@ -147,4 +146,4 @@ other (they define ports), `src/app` may import only a context's public `index`.
 1. Read the documents listed under "Context to load".
 2. `git status`, `git branch -vv`, `git log --oneline -5`.
 3. `npm run typecheck` and `npm test`.
-4. Ask the director which blocker above to take, and what has changed since 2026-10-09.
+4. Ask the director what has changed since 2026-10-10 and what to take next.
