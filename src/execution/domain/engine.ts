@@ -37,7 +37,7 @@ export function sumUsage(usages: readonly TokenUsage[]): TokenUsage | null {
 export interface EngineResult {
   text: string;
   structured?: unknown;
-  costUsd: number;
+  costUsd: number | null;
   turns: number;
   model: string;
   usage?: TokenUsage;

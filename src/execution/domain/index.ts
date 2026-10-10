@@ -9,4 +9,4 @@ export type {
   RoleEngine,
   TokenUsage,
 } from "./engine";
-export { asRunEvent, evolve, outcomeOf, type Run, type RunEvent, type RunId, type RunOutcome, type RunStatus } from "./run";
+export { asRunEvent, evolve, outcomeOf, reportedCost, type Run, type RunEvent, type RunId, type RunOutcome, type RunStatus } from "./run";

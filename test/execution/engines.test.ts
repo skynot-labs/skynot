@@ -68,6 +68,14 @@ describe("claude output", () => {
     });
   });
 
+  it("reports no cost when the result names none, and keeps a cost of zero when it names one", () => {
+    const unpriced = parseClaude(JSON.stringify({ subtype: "success", result: "done" }));
+    const free = parseClaude(JSON.stringify({ subtype: "success", result: "done", total_cost_usd: 0 }));
+
+    expect(unpriced).toMatchObject({ ok: true, value: { costUsd: null } });
+    expect(free).toMatchObject({ ok: true, value: { costUsd: 0 } });
+  });
+
   it("names the model that did the work, not the auxiliary one listed first", () => {
     const stdout = JSON.stringify({
       subtype: "success",
@@ -233,7 +241,7 @@ describe("codex engine", () => {
       value: {
         text: '{"verdict":"ok"}',
         structured: { verdict: "ok" },
-        costUsd: 0,
+        costUsd: null,
         turns: 1,
         model: "codex",
         usage: { inputTokens: 14210, outputTokens: 5, cachedInputTokens: 8064 },
@@ -252,7 +260,7 @@ describe("codex engine", () => {
 
     const result = await new CodexEngine(execute).run({ ...base, model: "gpt-test" });
 
-    expect(result).toEqual({ ok: true, value: { text: "text", structured: undefined, costUsd: 0, turns: 0, model: "gpt-test" } });
+    expect(result).toEqual({ ok: true, value: { text: "text", structured: undefined, costUsd: null, turns: 0, model: "gpt-test" } });
     expect(result.ok && "usage" in result.value).toBe(false);
   });
 
