@@ -16,7 +16,13 @@ export class JsonlEventStore implements EventStore {
       if (stored.length === 0) return stored;
 
       await mkdir(path.dirname(this.filePath), { recursive: true });
-      await appendFile(this.filePath, stored.map((event) => `${JSON.stringify(event)}\n`).join(""));
+      try {
+        await appendFile(this.filePath, stored.map((event) => `${JSON.stringify(event)}\n`).join(""));
+      } catch (error) {
+        // part of it may be on disk: the next call reads the file again and repairs its tail
+        this.loaded = null;
+        throw error;
+      }
       events.push(...stored);
       return stored;
     });
