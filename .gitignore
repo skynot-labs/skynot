@@ -36,3 +36,6 @@ tmp/
 .tmp/
 
 examples/
+
+test-results/
+playwright-report/

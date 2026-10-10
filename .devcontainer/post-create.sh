@@ -10,6 +10,8 @@ sudo chown "$(id -u):$(id -g)" node_modules data "$HOME/.claude" "$HOME/.codex"
 git config --global url."https://github.com/".insteadOf "git@github.com:"
 
 npm ci
+# The browser the end-to-end tests drive, with the system libraries it needs.
+npx playwright install --with-deps chromium
 npm install --global @anthropic-ai/claude-code @openai/codex
 npm run build:console
 
