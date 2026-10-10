@@ -31,12 +31,12 @@ export function studioScene(
   project: Project,
   appearance: Appearance,
   settings: StudioPreferences,
-  paused = false,
+  shopPaused = false,
 ): SceneState {
   return {
     name: project.name,
     accent: project.accent,
-    paused,
+    paused: shopPaused || Boolean(project.paused),
     pending: waitingOnDirector(project),
     settings,
     agents: project.agents.map((agent) => ({

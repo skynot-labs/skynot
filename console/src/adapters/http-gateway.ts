@@ -6,12 +6,14 @@ const DEBOUNCE_MS = 60;
 
 export function mapState(state: ShopState, accents: readonly string[] = config.accents): Snapshot {
   const accentAt = (index: number) => accents[Math.max(index, 0) % accents.length] ?? "";
-  const projects: ProjectSummary[] = state.projects.map((summary, index) => ({ ...summary, name: nameOf(summary.repo), accent: accentAt(index) }));
+  const projects: ProjectSummary[] = state.projects.map((summary, index) => ({ ...summary, name: summary.name || nameOf(summary.repo), accent: accentAt(index) }));
   const project: Project = {
     id: state.project.id,
-    name: nameOf(state.project.repo),
+    name: state.project.name || nameOf(state.project.repo),
+    description: state.project.description,
     repo: state.project.repo,
     accent: accentAt(state.projects.findIndex((summary) => summary.id === state.project.id)),
+    paused: state.projectPaused,
     reviewing: state.reviewing,
     workers: state.workers,
     agents: state.team.map((member, index) => agentOf(state, member, index)),
@@ -24,7 +26,10 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     briefing: state.briefing,
     hireable: state.hireable,
     activity: state.activity,
+    runs: state.runs,
+    answered: state.answered,
     spentUsd: state.costs.project,
+    tokens: state.costs.tokens,
   };
   return {
     project,
@@ -32,6 +37,7 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     paused: state.paused,
     readiness: state.readiness,
     costs: { today: state.costs.today, total: state.costs.total, cap: state.costs.cap },
+    preferences: state.preferences,
     cursor: state.cursor,
     simulated: state.simulated,
   };
@@ -47,7 +53,9 @@ function agentOf(state: ShopState, member: ShopState["team"][number], index: num
   const running = state.presence.working.find((run) => run.role === role);
   const queued = state.presence.waiting.find((run) => run.role === role);
   const asked = state.inbox.find((item) => (role === "manager" ? item.kind !== "worker_question" : item.kind === "worker_question" && item.from === role));
-  const status: AgentStatus = running ? "working" : queued ? "queued" : asked ? "waiting-director" : "idle";
+  const totals = state.agents.find((entry) => entry.role === role);
+  const failed = totals?.lastOutcome === "failed";
+  const status: AgentStatus = running ? "working" : queued ? "queued" : failed ? "error" : asked ? "waiting-director" : "idle";
   const live = running ?? queued;
   return {
     id: role,
@@ -60,6 +68,9 @@ function agentOf(state: ShopState, member: ShopState["team"][number], index: num
     orderId: live ? live.orderId : (asked?.orderId ?? null),
     runId: live?.runId ?? null,
     queuePosition: running ? null : (queued?.position ?? null),
+    runs: totals?.runs ?? 0,
+    spentUsd: totals?.spentUsd ?? null,
+    usage: totals?.usage ?? null,
     avatar: defaultAvatar(index),
   };
 }

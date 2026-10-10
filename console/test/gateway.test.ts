@@ -89,6 +89,29 @@ function shopState(overrides: Partial<ShopState> = {}): ShopState {
   };
 }
 
+type RoleTotals = ShopState["agents"][number];
+function totals(role: string, overrides: Partial<RoleTotals> = {}): RoleTotals {
+  return { role, runs: 1, spentUsd: 0, usage: null, lastOutcome: "completed", ...overrides };
+}
+
+function finishedRun(id: string, overrides: Partial<ShopState["runs"][number]> = {}): ShopState["runs"][number] {
+  return {
+    runId: run(id),
+    role: "developer",
+    engine: "codex",
+    model: null,
+    turns: null,
+    orderId: "WO-0001",
+    startedAt: "2026-10-01T12:00:00.000Z",
+    finishedAt: "2026-10-01T12:05:00.000Z",
+    outcome: "completed",
+    failure: null,
+    costUsd: null,
+    usage: null,
+    ...overrides,
+  };
+}
+
 function agent(state: ShopState, id: string) {
   const found = mapState(state, ACCENTS).project.agents.find((entry) => entry.id === id);
   if (!found) throw new Error(`no agent ${id}`);
@@ -106,6 +129,34 @@ describe("mapState", () => {
     ]);
     expect(snapshot.project).toMatchObject({ id: "shop", name: "shop", repo: "skynot-labs/shop", accent: "lavender" });
     expect(snapshot.projects[0]?.needsYou).toBe(3);
+  });
+
+  it("prefers the name the director gave a project over its repository", () => {
+    const state = shopState({ project: { id: "shop", repo: "skynot-labs/shop", name: "The Shop", description: "Sells things" } });
+    state.projects[0] = { ...state.projects[0]!, name: "Field Notes" };
+
+    const snapshot = mapState(state, ACCENTS);
+
+    expect(snapshot.project).toMatchObject({ name: "The Shop", description: "Sells things" });
+    expect(snapshot.projects.map(({ name }) => name)).toEqual(["Field Notes", "shop", "docs"]);
+    expect(mapState(shopState(), ACCENTS).project.description).toBeNull();
+  });
+
+  it("passes the project's pause, finished runs, answered questions, tokens and the preferences through", () => {
+    const paused = { since: "2026-10-01T09:00:00.000Z", reason: "holiday" };
+    const runs = [finishedRun("run-7", { outcome: "failed", failure: { kind: "failed", message: "exit 1" } })];
+    const tokens = { inputTokens: 1200, outputTokens: 300, cachedInputTokens: null };
+    const preferences = { "studio/shop": { place: "kyoto" } };
+    const quiet = mapState(shopState(), ACCENTS);
+    const snapshot = mapState(shopState({ projectPaused: paused, runs, costs: { ...shopState().costs, tokens }, preferences }), ACCENTS);
+
+    expect(snapshot.project.paused).toEqual(paused);
+    expect(snapshot.project.runs).toEqual(runs);
+    expect(snapshot.project.tokens).toEqual(tokens);
+    expect(snapshot.preferences).toEqual(preferences);
+    expect(snapshot.paused).toBeNull();
+    expect(quiet.project).toMatchObject({ paused: null, runs: [], answered: [], tokens: null });
+    expect(quiet.preferences).toEqual({});
   });
 
   it("reports the project's own spend apart from the shop-wide costs", () => {
@@ -157,6 +208,54 @@ describe("mapState", () => {
 
     expect(agent(state, "backend_dev")).toMatchObject({ status: "idle", runId: null, orderId: null, queuePosition: null });
     expect(agent(state, "manager").status).toBe("idle");
+  });
+
+  it("gives each agent its own run totals, and none to a role that never ran", () => {
+    const usage = { inputTokens: 900, outputTokens: 120, cachedInputTokens: 400 };
+    const state = shopState({ agents: [totals("developer", { runs: 4, spentUsd: 1.75, usage })] });
+
+    expect(agent(state, "developer")).toMatchObject({ runs: 4, spentUsd: 1.75, usage });
+    expect(agent(state, "backend_dev")).toMatchObject({ runs: 0, spentUsd: null, usage: null });
+  });
+
+  it("keeps apart an agent whose runs reported no cost and one whose runs cost nothing", () => {
+    const state = shopState({ agents: [totals("developer", { spentUsd: null }), totals("backend_dev", { spentUsd: 0 })] });
+
+    expect([agent(state, "developer").spentUsd, agent(state, "backend_dev").spentUsd]).toEqual([null, 0]);
+  });
+
+  it("marks an agent in error only when its last run failed on its own", () => {
+    const state = shopState({
+      agents: [totals("developer", { lastOutcome: "failed" }), totals("backend_dev", { lastOutcome: "cancelled" }), totals("ui-designer", { lastOutcome: "interrupted" }), totals("manager")],
+    });
+
+    expect(agent(state, "developer")).toMatchObject({ status: "error", runId: null, queuePosition: null });
+    expect(agent(state, "backend_dev").status).toBe("idle");
+    expect(agent(state, "ui-designer").status).toBe("idle");
+    expect(agent(state, "manager").status).toBe("idle");
+  });
+
+  it("clears the error once the agent has a new run queued or working", () => {
+    const failed = [totals("developer", { lastOutcome: "failed" }), totals("backend_dev", { lastOutcome: "failed" })];
+    const state = shopState({
+      agents: failed,
+      presence: {
+        working: [{ runId: run("run-4"), role: "backend_dev", engine: "claude", orderId: "wo-2", since: null }],
+        waiting: [{ runId: run("run-3"), role: "developer", orderId: "wo-1", position: 1 }],
+      },
+    });
+
+    expect(agent(state, "developer")).toMatchObject({ status: "queued", runId: run("run-3") });
+    expect(agent(state, "backend_dev").status).toBe("working");
+  });
+
+  it("shows the failure before an open question from the same worker", () => {
+    const state = shopState({
+      agents: [totals("backend_dev", { lastOutcome: "failed" })],
+      inbox: [question({ id: "question:wo-1", kind: "worker_question", from: "backend_dev", orderId: "wo-1" })],
+    });
+
+    expect(agent(state, "backend_dev")).toMatchObject({ status: "error", orderId: "wo-1" });
   });
 
   it("has the manager wait for the director while its question or a ticket doubt is open", () => {
@@ -248,6 +347,18 @@ describe("HttpGateway", () => {
     expect(calls[0]?.init?.method).toBe("POST");
     expect(new Headers(calls[0]?.init?.headers).get("content-type")).toBe("application/json");
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ orderId: "wo-1", worker: "backend_dev" });
+  });
+
+  it("posts the project and preference commands like any other", async () => {
+    answerWith({ status: 200, body: {} }, { status: 201, body: {} }, { status: 200, body: {} });
+    const gateway = new HttpGateway();
+
+    await gateway.send({ name: "pause-project", payload: { project: "shop" } });
+    await gateway.send({ name: "register-project", payload: { id: "blog", repo: "skynot-labs/blog", baseBranch: "main", verifyCommands: ["npm test"] } });
+    await gateway.send({ name: "set-preference", payload: { key: "studio/shop", value: null } });
+
+    expect(calls.map((call) => call.url)).toEqual(["/api/commands/pause-project", "/api/commands/register-project", "/api/commands/set-preference"]);
+    expect(JSON.parse(String(calls[2]?.init?.body))).toEqual({ key: "studio/shop", value: null });
   });
 
   it("sends the simulated merge to the dev route", async () => {

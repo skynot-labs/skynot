@@ -40,7 +40,6 @@ export function StudioHero({
   onOrder,
   onTeam,
   onContext,
-  onPause,
   onCustomize,
   send,
   busy,
@@ -54,7 +53,6 @@ export function StudioHero({
   onOrder: (order: Order) => void;
   onTeam: () => void;
   onContext: () => void;
-  onPause: () => void;
   onCustomize: () => void;
   send: Send;
   busy: boolean;
@@ -67,6 +65,13 @@ export function StudioHero({
     (agent) => agent.status === "working",
   ).length;
   const pending = waitingOnDirector(project);
+  const toggleShop = () =>
+    void send({ name: paused ? "resume-shop" : "pause-shop", payload: {} });
+  const toggleProject = () =>
+    void send({
+      name: project.paused ? "resume-project" : "pause-project",
+      payload: { project: project.id },
+    });
   useEffect(() => {
     if (!canvas.current) return;
     const renderer = new Office(canvas.current);
@@ -115,7 +120,8 @@ export function StudioHero({
             The <span>{project.name}</span> studio.
           </h1>
           <p>
-            {firstLine(project.briefing) ??
+            {project.description ??
+              firstLine(project.briefing) ??
               "Your company of agents, working toward one vision."}
           </p>
         </div>
@@ -131,15 +137,26 @@ export function StudioHero({
             <Icon name="chat" />
             Talk to your Manager
           </button>
-          <button
-            class="icon-button"
-            disabled={busy}
-            onClick={onPause}
-            aria-label={paused ? "Resume the shop" : "Pause the shop"}
-            title="While paused nothing new starts; what is running finishes."
-          >
-            <Icon name={paused ? "play" : "pause"} />
-          </button>
+          <div class="studio-pause-controls" role="group" aria-label="Pause">
+            <button
+              class={project.paused ? "paused" : ""}
+              disabled={busy}
+              onClick={toggleProject}
+              title="While this project is paused nothing new starts in it; what is running finishes. The other projects keep working."
+            >
+              <Icon name={project.paused ? "play" : "pause"} />
+              {project.paused ? "Resume this project" : "Pause this project"}
+            </button>
+            <button
+              class={paused ? "paused" : ""}
+              disabled={busy}
+              onClick={toggleShop}
+              title="While the shop is paused nothing new starts in any project; what is running finishes."
+            >
+              <Icon name={paused ? "play" : "pause"} />
+              {paused ? "Resume the shop" : "Pause the shop"}
+            </button>
+          </div>
         </div>
       </header>
       <div class="studio-hero-stage">
@@ -182,11 +199,21 @@ export function StudioHero({
             onTeam={onTeam}
           />
         </div>
-        {paused && (
-          <div class="studio-pause-label" role="status">
-            <Icon name="pause" />
-            Paused: nothing new starts, what is running finishes ·{" "}
-            {paused.reason}
+        {(paused || project.paused) && (
+          <div class="studio-pause-labels" role="status">
+            {project.paused && (
+              <div class="studio-pause-label">
+                <Icon name="pause" />
+                This project is paused · {project.paused.reason}
+              </div>
+            )}
+            {paused && (
+              <div class="studio-pause-label">
+                <Icon name="pause" />
+                The shop is paused: nothing new starts, what is running
+                finishes · {paused.reason}
+              </div>
+            )}
           </div>
         )}
       </div>

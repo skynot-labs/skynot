@@ -1,4 +1,4 @@
-import type { AgentStatus, Order } from "../contracts";
+import type { AgentStatus, Order, Run } from "../contracts";
 
 export const usd = (value: number) =>
   new Intl.NumberFormat("en-US", {
@@ -11,11 +11,32 @@ export const clock = (iso: string) =>
     minute: "2-digit",
     hour12: false,
   });
+export const dayTime = (iso: string) =>
+  new Date(iso).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+const compact = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+export const tokenCount = (value: number) =>
+  compact.format(value).replace("K", "k");
 export const agentStatus: Record<AgentStatus, string> = {
   working: "Working",
   queued: "In line",
   idle: "Available",
   "waiting-director": "Waiting on you",
+  error: "Last run failed",
+};
+export const runOutcome: Record<NonNullable<Run["outcome"]>, string> = {
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Stopped",
+  interrupted: "Interrupted",
 };
 export const orderStatus: Record<Order["status"], string> = {
   awaiting_signature: "To sign",

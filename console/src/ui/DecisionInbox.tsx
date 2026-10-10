@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import type {
+  Answered,
   Command,
   Decision,
   InboxItem,
@@ -18,6 +19,73 @@ const TEAM_ACTION: Record<TeamChange["action"], string> = {
   dismiss: "Dismiss",
   refocus: "Refocus",
 };
+
+const ASKED: Record<Exclude<Answered["kind"], "worker_question">, string> = {
+  manager_question: "The Manager asked",
+  ticket_doubt: "The Manager had a doubt about a ticket",
+};
+
+const moment = (iso: string) =>
+  new Date(iso).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+function AnsweredQuestion({
+  entry,
+  label,
+  order,
+  onOrder,
+}: {
+  entry: Answered;
+  label: string;
+  order: Order | undefined;
+  onOrder: (order: Order) => void;
+}) {
+  return (
+    <article
+      class={`decision-question answered ${entry.kind.replace("_", "-")}`}
+    >
+      <div class="question-meta">
+        <span>
+          <Icon name={entry.kind === "ticket_doubt" ? "shield" : "help"} />
+          {label}
+        </span>
+        {order ? (
+          <button
+            type="button"
+            class="question-order"
+            onClick={() => onOrder(order)}
+          >
+            {order.id}
+          </button>
+        ) : entry.kind === "worker_question" && entry.orderId !== null ? (
+          <span>{entry.orderId}</span>
+        ) : (
+          entry.ticket !== null && <span>ticket #{entry.ticket}</span>
+        )}
+      </div>
+      <h3>{entry.question}</h3>
+      <div class="question-answer">
+        <span>Your call</span>
+        <p>{entry.answer}</p>
+      </div>
+      <p class="question-author">
+        {entry.askedAt && (
+          <>
+            Asked <time dateTime={entry.askedAt}>{moment(entry.askedAt)}</time>
+            {" · "}
+          </>
+        )}
+        Answered{" "}
+        <time dateTime={entry.answeredAt}>{moment(entry.answeredAt)}</time>
+      </p>
+    </article>
+  );
+}
 
 function Question({
   kind,
@@ -216,11 +284,11 @@ export function DecisionInbox({
     proposals.length +
     project.teamChanges.length +
     project.briefingChanges.length;
-  const [tab, setTab] = useState<"questions" | "signatures">(() =>
+  const [tab, setTab] = useState<"questions" | "signatures" | "answered">(() =>
     project.inbox.length === 0 && signatures > 0 ? "signatures" : "questions",
   );
   const tabId = `director-${project.id}`;
-  const askerName = (item: InboxItem) =>
+  const askerName = (item: { from: string }) =>
     project.agents.find((agent) => agent.id === item.from)?.name ?? item.from;
   return (
     <section class="director-inbox" aria-label="Decision desk">
@@ -242,6 +310,7 @@ export function DecisionInbox({
           [
             ["questions", "To decide", project.inbox.length],
             ["signatures", "To sign", signatures],
+            ["answered", "Answered", project.answered.length],
           ] as const
         ).map(([id, title, count]) => (
           <button
@@ -397,6 +466,38 @@ export function DecisionInbox({
               Work orders, team changes and briefing changes that need your
               signature will land here.
             </p>
+          </div>
+        )}
+      </div>
+      <div
+        class="director-tabpanel"
+        role="tabpanel"
+        id={`${tabId}-answered-panel`}
+        aria-labelledby={`${tabId}-answered`}
+        hidden={tab !== "answered"}
+      >
+        {project.answered.map((entry) => (
+          <AnsweredQuestion
+            key={entry.id}
+            entry={entry}
+            label={
+              entry.kind === "worker_question"
+                ? `${askerName(entry)} asked`
+                : ASKED[entry.kind]
+            }
+            order={
+              entry.kind === "worker_question"
+                ? project.orders.find((order) => order.id === entry.orderId)
+                : undefined
+            }
+            onOrder={onOrder}
+          />
+        ))}
+        {project.answered.length === 0 && (
+          <div class="inbox-empty">
+            <Icon name="chat" />
+            <h3>No answers yet.</h3>
+            <p>Every question you answer is kept here.</p>
           </div>
         )}
       </div>

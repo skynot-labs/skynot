@@ -14,8 +14,12 @@ export type BriefingChange = ShopState["briefingChanges"][number];
 export type Activity = ShopState["activity"][number];
 export type Finding = ShopState["readiness"][number];
 export type MinutesBucket = NonNullable<Order["minutes"]>;
+export type TokenUsage = NonNullable<ShopState["costs"]["tokens"]>;
+export type Run = ShopState["runs"][number];
+export type Answered = ShopState["answered"][number];
+export type PauseState = NonNullable<ShopState["paused"]>;
 
-export type AgentStatus = "working" | "queued" | "idle" | "waiting-director";
+export type AgentStatus = "working" | "queued" | "idle" | "waiting-director" | "error";
 export type Agent = {
   id: string;
   name: string;
@@ -27,6 +31,9 @@ export type Agent = {
   orderId: string | null;
   runId: string | null;
   queuePosition: number | null;
+  runs: number;
+  spentUsd: number | null;
+  usage: TokenUsage | null;
   avatar: Avatar;
 };
 
@@ -35,8 +42,10 @@ export type ProjectSummary = ShopState["projects"][number] & { name: string; acc
 export type Project = {
   id: string;
   name: string;
+  description: string | null;
   repo: string;
   accent: string;
+  paused: PauseState | null;
   reviewing: boolean;
   workers: string[];
   agents: Agent[];
@@ -49,7 +58,10 @@ export type Project = {
   briefing: ShopState["briefing"];
   hireable: ShopState["hireable"];
   activity: readonly Activity[];
+  runs: Run[];
+  answered: Answered[];
   spentUsd: number;
+  tokens: TokenUsage | null;
 };
 
 export type Snapshot = {
@@ -58,6 +70,7 @@ export type Snapshot = {
   paused: ShopState["paused"];
   readiness: readonly Finding[];
   costs: { today: number; total: number; cap: number | null };
+  preferences: Record<string, unknown>;
   cursor: number;
   simulated: boolean;
 };
@@ -75,6 +88,13 @@ export type Command =
   | { name: "stop-run"; payload: { runId: string } }
   | { name: "sign-team-change" | "discard-team-change" | "sign-briefing-change" | "discard-briefing-change"; payload: { changeId: string } }
   | { name: "pause-shop" | "resume-shop" | "recheck"; payload: Record<string, never> }
+  | { name: "pause-project" | "resume-project"; payload: { project: string } }
+  | { name: "describe-project"; payload: { project: string; name?: string | null; description?: string | null } }
+  | {
+      name: "register-project";
+      payload: { id: string; repo: string; baseBranch: string; verifyCommands: string[]; setupCommand?: string; protectedPaths?: string[]; name?: string; description?: string };
+    }
+  | { name: "set-preference"; payload: { key: string; value: Record<string, unknown> | null } }
   | { name: "merge-pull-request"; payload: { orderId: string } };
 
 export type Send = (command: Command) => Promise<boolean>;
