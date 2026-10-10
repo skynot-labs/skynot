@@ -10,9 +10,8 @@ been built or opened yet, so expect to fix small things on the first run.
 
 - **Docker** with Compose **2.24 or later** (the optional `env_file` entries need it).
 - **VS Code** with the **Dev Containers** extension.
-- **A fine-grained GitHub token** with only `rodacato/skynot` and `rodacato/taller-todo` selected, an
-  expiry, and read and write on contents, issues and pull requests. Add the repositories the shop
-  manages to that list, and nothing else.
+- **A fine-grained GitHub token** with only this repository and the repositories the shop manages
+  selected, an expiry, and read and write on contents, issues and pull requests. Nothing else.
 - Only for GitHub Projects: a separate classic token with `project` and nothing wider. Fine-grained
   tokens cannot reach a Project owned by a user account.
 

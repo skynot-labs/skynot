@@ -80,4 +80,8 @@ place, a season or a wardrobe look is in [docs/studio-themes.md](docs/studio-the
 `/github/` and how to publish them are in [docs/github-kit.md](docs/github-kit.md); the GitHub App in
 [docs/github-app.md](docs/github-app.md).
 
-Rules for working here are in [AGENTS.md](AGENTS.md).
+Rules for working here are in [AGENTS.md](AGENTS.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
+
+## License
+
+[MIT](LICENSE).

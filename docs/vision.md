@@ -114,4 +114,3 @@ Autonomy levels per task type, a costs dashboard with automatic cut-off, the vis
 - Confirm that `taller-todo` stays nearly empty so the shop builds the app.
 - Terms of use for automated use of the `claude` and `codex` CLIs on subscriptions.
 - Default `max_parallel` and how rate limits are detected for each CLI.
-- Which license.

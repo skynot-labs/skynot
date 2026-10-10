@@ -2,6 +2,7 @@
   "name": "skynot",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "A dev shop of AI agents: a Manager runs per-project teams that deliver software.",
   "engines": {
