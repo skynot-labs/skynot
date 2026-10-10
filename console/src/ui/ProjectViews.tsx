@@ -169,7 +169,7 @@ function OrderCard({
         <span>{order.worker ?? "developer"}</span>
         <span>{usd(order.spentUsd)}</span>
       </footer>
-      {order.ready && (
+      {order.ready && order.status === "in_review" && (
         <span class="ready-mark">
           <Icon name="check" />
           Ready to merge
