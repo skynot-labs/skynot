@@ -14,13 +14,16 @@ function board(overrides: Record<string, string> = {}) {
         { id: "F_status", name: "Status", options: [{ id: "O_todo", name: "Todo" }, { id: "O_doing", name: "In Progress" }, { id: "O_done", name: "Done" }] },
       ],
     }),
+    "project item-list": JSON.stringify({ items: [] }),
     "project item-add": JSON.stringify({ id: "ITEM_1" }),
+    "project item-create": JSON.stringify({ id: "NOTE_1" }),
     "project item-edit": "{}",
     ...overrides,
   };
   const execute: Exec = async (command, args) => {
     calls.push([command, ...args]);
-    return { stdout: answers[`${args[0]} ${args[1]}`] ?? "", stderr: "", code: 0 };
+    const answer = answers[`${args[0]} ${args[1]}`] ?? "";
+    return answer === "FAIL" ? { stdout: "", stderr: "resource not found", code: 1 } : { stdout: answer, stderr: "", code: 0 };
   };
   return { calls, board: new GhBoard({ owner: "rodacato", number: 13, columns }, execute) };
 }
@@ -43,6 +46,29 @@ describe("github board", () => {
 
     expect(calls.filter((call) => call[2] === "view")).toHaveLength(1);
     expect(calls.filter((call) => call[2] === "field-list")).toHaveLength(1);
+  });
+
+  it("moves the card that is already there, whether it is the issue or a note that starts with its address", async () => {
+    const url = "https://github.com/a/b/issues/7";
+    const items = [{ id: "REAL", content: { url: "https://github.com/a/b/issues/9" } }, { id: "NOTE", content: { body: `${url}\nanything the director added` } }];
+    const { board: github, calls } = board({ "project item-list": JSON.stringify({ items }) });
+
+    await github.place({ url, stage: "done" });
+    await github.place({ url: "https://github.com/a/b/issues/9", stage: "done" });
+    await github.place({ url, stage: "proposed" });
+
+    expect(calls.filter((call) => call[2] === "item-edit").map((call) => call[4])).toEqual(["NOTE", "REAL", "NOTE"]);
+    expect(calls.filter((call) => call[2] === "item-add" || call[2] === "item-create")).toEqual([]);
+    expect(calls.filter((call) => call[2] === "item-list")).toHaveLength(2);
+  });
+
+  it("leaves a note with the issue's address when the board's account cannot see the repository", async () => {
+    const { board: github, calls } = board({ "project item-add": "FAIL" });
+
+    await github.place({ url: "https://github.com/someone/todo/issues/25", stage: "proposed", title: "Add a version command" });
+
+    expect(calls.find((call) => call[2] === "item-create")).toEqual(["gh", "project", "item-create", "13", "--owner", "rodacato", "--title", "todo#25 Add a version command", "--body", "https://github.com/someone/todo/issues/25", "--format", "json"]);
+    expect(calls.find((call) => call[2] === "item-edit")?.[4]).toBe("NOTE_1");
   });
 
   it("says which Status option the board lacks instead of moving the card somewhere else", async () => {

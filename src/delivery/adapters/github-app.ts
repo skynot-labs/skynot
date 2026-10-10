@@ -8,43 +8,68 @@ const RENEW_BEFORE_MS = 5 * 60_000;
 export interface GithubAppOptions {
   appId: string;
   privateKey: string;
-  installationId?: string;
   fetch?: typeof fetch;
   now?: () => number;
 }
 
-// Tokens of a GitHub App installation: they last an hour, so the shop never holds a long-lived credential.
+interface Granted {
+  token: string;
+  expiresAt: number;
+}
+
+// Tokens of a GitHub App: one per account it is installed in, each good for an hour, so the shop never holds a long-lived credential.
 export class GithubAppTokens {
-  private current: { token: string; expiresAt: number } | undefined;
-  private pending: Promise<string> | undefined;
-  private installation: string | undefined;
+  private installations: Promise<Map<string, string>> | undefined;
+  private readonly granted = new Map<string, Granted>();
+  private readonly pending = new Map<string, Promise<string>>();
 
-  constructor(private readonly options: GithubAppOptions) {
-    this.installation = options.installationId;
-  }
+  constructor(private readonly options: GithubAppOptions) {}
 
-  token(): Promise<string> {
-    if (this.current && this.current.expiresAt - this.now() > RENEW_BEFORE_MS) return Promise.resolve(this.current.token);
-    this.pending ??= this.mint().finally(() => (this.pending = undefined));
-    return this.pending;
+  // Without an owner, the token of the only account the App is installed in.
+  async token(owner?: string): Promise<string> {
+    const installation = await this.installationOf(owner);
+    const current = this.granted.get(installation);
+    if (current && current.expiresAt - this.now() > RENEW_BEFORE_MS) return current.token;
+
+    const asked = this.pending.get(installation) ?? this.mint(installation).finally(() => this.pending.delete(installation));
+    this.pending.set(installation, asked);
+    return asked;
   }
 
   private now(): number {
     return (this.options.now ?? Date.now)();
   }
 
-  private async mint(): Promise<string> {
-    this.installation ??= await this.onlyInstallation();
-    const granted = (await this.call("POST", `/app/installations/${this.installation}/access_tokens`)) as { token: string; expires_at: string };
-    this.current = { token: granted.token, expiresAt: Date.parse(granted.expires_at) };
+  private async mint(installation: string): Promise<string> {
+    const granted = (await this.call("POST", `/app/installations/${installation}/access_tokens`)) as { token: string; expires_at: string };
+    this.granted.set(installation, { token: granted.token, expiresAt: Date.parse(granted.expires_at) });
     return granted.token;
   }
 
-  private async onlyInstallation(): Promise<string> {
-    const installations = (await this.call("GET", "/app/installations")) as Array<{ id: number; account: { login: string } }>;
-    if (installations.length === 1) return String(installations[0]!.id);
-    const where = installations.map((entry) => `${entry.account.login} (${entry.id})`).join(", ") || "nowhere";
-    throw new Error(`the GitHub App is installed in ${where}: install it in one account, or name the installation`);
+  private async installationOf(owner: string | undefined): Promise<string> {
+    let accounts = await this.accounts();
+    // installed somewhere new since the shop started
+    if (owner && !accounts.has(owner.toLowerCase())) accounts = await this.accounts(true);
+    const where = [...accounts.keys()].join(", ") || "nowhere";
+
+    if (owner) {
+      const found = accounts.get(owner.toLowerCase());
+      if (!found) throw new Error(`the GitHub App is not installed in ${owner} (it is installed in ${where})`);
+      return found;
+    }
+    if (accounts.size !== 1) throw new Error(`the GitHub App is installed in ${where}: which account is this for?`);
+    return [...accounts.values()][0]!;
+  }
+
+  private accounts(again = false): Promise<Map<string, string>> {
+    if (again || !this.installations) {
+      const read = this.call("GET", "/app/installations?per_page=100").then(
+        (list) => new Map((list as Array<{ id: number; account: { login: string } }>).map((entry) => [entry.account.login.toLowerCase(), String(entry.id)])),
+      );
+      this.installations = read;
+      read.catch(() => this.installations === read && (this.installations = undefined));
+    }
+    return this.installations;
   }
 
   private async call(method: string, path: string): Promise<unknown> {
@@ -65,11 +90,28 @@ export class GithubAppTokens {
   }
 }
 
+const OWNER_IN_ARG = [/(?:^|\/)repos\/([^/\s]+)\//, /github\.com[/:]([^/\s]+)\//];
+const REPO = /^([\w.-]+)\/[\w.-]+$/;
+
+// Which account a gh or git command is about: named in its arguments, or the origin of the clone it runs in.
+export async function accountOf(execute: Exec, command: string, args: readonly string[], cwd?: string): Promise<string | undefined> {
+  const flag = args.findIndex((arg) => arg === "--owner" || arg === "-R" || arg === "clone");
+  const named = flag >= 0 ? args[flag + 1] : undefined;
+  if (named) return REPO.exec(named)?.[1] ?? named;
+
+  for (const arg of args) for (const pattern of OWNER_IN_ARG) if (pattern.test(arg)) return pattern.exec(arg)![1];
+  if (command !== "git" || !cwd) return undefined;
+
+  const origin = await execute("git", ["config", "--get", "remote.origin.url"], { cwd }).catch(() => null);
+  return origin?.code === 0 ? OWNER_IN_ARG[1]!.exec(origin.stdout)?.[1] : undefined;
+}
+
 // gh reads the token from its environment; git gets it as a header, so no credential helper or stored login is involved.
-export function asGithubApp(execute: Exec, tokens: Pick<GithubAppTokens, "token">): Exec {
+// Give the account when the commands do not say it, as those that move a card of a board by its id.
+export function asGithubApp(execute: Exec, tokens: Pick<GithubAppTokens, "token">, account?: string): Exec {
   return async (command, args, options = {}) => {
     if (command !== "gh" && command !== "git") return execute(command, args, options);
-    const token = await tokens.token();
+    const token = await tokens.token(account ?? (await accountOf(execute, command, args, options.cwd)));
     const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
     return execute(command, args, {
       ...options,

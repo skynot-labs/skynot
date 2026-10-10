@@ -29,7 +29,7 @@ export type BoardStage = "proposed" | "in_progress" | "in_review" | "done";
 
 // A project board: where the director sees each ticket and order move.
 export interface Board {
-  place(card: { url: string; stage: BoardStage }): Promise<void>;
+  place(card: { url: string; stage: BoardStage; title?: string }): Promise<void>;
 }
 
 export interface Vcs {
