@@ -12,11 +12,13 @@ import {
   type WorkItem,
   type Workspace,
   type WorkerRunner,
+  askedQuestion,
 } from "../domain";
 
 const COMMAND_TIMEOUT_MS = 600_000;
 const ALWAYS_ALLOWED = ["git status", "git diff *"];
 const STOPPED = "stopped by the director";
+const ASKS = "the worker asks: ";
 
 export interface ImplementerDependencies {
   log: EventLog;
@@ -57,7 +59,7 @@ export class Implementer {
     });
     const event = outcome.ok
       ? { type: "delivery.pull_request_opened", payload: { orderId: item.id, repo: repoName, number: outcome.value.number, url: outcome.value.url } }
-      : { type: "delivery.work_blocked", payload: { orderId: item.id, reason: outcome.error } };
+      : failureEvent(item.id, outcome.error);
     await this.deps.log.record([event]);
     return outcome;
   }
@@ -66,7 +68,7 @@ export class Implementer {
     const outcome = await this.attempt(item, repoName, issue, instruction, approved, signal, (job) => this.commitAndPush(job));
     const event = outcome.ok
       ? { type: "delivery.pull_request_updated", payload: { orderId: item.id, number: pullRequest } }
-      : { type: "delivery.work_blocked", payload: { orderId: item.id, reason: outcome.error } };
+      : failureEvent(item.id, outcome.error);
     await this.deps.log.record([event]);
     return outcome;
   }
@@ -133,6 +135,8 @@ export class Implementer {
       if (signal?.aborted) return err(STOPPED);
       if (!done.ok) return err(`the worker failed: ${done.error}`);
       report = done.value.report.trim();
+      const question = askedQuestion(report);
+      if (question) return err(`${ASKS}${question}`);
 
       const refused = await this.refusal(job);
       if (refused) return err(refused);
@@ -185,6 +189,13 @@ export class Implementer {
     }
     return undefined;
   }
+}
+
+// A worker that stops to ask is waiting for the director, not blocked.
+function failureEvent(orderId: string, error: string) {
+  return error.startsWith(ASKS)
+    ? { type: "delivery.question_raised", payload: { orderId, question: error.slice(ASKS.length) } }
+    : { type: "delivery.work_blocked", payload: { orderId, reason: error } };
 }
 
 const tail = (text: string, length = 400): string => text.trim().slice(-length);

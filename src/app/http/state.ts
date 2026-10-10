@@ -1,5 +1,6 @@
 import { renderCard } from "../../orders";
 import { describeRoles } from "../../team";
+import { inboxOf } from "../inbox";
 import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
@@ -37,6 +38,7 @@ export function readState(shop: Shop, projectId?: string) {
     })),
     chat: desk.chat.messages(),
     decisions: desk.chat.openDecisions(),
+    inbox: inboxOf(shop, project.id),
     team: describeRoles({ roles: desk.team.roles, ...(desk.team.workers && { workers: desk.team.workers }), advisors: desk.roster.members() }),
     teamChanges: desk.roster.pending(),
     hireable: desk.roster.hireable(),
@@ -57,7 +59,7 @@ function summary(shop: Shop, desk: Shop["desks"][number]) {
   const orders = shop.orders.listFor(desk.project.id);
   const blocked = orders.filter((order) => ["signed", "on_bench", "in_review"].includes(order.status) && shop.activity.linksFor(order.id).blocked !== null).length;
   const awaiting = orders.filter((order) => order.status === "awaiting_signature").length;
-  const questions = desk.chat.openDecisions().length;
+  const questions = inboxOf(shop, desk.project.id).length;
   return { id: desk.project.id, repo: desk.project.repo, awaitingSignature: awaiting, blocked, questions, needsYou: awaiting + blocked + questions };
 }
 

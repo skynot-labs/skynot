@@ -14,6 +14,9 @@ export type {
 } from "./ports";
 export { MAX_DIFF_CHARS, REVIEW_SYSTEM, ReviewSchema, followUpFromReview, reviewComment, reviewPrompt, type Review } from "./review";
 export {
+  MAX_QUESTION,
+  QUESTION_MARK,
+  askedQuestion,
   deletedTest,
   issueBody,
   issueTitle,

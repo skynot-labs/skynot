@@ -45,7 +45,7 @@ const WORKERS = { developer: { engine: "claude" as const }, careful: { engine: "
 
 type WorkerWork = (dir: string, request?: EngineRequest) => Promise<void>;
 
-async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string; reviews?: Array<Review | string> } = {}) {
+async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string; reviews?: Array<Review | string>; report?: (request: EngineRequest) => string } = {}) {
   const policy = options.policy ?? shopPolicy();
   const clock = fixedClock(new Date("2026-10-09T12:00:00.000Z"));
   const log = new EventLog(new InMemoryEventStore(), clock);
@@ -57,7 +57,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
 
   const engine = new FakeEngine(async (request) => {
     await work(request.cwd, request);
-    return { text: "evidence: test -f src/feature.txt" };
+    return { text: options.report?.(request) ?? "evidence: test -f src/feature.txt" };
   });
   const scheduler = new RunScheduler({ claude: engine }, log, policy.limits.max_parallel);
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projectsFromPolicy(policy));
@@ -262,6 +262,67 @@ describe("order flow", () => {
 
       expect(shop.flow.requestReview(id)).toMatchObject({ ok: false, error: { message: "the team has no code reviewer" } });
       expect(shop.activity.linksFor(id).reviews).toBe(0);
+    });
+  });
+
+  describe("questions from the worker", () => {
+    const asksOnce = () => {
+      let calls = 0;
+      return (request: EngineRequest) => (++calls === 1 ? "I read the code.\nQUESTION: Which date format do the exports use?" : `evidence: test -f src/feature.txt\n${request.prompt.includes("ISO") ? "used the answer" : ""}`);
+    };
+
+    it("stops and asks, instead of guessing or blocking, and nothing is pushed", async () => {
+      const shop = await createShop(createsFeature, { report: asksOnce() });
+
+      const id = await proposeAndSign(shop);
+
+      const links = shop.activity.linksFor(id);
+      expect(links.question).toBe("Which date format do the exports use?");
+      expect(links.blocked).toBeNull();
+      expect(shop.orders.get(id)?.status).toBe("on_bench");
+      expect(shop.vcs.pullRequests).toEqual([]);
+    });
+
+    it("goes on with the director's answer in the worker's prompt, and the question is gone", async () => {
+      const shop = await createShop(createsFeature, { report: asksOnce() });
+      const id = await proposeAndSign(shop);
+
+      expect(await shop.flow.answerQuestion(id, "ISO 8601")).toMatchObject({ ok: true });
+      await shop.flow.idle();
+
+      expect(shop.engine.requests.at(-1)?.prompt).toContain("Which date format do the exports use? → ISO 8601");
+      expect(shop.activity.linksFor(id).question).toBeNull();
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+    });
+
+    it("is not blocked by a restart, can be discarded, and refuses an answer nobody asked for", async () => {
+      const shop = await createShop(createsFeature, { report: asksOnce() });
+      const id = await proposeAndSign(shop);
+
+      await shop.flow.recover();
+      expect(shop.activity.linksFor(id).blocked).toBeNull();
+      expect(await shop.flow.retry(id)).toMatchObject({ ok: false });
+      expect(await shop.flow.answerQuestion("WO-0099", "x")).toMatchObject({ ok: false, error: { kind: "not_found" } });
+
+      expect(await shop.flow.discard(id)).toMatchObject({ ok: true });
+      expect(await shop.flow.answerQuestion(id, "late")).toMatchObject({ ok: false });
+    });
+
+    it("also asks about an open pull request, and the answer goes back as a follow-up", async () => {
+      let calls = 0;
+      const shop = await createShop(createsFeature, { report: () => (++calls === 2 ? "QUESTION: Should the button be blue?" : "evidence: test -f src/feature.txt") });
+      const id = await proposeAndSign(shop);
+
+      await shop.flow.followUp(id, "make the button nicer");
+      await shop.flow.idle();
+      expect(shop.activity.linksFor(id).question).toBe("Should the button be blue?");
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+
+      await shop.flow.answerQuestion(id, "yes, blue");
+      await shop.flow.idle();
+
+      expect(shop.engine.requests.at(-1)?.prompt).toContain("The director answered your question: yes, blue");
+      expect(shop.activity.linksFor(id).question).toBeNull();
     });
   });
 

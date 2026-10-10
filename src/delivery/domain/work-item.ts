@@ -7,6 +7,8 @@ export interface WorkItem {
   readonly risk: string;
   readonly likelyFiles: readonly string[];
   readonly card: string;
+  readonly answers?: readonly string[];
+  readonly ticket?: number | null;
 }
 
 export interface FileChange {
@@ -62,6 +64,16 @@ export function pullRequestBody(item: WorkItem, issue: number, report: string): 
   ].join("\n");
 }
 
+export const QUESTION_MARK = "QUESTION:";
+export const MAX_QUESTION = 300;
+
+// The worker may stop to ask the director; the last line of its report that starts with the mark is the question.
+export function askedQuestion(report: string): string | null {
+  const line = report.split("\n").map((entry) => entry.trim()).findLast((entry) => entry.startsWith(QUESTION_MARK));
+  const question = line?.slice(QUESTION_MARK.length).trim().slice(0, MAX_QUESTION);
+  return question && question.length >= 3 ? question : null;
+}
+
 export interface WorkerRules {
   protectedPaths: readonly string[];
   verifyCommands: readonly string[];
@@ -86,9 +98,13 @@ export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, 
       `- Run these yourself until they pass: ${rules.verifyCommands.join(", ")}.`,
       `- Do not touch: ${rules.protectedPaths.join(", ")}.`,
       "- Do not commit or push; the service does that.",
+      `- If you cannot go on without a decision that only the director can take, and the repository does not answer it, do not guess and do not change anything: end your report with one line, \`${QUESTION_MARK} <the question, at most ${MAX_QUESTION} characters>\`.`,
     ].join("\n"),
     "Finish with a short report: for each acceptance criterion, the evidence (a test name, or a command and its result).",
   ];
+  if (item.answers?.length) {
+    parts.splice(1, 0, `The director already answered your questions. Follow these answers:\n${item.answers.map((answer) => `- ${answer}`).join("\n")}`);
+  }
   if (followUp) {
     parts.splice(
       1,

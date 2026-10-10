@@ -3,7 +3,7 @@ import { asManagerEvent, type DecisionId, type MessageId } from "../domain";
 
 export interface ChatMessage {
   readonly id: MessageId;
-  readonly author: "director" | "manager";
+  readonly author: "director" | "manager" | "ticket";
   readonly text: string;
   readonly at: string;
   readonly orderId: string | null;
@@ -15,6 +15,7 @@ export interface Decision {
   readonly question: string;
   readonly options: readonly string[];
   readonly askedAt: string;
+  readonly ticket: number | null;
   readonly answer: string | null;
 }
 
@@ -32,6 +33,9 @@ export class ChatProjection implements Projection {
       case "manager.message_received":
         this.chat.push({ id: event.payload.messageId, author: "director", text: event.payload.text, at: stored.occurredAt, orderId: null, decisionId: null });
         break;
+      case "manager.ticket_received":
+        this.chat.push({ id: event.payload.messageId, author: "ticket", text: `#${event.payload.ticket} ${event.payload.title}`, at: stored.occurredAt, orderId: null, decisionId: null });
+        break;
       case "manager.replied":
         this.chat.push({ id: event.payload.messageId, author: "manager", text: event.payload.text, at: stored.occurredAt, orderId: event.payload.orderId, decisionId: event.payload.decisionId });
         break;
@@ -41,6 +45,7 @@ export class ChatProjection implements Projection {
           question: event.payload.question,
           options: event.payload.options,
           askedAt: stored.occurredAt,
+          ticket: event.payload.ticket ?? null,
           answer: null,
         });
         break;

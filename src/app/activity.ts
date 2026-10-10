@@ -19,12 +19,15 @@ export interface OrderLinks {
   readonly approvedPaths: readonly string[];
   readonly waitingOn: readonly string[];
   readonly worker: string | null;
+  readonly question: string | null;
+  readonly questionAt: string | null;
+  readonly answers: readonly string[];
   readonly reviews: number;
   readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[] } | null;
   readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, reviews: 0, review: null, checks: null };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, question: null, questionAt: null, answers: [], reviews: 0, review: null, checks: null };
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
@@ -44,7 +47,7 @@ export class ActivityProjection implements Projection {
     if (event.type === "execution.run_requested") this.runProjects.set(payload.runId as string, this.projectOf(payload));
     const entry = this.describe(event, payload);
     if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, projectId: this.projectOf(payload), ...entry });
-    this.trackLinks(event.type, payload);
+    this.trackLinks(event.type, payload, event.occurredAt);
   }
 
   recent(count: number, projectId?: string): readonly ActivityEntry[] {
@@ -94,6 +97,10 @@ export class ActivityProjection implements Projection {
         return delivery(`protected paths touched: ${(payload.paths as string[]).join(", ")}`);
       case "delivery.protected_paths_approved":
         return delivery(`the director approved: ${(payload.paths as string[]).join(", ")}`);
+      case "delivery.question_raised":
+        return delivery(`the worker asks: ${payload.question}`);
+      case "delivery.question_answered":
+        return delivery(`the director answered: ${payload.answer}`);
       case "delivery.worker_assigned":
         return delivery(`assigned to ${payload.worker}`);
       case "delivery.review_completed":
@@ -147,7 +154,7 @@ export class ActivityProjection implements Projection {
     return run ? { orderId: run.orderId, kind: "run", text: `${run.role} run ${text}`, url: null } : null;
   }
 
-  private trackLinks(type: string, payload: Payload): void {
+  private trackLinks(type: string, payload: Payload, at: string): void {
     const orderId = payload.orderId;
     if (typeof orderId !== "string") return;
     const current = this.links.get(orderId) ?? NO_LINKS;
@@ -167,6 +174,12 @@ export class ActivityProjection implements Projection {
         break;
       case "delivery.protected_paths_approved":
         this.links.set(orderId, { ...current, ...UNBLOCKED, approvedPaths: [...new Set([...current.approvedPaths, ...(payload.paths as string[])])] });
+        break;
+      case "delivery.question_raised":
+        this.links.set(orderId, { ...current, question: payload.question as string, questionAt: at });
+        break;
+      case "delivery.question_answered":
+        this.links.set(orderId, { ...current, question: null, questionAt: null, answers: [...current.answers, `${current.question ?? "question"} → ${payload.answer as string}`] });
         break;
       case "delivery.worker_assigned":
         this.links.set(orderId, { ...current, worker: payload.worker as string });
