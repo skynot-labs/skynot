@@ -1,6 +1,6 @@
 # Phase 3 · Control, flow and an independent reviewer
 
-**Status:** draft for the director's review. Nothing here is built. See [vision](../vision.md) and
+**Status:** decisions taken; slice 3.1 in progress. See [vision](../vision.md) and
 [phase 2](phase-2.md) for what exists.
 
 ## Why
@@ -60,15 +60,13 @@ the card here.
 Priorities and reordering, per-project rosters (phase 4), curated memory and retrospectives (phase 5),
 rate-limit backoff until the first real occurrence shows what the error looks like.
 
-## Open decisions
+## Decisions
 
-1. **Order of the slices.** Proposed: 3.1, 3.2, 3.4, 3.3. Control first because it is safety; flow second
-   because the conflict is already a daily cost; the reviewer before reassignment because reassignment
-   needs a second worker that only the reviewer's engine split makes worth having.
-2. **What "pause" means.** Proposed: the shop stops starting runs and running ones finish. Freezing a live
-   CLI process leaves its timers and network connections running, so it is not offered.
-3. **How independent and how strong the reviewer is.** Proposed: a different engine from the author's,
-   and a gate: the card says "reviewed" only after approval, and changes requested trigger one automatic
-   follow-up round before the director is asked.
-4. **Who brings an out-of-date pull request up to date.** Proposed: the service does it automatically
-   when the pull request conflicts, once per merge that causes it, and the director sees it in the logbook.
+1. **Order of the slices:** 3.1 control, 3.2 flow, 3.4 reviewer, 3.3 workers and reassignment.
+2. **Pause** stops the shop from starting runs; the ones running finish. Stopping a single run or order is
+   a separate action that cancels it. Freezing a live CLI process is not offered: its timers and network
+   connections keep running.
+3. **Reviewer:** a different engine from the author's, and a gate. The card says "reviewed" only after
+   approval, and changes requested trigger one automatic follow-up round before the director is asked.
+4. **Conflicts:** the service brings an out-of-date pull request up to date by itself, once per merge that
+   causes it, and the director sees it in the logbook. The merge stays the director's.
