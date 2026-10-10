@@ -54,12 +54,14 @@ answer, from the Manager or from a worker that stopped to ask, is listed under "
 | `PORT` | `4747` | console port |
 | `SKYNOT_GITHUB_APP_ID` | none | id of a GitHub App the shop acts as |
 | `SKYNOT_GITHUB_APP_KEY` | none | path to that App's private key, outside the repository |
-| `SKYNOT_GITHUB_APP_INSTALLATION` | the only one | installation to use when the App is installed in several accounts |
 
 Without the App variables the shop uses whoever `gh` is logged in as. With them it opens issues, pushes and opens
 pull requests as the App, with tokens that last an hour, so you can review and approve what it opens. The App needs
 Contents, Issues and Pull requests (read and write), Actions (read) and, for a board, organization Projects (read
-and write), and must be installed on every project's repository.
+and write), and must be installed on every project's repository. It may be installed in several accounts: each
+repository and each board is reached through the installation of the account that owns it. A board in another
+account than the repository gets a note with the issue's address instead of the issue itself, because no single
+installation sees both.
 
 The console binds to `127.0.0.1` and has no login. Do not expose it. To work with broad permissions
 without risking your machine, use the [devcontainer](.devcontainer/README.md).

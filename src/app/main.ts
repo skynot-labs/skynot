@@ -35,6 +35,7 @@ const shop = await createShop({
   teams,
   ...(github && {
     exec: github.exec,
+    execFor: github.execFor,
     readiness: () => checkShopReadiness({ exec: github.exec, engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, teams: projects.map((project) => ({ project, team: teams[project.id]! })), dataDir }),
   }),
   reportError: (error, event) => console.error(`handler failed on ${event.type}:`, error),

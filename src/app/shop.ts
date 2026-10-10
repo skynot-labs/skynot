@@ -58,6 +58,8 @@ export interface ShopConfig {
   workspace?: Workspace;
   // How gh and git are run; main passes one that acts as the GitHub App when it is configured.
   exec?: Exec;
+  // The same for commands about one account that do not name it: a board is moved by ids.
+  execFor?: (account: string) => Exec;
   clock?: Clock;
   projects?: Project[];
   briefing?: BriefingStore;
@@ -224,7 +226,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     ...(config.reportError && { onError: config.reportError }),
   }).start();
 
-  const boardOfProject = config.boardOf ?? ((project: Project) => (project.board ? new GhBoard(project.board, config.exec) : undefined));
+  const boardOfProject = config.boardOf ?? ((project: Project) => (project.board ? new GhBoard(project.board, config.execFor?.(project.board.owner) ?? config.exec) : undefined));
   const boards = new Map(projects.map((project) => [project.id, boardOfProject(project)] as const));
   const stopMirror = new BoardMirror({
     log,
