@@ -124,7 +124,7 @@ Administration permission on purpose, so the director sets it in GitHub settings
 |---|---|---|
 | 1 | Engine and model per role in `team.yaml` | Done and tried with the real `claude` (Sonnet on the developer) |
 | 2 | Advisors consulted in parallel by the Manager | Done and tried once with the real `claude`: one consultation took the order from "scalable storage" to a SQLite-only order with a frozen fixture, for about $0.22 against $0.03 for a plain turn |
-| 3 | Team changes with the director's signature (library, `RosterProjection`, Sign and Discard in the console) | Built and tested; not tried with the real `claude` yet. Built on the director's call, without a pain shown |
+| 3 | Team changes with the director's signature (library, `RosterProjection`, Sign and Discard in the console) | Built, and tried once with the real `claude`: the Manager proposed hiring the designer for a wording task, the director signed, the next turn consulted the designer and got a concrete message guide, for about $0.14. Built on the director's call, without a pain shown |
 
 Things to know:
 
