@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";
+import type { EngineName, EngineRequest, RoleEngine } from "../../src/execution";
+import type { Team } from "../../src/team";
 import { examplePolicy } from "../governance/fixtures";
 
 let dataDir: string;
@@ -20,13 +22,20 @@ afterEach(async () => {
   await rm(dataDir, { recursive: true, force: true });
 });
 
-async function openShop(vcs = new FakeVcs()) {
+const defaultTeam: Team = { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } } };
+
+function recording(engine: RoleEngine) {
+  const requests: EngineRequest[] = [];
+  const recorded: RoleEngine = { run: (request) => (requests.push(request), engine.run(request)), loginStatus: () => engine.loginStatus() };
+  return { requests, recorded };
+}
+
+async function openShop(vcs = new FakeVcs(), team: Team = defaultTeam, engines: Partial<Record<EngineName, RoleEngine>> = { claude: createMockManager(), codex: createMockDeveloper() }) {
   const shop = await createShop({
     policy: examplePolicy(),
     dataDir,
-    managerEngine: "claude",
-    workerEngine: "codex",
-    engines: { claude: createMockManager(), codex: createMockDeveloper() },
+    team,
+    engines,
     vcs,
     workspace: new FakeWorkspace(),
   });
@@ -145,5 +154,35 @@ describe("activity", () => {
     await shop.log.record([{ type: "orders.work_started", payload: { orderId: id } }]);
 
     expect(shop.activity.linksFor(id).blocked).toBeNull();
+  });
+
+  describe("the team file", () => {
+    it("sends each role's model to its engine, and none when the role names none", async () => {
+      const manager = recording(createMockManager());
+      const developer = recording(createMockDeveloper());
+      const team: Team = { version: 1, roles: { manager: { engine: "claude", model: "manager-model" }, developer: { engine: "codex" } } };
+      const { shop } = await openShop(new FakeVcs(), team, { claude: manager.recorded, codex: developer.recorded });
+
+      const id = await fileAnOrder(shop);
+      await shop.orderService.sign(id);
+      await shop.flow.idle();
+
+      expect(manager.requests.length).toBeGreaterThan(0);
+      expect(manager.requests.every((request) => request.model === "manager-model")).toBe(true);
+      expect(developer.requests).toHaveLength(1);
+      expect("model" in developer.requests[0]!).toBe(false);
+    });
+
+    it("runs the developer on the engine the team names, not on the manager's", async () => {
+      const claude = recording(createMockManager());
+      const codex = recording(createMockDeveloper());
+      const { shop } = await openShop(new FakeVcs(), defaultTeam, { claude: claude.recorded, codex: codex.recorded });
+
+      const id = await fileAnOrder(shop);
+      await shop.orderService.sign(id);
+      await shop.flow.idle();
+
+      expect(shop.runs.list().map((run) => [run.role, run.engine])).toEqual([["manager", "claude"], ["manager", "claude"], ["developer", "codex"]]);
+    });
   });
 });

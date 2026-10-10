@@ -1,0 +1,9 @@
+version: 1
+
+# One entry per role. `engine` is claude or codex. `model` is optional: leave it out and the CLI's own
+# default applies (the log records which model actually answered).
+roles:
+  manager:
+    engine: claude
+  developer:
+    engine: claude

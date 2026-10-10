@@ -23,6 +23,15 @@ export function Floor({ state }: { state: ShopState }) {
         ))}
       </ul>
 
+      <h2>Team</h2>
+      <ul class="presence">
+        {state.team.map((member) => (
+          <li key={member.role}>
+            <span class="role">{member.role}</span> <span class="engine">({member.engine}, {member.model ?? "default model"})</span>
+          </li>
+        ))}
+      </ul>
+
       <h2>Logbook</h2>
       {state.activity.length === 0 && <p class="empty">Nothing has happened yet.</p>}
       <ol class="logbook">

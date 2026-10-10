@@ -4,8 +4,8 @@ import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { FakeVcs, FakeWorkspace } from "../delivery";
-import type { EngineName } from "../execution";
 import { loadPolicy, parsePolicy, type Policy } from "../governance";
+import { loadTeam, type Team } from "../team";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { createShop } from "./shop";
@@ -13,6 +13,7 @@ import { createShop } from "./shop";
 const mock = process.env.SKYNOT_MOCK === "1";
 const port = Number(process.env.PORT ?? 4747);
 const policyPath = process.env.SKYNOT_POLICY ?? "policy.yaml";
+const teamPath = process.env.SKYNOT_TEAM ?? "team.yaml";
 const dataDir = process.env.SKYNOT_DATA ?? (mock ? "data/mock" : "data/shop");
 const consoleDir = "console/dist";
 
@@ -30,9 +31,13 @@ async function readPolicy(): Promise<Policy> {
   return parsed.value;
 }
 
-function engineFrom(name: string): EngineName {
-  if (name === "claude" || name === "codex") return name;
-  throw new Error(`unknown engine "${name}": use claude or codex`);
+async function readTeam(): Promise<Team> {
+  if (mock) return { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } } };
+  if (!existsSync(teamPath)) throw new Error(`${teamPath} not found. Copy team.example.yaml to team.yaml.`);
+
+  const loaded = await loadTeam(teamPath);
+  if (!loaded.ok) throw new Error(loaded.error);
+  return loaded.value;
 }
 
 const policy = await readPolicy();
@@ -41,8 +46,7 @@ const vcs = new FakeVcs();
 const shop = await createShop({
   policy,
   dataDir,
-  managerEngine: mock ? "claude" : engineFrom(process.env.SKYNOT_MANAGER_ENGINE ?? "claude"),
-  workerEngine: mock ? "codex" : engineFrom(process.env.SKYNOT_WORKER_ENGINE ?? "claude"),
+  team: await readTeam(),
   reportError: (error, event) => console.error(`handler failed on ${event.type}:`, error),
   ...(mock && {
     engines: { claude: createMockManager(), codex: createMockDeveloper() },
