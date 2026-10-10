@@ -2,12 +2,13 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { err, ok, type Result } from "../../kernel";
-import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine } from "../domain";
+import { sumUsage, type EngineFailure, type EngineRequest, type EngineResult, type LoginStatus, type RoleEngine, type TokenUsage } from "../domain";
 import { CANCELLED, TIMED_OUT, exec, type Exec } from "../../kernel/process";
 
 export function codexArgs(request: EngineRequest, files: { schema?: string; out: string }): string[] {
   return [
     "exec",
+    "--json",
     "--ephemeral",
     "--ignore-user-config",
     "--ignore-rules",
@@ -28,6 +29,25 @@ async function isolatedHome(parent: string): Promise<string> {
   const realHome = process.env.CODEX_HOME ?? join(homedir(), ".codex");
   await symlink(join(realHome, "auth.json"), join(home, "auth.json"));
   return home;
+}
+
+interface CodexEvent {
+  type?: string;
+  usage?: { input_tokens?: number; cached_input_tokens?: number; output_tokens?: number };
+}
+
+// Each line of `exec --json` is an event; here input_tokens already counts the cached part.
+export function parseCodexEvents(stdout: string): { turns: number; usage: TokenUsage | null } {
+  const completed = stdout.split("\n").flatMap((line) => {
+    const event = parseJson(line) as CodexEvent | null | undefined;
+    return event && typeof event === "object" && event.type === "turn.completed" ? [event] : [];
+  });
+  const usages = completed.flatMap(({ usage }) =>
+    usage?.input_tokens === undefined || usage.output_tokens === undefined
+      ? []
+      : [{ inputTokens: usage.input_tokens, outputTokens: usage.output_tokens, cachedInputTokens: usage.cached_input_tokens ?? null }],
+  );
+  return { turns: completed.length, usage: sumUsage(usages) };
 }
 
 export class CodexEngine implements RoleEngine {
@@ -52,15 +72,18 @@ export class CodexEngine implements RoleEngine {
       if (result.code === TIMED_OUT) return err({ kind: "timeout", message: "codex timed out" });
 
       const text = await readFile(out, "utf8").catch(() => "");
+      const { turns, usage } = parseCodexEvents(result.stdout);
       if (result.code !== 0 || !text.trim()) {
-        return err({ kind: "failed", message: `codex failed (${result.code}): ${result.stderr.trim().slice(-400)}` });
+        const said = result.stderr.trim() || result.stdout.trim();
+        return err({ kind: "failed", message: `codex failed (${result.code}): ${said.slice(-400)}`, ...(usage && { usage }) });
       }
       return ok({
         text,
         structured: schema ? parseJson(text) : undefined,
         costUsd: 0,
-        turns: 0,
-        model: /^model:\s*(.+)$/m.exec(`${result.stderr}\n${result.stdout}`)?.[1] ?? "codex",
+        turns,
+        model: request.model ?? "codex",
+        ...(usage && { usage }),
       });
     } finally {
       await rm(dir, { recursive: true, force: true });

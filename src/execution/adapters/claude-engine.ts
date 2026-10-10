@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "../../kernel";
-import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine } from "../domain";
+import type { EngineFailure, EngineRequest, EngineResult, LoginStatus, RoleEngine, TokenUsage } from "../domain";
 import { CANCELLED, TIMED_OUT, exec, type Exec } from "../../kernel/process";
 
 const READ_TOOLS = ["Read", "Grep", "Glob"];
@@ -35,6 +35,7 @@ interface ClaudeJson {
   structured_output?: unknown;
   total_cost_usd?: number;
   num_turns?: number;
+  usage?: { input_tokens?: number; cache_creation_input_tokens?: number; cache_read_input_tokens?: number; output_tokens?: number };
   modelUsage?: Record<string, { costUSD?: number }>;
 }
 
@@ -44,6 +45,16 @@ function dominantModel(usage: ClaudeJson["modelUsage"] = {}): string {
   return name ?? "claude";
 }
 
+// The CLI's input_tokens leaves out what was written to or read from the cache.
+function usageOf(usage: ClaudeJson["usage"]): TokenUsage | undefined {
+  if (usage?.input_tokens === undefined || usage.output_tokens === undefined) return undefined;
+  return {
+    inputTokens: usage.input_tokens + (usage.cache_creation_input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0),
+    outputTokens: usage.output_tokens,
+    cachedInputTokens: usage.cache_read_input_tokens ?? null,
+  };
+}
+
 export function parseClaude(stdout: string): Result<EngineResult, EngineFailure> {
   let json: ClaudeJson;
   try {
@@ -51,11 +62,13 @@ export function parseClaude(stdout: string): Result<EngineResult, EngineFailure>
   } catch {
     return err({ kind: "failed", message: `claude printed something that is not JSON: ${stdout.slice(0, 200)}` });
   }
+  const usage = usageOf(json.usage);
   if (json.is_error || (json.subtype && json.subtype !== "success")) {
     return err({
       kind: "failed",
       message: `claude stopped: ${json.subtype ?? "error"} ${json.result ?? ""}`.trim(),
       ...(json.total_cost_usd !== undefined && { costUsd: json.total_cost_usd }),
+      ...(usage && { usage }),
     });
   }
   return ok({
@@ -64,6 +77,7 @@ export function parseClaude(stdout: string): Result<EngineResult, EngineFailure>
     costUsd: json.total_cost_usd ?? 0,
     turns: json.num_turns ?? 0,
     model: dominantModel(json.modelUsage),
+    ...(usage && { usage }),
   });
 }
 

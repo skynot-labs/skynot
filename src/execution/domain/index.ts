@@ -1,3 +1,4 @@
+export { sumUsage } from "./engine";
 export type {
   Access,
   EngineFailure,
@@ -6,5 +7,6 @@ export type {
   EngineResult,
   LoginStatus,
   RoleEngine,
+  TokenUsage,
 } from "./engine";
-export { asRunEvent, evolve, type Run, type RunEvent, type RunId, type RunStatus } from "./run";
+export { asRunEvent, evolve, outcomeOf, type Run, type RunEvent, type RunId, type RunOutcome, type RunStatus } from "./run";

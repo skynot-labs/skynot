@@ -295,6 +295,39 @@ describe("order flow", () => {
       expect(shop.orders.get(id)?.status).toBe("in_review");
     });
 
+    it("keeps the answered question with who asked it, even after the order goes to another worker", async () => {
+      const shop = await createShop(createsFeature, { report: asksOnce() });
+      const id = await proposeAndSign(shop);
+      expect(shop.activity.linksFor(id).answered).toEqual([]);
+
+      await shop.flow.answerQuestion(id, "ISO 8601");
+      await shop.flow.idle();
+      expect(await shop.flow.reassign(id, "careful")).toMatchObject({ ok: true });
+
+      const links = shop.activity.linksFor(id);
+      expect(links.worker).toBe("careful");
+      expect(links.answered).toEqual([
+        { question: "Which date format do the exports use?", answer: "ISO 8601", from: "developer", askedAt: "2026-10-09T12:00:00.000Z", answeredAt: "2026-10-09T12:00:00.000Z" },
+      ]);
+      expect(links.answers).toEqual(["Which date format do the exports use? → ISO 8601"]);
+      expect(shop.activity.linksFor("WO-0099").answered).toEqual([]);
+    });
+
+    it("names the worker who held the order when the answer came, and a rebuilt logbook tells the same history", async () => {
+      const shop = await createShop(createsFeature, { report: asksOnce() });
+      const id = await proposeAndSign(shop);
+      expect(await shop.flow.reassign(id, "careful")).toMatchObject({ ok: true });
+
+      await shop.flow.answerQuestion(id, "ISO 8601");
+      await shop.flow.idle();
+      expect(await shop.flow.reassign(id, "developer")).toMatchObject({ ok: true });
+
+      expect(shop.activity.linksFor(id).answered).toMatchObject([{ from: "careful", answer: "ISO 8601" }]);
+      const rebuilt = new ActivityProjection();
+      await attachProjection(shop.log, rebuilt);
+      expect(rebuilt.linksFor(id)).toEqual(shop.activity.linksFor(id));
+    });
+
     it("is not blocked by a restart, can be discarded, and refuses an answer nobody asked for", async () => {
       const shop = await createShop(createsFeature, { report: asksOnce() });
       const id = await proposeAndSign(shop);

@@ -85,6 +85,27 @@ describe("architecture rules", () => {
     expect(checkArchitecture(files)).toHaveLength(1);
   });
 
+  it("lets main and the HTTP layer reach project registration", () => {
+    const files = [
+      file("src/app/main.ts", `import { YamlProjectRegistry } from "../projects";`),
+      file("src/app/http/api.ts", `import type { ProjectRegistry } from "../../projects";`),
+      file("src/projects/domain/ports.ts", `export interface ProjectRegistry {}`),
+    ];
+    expect(checkArchitecture(files)).toEqual([]);
+  });
+
+  it("rejects any other app file that names the project registry, so no desk, Manager or runner can register a project", () => {
+    const files = [
+      file("src/app/shop.ts", `import { YamlProjectRegistry } from "../projects";`),
+      file("src/app/briefing-desk.ts", `import type { ProjectRegistry } from "../projects";`),
+      file("src/app/projects.ts", `import { YamlProjectCatalog } from "../projects";`),
+    ];
+    expect(checkArchitecture(files).map((violation) => [violation.file, violation.imports])).toEqual([
+      ["src/app/shop.ts", "YamlProjectRegistry"],
+      ["src/app/briefing-desk.ts", "ProjectRegistry"],
+    ]);
+  });
+
   it("catches dynamic imports too", () => {
     const files = [file("src/orders/domain/order.ts", `const store = await import("../adapters/store");`)];
     expect(checkArchitecture(files)).toHaveLength(1);

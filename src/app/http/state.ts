@@ -1,16 +1,18 @@
+import { outcomeOf } from "../../execution";
 import { renderCard } from "../../orders";
 import { describeRoles } from "../../team";
-import { inboxOf } from "../inbox";
+import { answeredOf, inboxOf } from "../inbox";
 import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
+const RUNS_LIMIT = 50;
 
 export function readState(shop: Shop, projectId?: string) {
   const desk = (projectId ? shop.desk(projectId) : undefined) ?? shop.desks[0]!;
   const { project } = desk;
   const reviewing = desk.reviewer !== undefined;
   return {
-    project: { id: project.id, repo: project.repo },
+    project: { id: project.id, repo: project.repo, name: project.name, description: project.description },
     projects: shop.desks.map((entry) => summary(shop, entry)),
     repo: project.repo,
     reviewing,
@@ -39,18 +41,37 @@ export function readState(shop: Shop, projectId?: string) {
     chat: desk.chat.messages(),
     decisions: desk.chat.openDecisions(),
     inbox: inboxOf(shop, project.id),
+    answered: answeredOf(shop, project.id),
     team: describeRoles({ roles: desk.team.roles, ...(desk.team.workers && { workers: desk.team.workers }), advisors: desk.roster.members() }),
     teamChanges: desk.roster.pending(),
     briefingChanges: shop.briefingChanges.pendingFor(project.id),
     briefing: shop.briefingChanges.signedFor(project.id),
     hireable: desk.roster.hireable(),
     paused: shop.control.paused(),
+    projectPaused: shop.control.projectPaused(project.id),
     costs: {
       today: shop.runs.spentOn(new Date().toISOString().slice(0, 10)),
       total: shop.runs.spentTotal(),
       cap: shop.maxUsdPerDay ?? null,
       project: shop.runs.spentByProject(project.id),
+      tokens: shop.runs.usageByProject(project.id),
     },
+    runs: shop.runs.finished(project.id, RUNS_LIMIT).map((run) => ({
+      runId: run.id,
+      role: run.role,
+      engine: run.engine,
+      model: run.model,
+      turns: run.turns,
+      orderId: run.orderId,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+      outcome: outcomeOf(run),
+      failure: run.failure ? { kind: run.failure.kind, message: run.failure.message } : null,
+      costUsd: run.costUsd,
+      usage: run.usage,
+    })),
+    agents: shop.runs.byRole(project.id),
+    preferences: shop.preferences.all(),
     presence: presence(shop, project.id),
     activity: shop.activity.recent(ACTIVITY_LIMIT, project.id),
   };
@@ -62,7 +83,8 @@ function summary(shop: Shop, desk: Shop["desks"][number]) {
   const blocked = orders.filter((order) => ["signed", "on_bench", "in_review"].includes(order.status) && shop.activity.linksFor(order.id).blocked !== null).length;
   const awaiting = orders.filter((order) => order.status === "awaiting_signature").length;
   const questions = inboxOf(shop, desk.project.id).length;
-  return { id: desk.project.id, repo: desk.project.repo, awaitingSignature: awaiting, blocked, questions, needsYou: awaiting + blocked + questions };
+  const { id, repo, name, description } = desk.project;
+  return { id, repo, name, description, paused: shop.control.projectPaused(id) !== null, awaitingSignature: awaiting, blocked, questions, needsYou: awaiting + blocked + questions };
 }
 
 function presence(shop: Shop, projectId: string) {

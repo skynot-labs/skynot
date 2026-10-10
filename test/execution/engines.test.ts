@@ -1,4 +1,4 @@
-import { mkdtemp, readlink, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readlink, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,6 +9,7 @@ import {
   claudeArgs,
   codexArgs,
   parseClaude,
+  parseCodexEvents,
   toEngineSchema,
   type EngineRequest,
 } from "../../src/execution";
@@ -17,6 +18,8 @@ import type { Exec, ExecResult } from "../../src/kernel/process";
 const base: EngineRequest = { prompt: "hello", cwd: "/work", access: "read", timeoutMs: 1000 };
 
 const flagValue = (args: string[], flag: string) => args[args.indexOf(flag) + 1];
+
+const fixture = (name: string) => readFile(path.join(import.meta.dirname, "fixtures", name), "utf8");
 
 const execReturning = (result: Partial<ExecResult>): Exec => async () => ({ stdout: "", stderr: "", code: 0, ...result });
 
@@ -71,6 +74,35 @@ describe("claude output", () => {
       modelUsage: { "claude-haiku": { costUSD: 0.0001 }, "claude-sonnet": { costUSD: 0.028 } },
     });
     expect(parseClaude(stdout)).toMatchObject({ ok: true, value: { model: "claude-sonnet" } });
+  });
+
+  it("counts cache writes and reads into the input tokens of a real result", async () => {
+    expect(parseClaude(await fixture("claude-result.json"))).toEqual({
+      ok: true,
+      value: {
+        text: "ok",
+        structured: undefined,
+        costUsd: 0.00100628,
+        turns: 1,
+        model: "claude-haiku-5-5",
+        usage: { inputTokens: 7391, outputTokens: 4, cachedInputTokens: 3148 },
+      },
+    });
+  });
+
+  it("reports no usage when the result has none, and no cached tokens when only those are missing", () => {
+    const silent = parseClaude(JSON.stringify({ subtype: "success", result: "done" }));
+    const uncached = parseClaude(JSON.stringify({ subtype: "success", usage: { input_tokens: 10, output_tokens: 2 } }));
+
+    expect(silent.ok && "usage" in silent.value).toBe(false);
+    expect(uncached).toMatchObject({ ok: true, value: { usage: { inputTokens: 10, outputTokens: 2, cachedInputTokens: null } } });
+  });
+
+  it("keeps the tokens a run used when it ends in an error", () => {
+    const usage = { input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 900, output_tokens: 40 };
+    const stdout = JSON.stringify({ is_error: true, subtype: "error_max_turns", usage });
+
+    expect(parseClaude(stdout)).toMatchObject({ ok: false, error: { usage: { inputTokens: 905, outputTokens: 40, cachedInputTokens: 900 } } });
   });
 
   it("keeps what a run cost when it ends in an error", () => {
@@ -134,13 +166,37 @@ describe("codex arguments", () => {
 
   it("ignores the user's config and rules and reads the prompt from stdin", () => {
     const args = codexArgs(base, files);
-    expect(args).toEqual(expect.arrayContaining(["--ignore-user-config", "--ignore-rules", "--ephemeral"]));
+    expect(args).toEqual(expect.arrayContaining(["--ignore-user-config", "--ignore-rules", "--ephemeral", "--json"]));
     expect(args.at(-1)).toBe("-");
   });
 
   it("adds the output schema only when there is one", () => {
     expect(codexArgs(base, files)).not.toContain("--output-schema");
     expect(flagValue(codexArgs(base, { ...files, schema: "/tmp/s.json" }), "--output-schema")).toBe("/tmp/s.json");
+  });
+});
+
+describe("codex events", () => {
+  it("reads the turn and its tokens from a real run, where the input already counts the cached part", async () => {
+    expect(parseCodexEvents(await fixture("codex-exec.jsonl"))).toEqual({
+      turns: 1,
+      usage: { inputTokens: 14210, outputTokens: 5, cachedInputTokens: 8064 },
+    });
+  });
+
+  it("adds up the turns and skips lines that are not events", async () => {
+    const events = await fixture("codex-exec.jsonl");
+    const second = JSON.stringify({ type: "turn.completed", usage: { input_tokens: 100, cached_input_tokens: 40, output_tokens: 7 } });
+
+    expect(parseCodexEvents(`warning: slow network\n${events}{"type":"turn.comp\nnull\n${second}\n`)).toEqual({
+      turns: 2,
+      usage: { inputTokens: 14310, outputTokens: 12, cachedInputTokens: 8104 },
+    });
+  });
+
+  it("reports no usage when no turn completed or the turn carries none", () => {
+    expect(parseCodexEvents('{"type":"turn.started"}\n')).toEqual({ turns: 0, usage: null });
+    expect(parseCodexEvents('{"type":"turn.completed"}\n')).toEqual({ turns: 1, usage: null });
   });
 });
 
@@ -167,18 +223,48 @@ describe("codex engine", () => {
       const dir = options!.env!.CODEX_HOME!;
       homeSeen = { dir, files: await readdir(dir), authTarget: await readlink(path.join(dir, "auth.json")) };
       await writeFile(flagValue(args, "-o")!, '{"verdict":"ok"}');
-      return { stdout: "", stderr: "model: gpt-test", code: 0 };
+      return { stdout: await fixture("codex-exec.jsonl"), stderr: "", code: 0 };
     };
 
     const result = await new CodexEngine(execute).run({ ...base, schema: { type: "object" } });
 
     expect(result).toEqual({
       ok: true,
-      value: { text: '{"verdict":"ok"}', structured: { verdict: "ok" }, costUsd: 0, turns: 0, model: "gpt-test" },
+      value: {
+        text: '{"verdict":"ok"}',
+        structured: { verdict: "ok" },
+        costUsd: 0,
+        turns: 1,
+        model: "codex",
+        usage: { inputTokens: 14210, outputTokens: 5, cachedInputTokens: 8064 },
+      },
     });
     expect(homeSeen?.dir).not.toBe(realHome);
     expect(homeSeen?.files).toEqual(["auth.json"]);
     expect(homeSeen?.authTarget).toBe(path.join(realHome, "auth.json"));
+  });
+
+  it("names the model the role asked for, and carries no usage when the CLI printed no events", async () => {
+    const execute: Exec = async (_command, args) => {
+      await writeFile(flagValue(args, "-o")!, "text");
+      return { stdout: "", stderr: "", code: 0 };
+    };
+
+    const result = await new CodexEngine(execute).run({ ...base, model: "gpt-test" });
+
+    expect(result).toEqual({ ok: true, value: { text: "text", structured: undefined, costUsd: 0, turns: 0, model: "gpt-test" } });
+    expect(result.ok && "usage" in result.value).toBe(false);
+  });
+
+  it("keeps the tokens of a run that failed, and says what the events said when stderr is empty", async () => {
+    const stdout = await fixture("codex-exec.jsonl");
+
+    const result = await new CodexEngine(execReturning({ code: 1, stdout })).run(base);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: "failed", message: expect.stringContaining("turn.completed"), usage: { inputTokens: 14210, outputTokens: 5, cachedInputTokens: 8064 } },
+    });
   });
 
   it("removes its temporary home afterwards", async () => {

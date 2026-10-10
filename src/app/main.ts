@@ -5,10 +5,11 @@ import { Hono } from "hono";
 import { FakeVcs, FakeWorkspace } from "../delivery";
 import { readPolicy, readTeam } from "./config";
 import { lockDataDir } from "./data-lock";
-import { briefingStore, readProjects } from "./projects";
+import { briefingStore, PROJECTS_DIR, projectsFolder, readProjects } from "./projects";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { ClaudeEngine, CodexEngine } from "../execution";
+import { YamlProjectRegistry } from "../projects";
 import { checkShopReadiness } from "./readiness";
 import { githubExec } from "./github";
 import { createShop } from "./shop";
@@ -49,6 +50,7 @@ const shop = await createShop({
 const api = createApi(shop, {
   allowedHosts: [`127.0.0.1:${port}`, `localhost:${port}`],
   onError: (error) => console.error("command failed:", error),
+  projects: { registry: new YamlProjectRegistry(PROJECTS_DIR), folder: () => projectsFolder(), policyRepos: policy.repos.map((repo) => repo.name) },
   ...(mock && {
     devTools: {
       async mergePullRequest(orderId: string) {

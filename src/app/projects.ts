@@ -8,6 +8,8 @@ export const PROJECTS_DIR = process.env.SKYNOT_PROJECTS ?? "projects";
 export function projectsFromPolicy(policy: Policy): Project[] {
   return policy.repos.map((repo) => ({
     id: repo.name.split("/")[1]!.toLowerCase(),
+    name: null,
+    description: null,
     repo: repo.name,
     baseBranch: repo.base_branch,
     setupCommand: repo.setup_command,
@@ -16,7 +18,7 @@ export function projectsFromPolicy(policy: Policy): Project[] {
   }));
 }
 
-const DEMO: Project = { id: "demo", repo: "demo/todo", baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [".github/"] };
+const DEMO: Project = { id: "demo", name: null, description: null, repo: "demo/todo", baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [".github/"] };
 
 export async function readProjects(policy: Policy, mock = false, dir = PROJECTS_DIR): Promise<Project[]> {
   if (mock && !existsSync(dir)) return [DEMO];
@@ -34,3 +36,31 @@ export async function readProjects(policy: Policy, mock = false, dir = PROJECTS_
 }
 
 export const briefingStore = (policy: Policy, dir = PROJECTS_DIR): BriefingStore => new FileBriefingStore(dir, policy.memory.max_memory_chars);
+
+export interface ProjectsFolder {
+  readonly dir: string;
+  readonly holdsProjects: boolean;
+}
+
+export async function projectsFolder(dir = PROJECTS_DIR): Promise<ProjectsFolder> {
+  return { dir, holdsProjects: (await new YamlProjectCatalog(dir).list()).length > 0 };
+}
+
+// What readProjects would do to the running shop at its next start if this project got a folder now.
+export function registrationProblem(input: { id: string; repo: string }, current: readonly Project[], folder: ProjectsFolder, policyRepos: readonly string[]): string | null {
+  if (current.some((project) => project.id === input.id)) return `There is already a project called ${input.id}: choose another id.`;
+  const owner = current.find((project) => project.repo.toLowerCase() === input.repo.toLowerCase());
+  if (owner) return `${owner.repo} already belongs to the project ${owner.id}: a repository belongs to one project.`;
+  const first = current[0];
+  if (!first) return null;
+  const ids = current.map((project) => project.id).join(", ");
+  if (!folder.holdsProjects) {
+    const source = policyRepos.includes(first.repo) ? "the repos list in policy.yaml" : "the simulated demo";
+    return `The shop is running ${ids} from ${source}, not from ${folder.dir}/. Registering ${input.id} would create the first project folder, and at the next start ${ids} would vanish because only the folders would be read. Create ${folder.dir}/<id>/project.yaml for each current project first (see projects.example/), restart, then register ${input.id}.`;
+  }
+  if (current.some((project) => project.repo === policyRepos[0])) return null;
+  const inherits = `the first project owns the history recorded before projects existed, which today is ${first.id}'s`;
+  if (input.repo === policyRepos[0]) return `policy.yaml names ${input.repo} first, so ${input.id} would become the first project, and ${inherits}. Take ${input.repo} out of the first place of repos in policy.yaml, restart, then register it.`;
+  if (input.id.localeCompare(first.id) < 0) return `${input.id} sorts before ${first.id}, so it would become the first project, and ${inherits}. Choose an id that sorts after ${first.id}.`;
+  return null;
+}

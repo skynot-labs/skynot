@@ -84,6 +84,17 @@ describe("cost guard", () => {
     await vi.waitFor(() => expect(control.paused()?.reason).toContain("$1.10 spent"));
   });
 
+  it("still pauses the whole shop at the cap while one project is paused", async () => {
+    const { control, spend } = await openGuard(1);
+    await control.pauseProject("alpha", "waiting for the client");
+
+    await spend(1.5);
+
+    await vi.waitFor(() => expect(control.paused()?.reason).toContain("$1.50 spent"));
+    expect(control.pausedFor("beta")?.reason).toContain("daily cost cap");
+    expect(control.projectPaused("alpha")?.reason).toBe("waiting for the client");
+  });
+
   it("does not pause twice for the same overrun", async () => {
     const { control, spend } = await openGuard(1);
 

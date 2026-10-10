@@ -1,9 +1,12 @@
-import { FakeEngine, type FakeAnswer } from "../execution";
+import { FakeEngine, type EngineRequest, type FakeAnswer } from "../execution";
 
 const MARKER = "## New message from the director\n";
 
+const MANAGER_USAGE = { inputTokens: 18_400, outputTokens: 320, cachedInputTokens: 15_100 };
+const DEVELOPER_USAGE = { inputTokens: 212_000, outputTokens: 6_800, cachedInputTokens: 187_000 };
+
 export function createMockManager(): FakeEngine {
-  const answer: FakeAnswer = (request) => {
+  const reply = (request: EngineRequest) => {
     const message = request.prompt.split(MARKER).at(-1)?.trim() ?? "";
     const idea = firstIdea(request.prompt, message);
 
@@ -24,11 +27,12 @@ export function createMockManager(): FakeEngine {
       },
     };
   };
+  const answer: FakeAnswer = (request) => ({ ...reply(request), usage: MANAGER_USAGE });
   return new FakeEngine(answer);
 }
 
 export function createMockDeveloper(): FakeEngine {
-  return new FakeEngine(async () => ({ text: "Criterion 1: covered by the new test. Criterion 2: the negative case is tested.", costUsd: 0.31 }));
+  return new FakeEngine(async () => ({ text: "Criterion 1: covered by the new test. Criterion 2: the negative case is tested.", costUsd: 0.31, usage: DEVELOPER_USAGE }));
 }
 
 function firstIdea(prompt: string, current: string): string {

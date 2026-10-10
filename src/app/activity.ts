@@ -10,6 +10,14 @@ export interface ActivityEntry {
   readonly url: string | null;
 }
 
+export interface AnsweredQuestion {
+  readonly question: string;
+  readonly answer: string;
+  readonly from: string;
+  readonly askedAt: string;
+  readonly answeredAt: string;
+}
+
 export interface OrderLinks {
   readonly issue: number | null;
   readonly issueUrl: string | null;
@@ -22,12 +30,13 @@ export interface OrderLinks {
   readonly question: string | null;
   readonly questionAt: string | null;
   readonly answers: readonly string[];
+  readonly answered: readonly AnsweredQuestion[];
   readonly reviews: number;
   readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[] } | null;
   readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, question: null, questionAt: null, answers: [], reviews: 0, review: null, checks: null };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, question: null, questionAt: null, answers: [], answered: [], reviews: 0, review: null, checks: null };
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
@@ -71,6 +80,7 @@ export class ActivityProjection implements Projection {
     const order = (text: string, url: string | null = null) => ({ orderId, kind: "order" as const, text, url });
     const delivery = (text: string, url: string | null = null) => ({ orderId, kind: "delivery" as const, text, url });
     const advice = (text: string) => ({ orderId: null, kind: "advice" as const, text, url: null });
+    const shop = (text: string) => ({ orderId: null, kind: "run" as const, text, url: null });
 
     switch (event.type) {
       case "orders.proposed":
@@ -120,9 +130,17 @@ export class ActivityProjection implements Projection {
       case "delivery.pull_request_updated":
         return delivery(`pull request #${payload.number} updated`);
       case "control.paused":
-        return { orderId: null, kind: "run" as const, text: `the shop was paused: ${payload.reason}`, url: null };
+        return shop(`the shop was paused: ${payload.reason}`);
       case "control.resumed":
-        return { orderId: null, kind: "run" as const, text: "the shop resumed", url: null };
+        return shop("the shop resumed");
+      case "control.project_paused":
+        return shop(`project paused: ${payload.reason}`);
+      case "control.project_resumed":
+        return shop("project resumed");
+      case "projects.registered":
+        return shop("project registered; it starts with the next restart");
+      case "projects.described":
+        return shop("project name and description changed");
       case "team.change_proposed":
         return advice(`the Manager proposes to ${payload.action} ${payload.role}: ${payload.reason}`);
       case "team.change_signed":
@@ -136,7 +154,7 @@ export class ActivityProjection implements Projection {
       case "team.change_discarded":
         return advice(`the proposal to ${payload.action} ${payload.role} was discarded`);
       case "manager.answer_rejected":
-        return { orderId: null, kind: "run" as const, text: `the Manager's answer was rejected (try ${payload.attempt}): ${String(payload.issues).replaceAll("\n", "; ").slice(0, 300)}`, url: null };
+        return shop(`the Manager's answer was rejected (try ${payload.attempt}): ${String(payload.issues).replaceAll("\n", "; ").slice(0, 300)}`);
       case "manager.consulted":
         return advice(`the Manager asked ${payload.role}: ${payload.question}`);
       case "manager.advised":
@@ -184,9 +202,18 @@ export class ActivityProjection implements Projection {
       case "delivery.question_raised":
         this.links.set(orderId, { ...current, question: payload.question as string, questionAt: at });
         break;
-      case "delivery.question_answered":
-        this.links.set(orderId, { ...current, question: null, questionAt: null, answers: [...current.answers, `${current.question ?? "question"} → ${payload.answer as string}`] });
+      case "delivery.question_answered": {
+        const question = current.question ?? "question";
+        const answer = payload.answer as string;
+        this.links.set(orderId, {
+          ...current,
+          question: null,
+          questionAt: null,
+          answers: [...current.answers, `${question} → ${answer}`],
+          answered: [...current.answered, { question, answer, from: current.worker ?? "developer", askedAt: current.questionAt ?? at, answeredAt: at }],
+        });
         break;
+      }
       case "delivery.worker_assigned":
         this.links.set(orderId, { ...current, worker: payload.worker as string });
         break;

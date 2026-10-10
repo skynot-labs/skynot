@@ -1,5 +1,9 @@
 version: 1
 
+# Optional: what the console calls the project instead of its folder name, and a line about what it is.
+# name: Example
+# description: What this project is and who it is for.
+
 # The repository this project works on, and how the shop checks the work before opening a pull request.
 repo: OWNER/REPO
 base_branch: main

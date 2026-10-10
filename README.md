@@ -23,7 +23,8 @@ This spends your `claude` subscription quota and writes to the repository named 
 1. Log in to `claude` (and `codex` if you use it) and to `gh`.
 2. `cp policy.example.yaml policy.yaml` for the limits and the daily cap, and `cp -r projects.example projects`,
    then rename `projects/example` to the project's name and set its repository. `projects/` and `policy.yaml` are
-   yours and untracked; only you edit them. A project folder holds `project.yaml`, an optional `team.yaml` (without
+   yours and untracked; only you edit them. A project folder holds `project.yaml` (repository, checks, protected
+   paths, and optionally a `name` and a `description` for the console), an optional `team.yaml` (without
    one, the shop's `team.yaml` serves it) and an optional `briefing.md`: private notes the Manager reads at every
    turn, for what must not go in the repository. Vision and architecture belong in the repository itself. Without a `projects/` folder,
    the `repos` list in `policy.yaml` serves as the only project; with one, that list is ignored. Several folders

@@ -17,6 +17,7 @@ export interface Decision {
   readonly askedAt: string;
   readonly ticket: number | null;
   readonly answer: string | null;
+  readonly answeredAt: string | null;
 }
 
 export class ChatProjection implements Projection {
@@ -47,11 +48,12 @@ export class ChatProjection implements Projection {
           askedAt: stored.occurredAt,
           ticket: event.payload.ticket ?? null,
           answer: null,
+          answeredAt: null,
         });
         break;
       case "manager.decision_answered": {
         const decision = this.decisionsById.get(event.payload.decisionId);
-        if (decision) this.decisionsById.set(decision.id, { ...decision, answer: event.payload.answer });
+        if (decision) this.decisionsById.set(decision.id, { ...decision, answer: event.payload.answer, answeredAt: stored.occurredAt });
         break;
       }
     }
@@ -71,5 +73,9 @@ export class ChatProjection implements Projection {
 
   openDecisions(): Decision[] {
     return [...this.decisionsById.values()].filter((decision) => decision.answer === null);
+  }
+
+  answeredDecisions(): Decision[] {
+    return [...this.decisionsById.values()].filter((decision) => decision.answer !== null);
   }
 }
