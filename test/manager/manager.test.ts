@@ -192,7 +192,7 @@ describe("manager runner", () => {
     const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date()));
     const runner = createManagerRunner(new RunScheduler({ claude: engine }, log, 1), {
       engine: "claude",
-      cwd: "/work",
+      cwd: async () => "/work",
       timeoutMs: 1000,
       maxUsd: 1,
     });
@@ -210,6 +210,40 @@ describe("manager runner", () => {
 
   it("falls back to parsing the text when the engine gives no structured output", async () => {
     expect(await ask(new FakeEngine(() => ({ text: JSON.stringify(request) })))).toEqual({ ok: true, value: request });
+  });
+
+  it("asks for the project directory on every call, so it always reads a fresh copy", async () => {
+    const engine = new FakeEngine(() => ({ structured: request }));
+    const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date()));
+    let calls = 0;
+    const runner = createManagerRunner(new RunScheduler({ claude: engine }, log, 1), {
+      engine: "claude",
+      cwd: async () => `/copy-${++calls}`,
+      timeoutMs: 1000,
+    });
+    const schema = createAnswerSchema(WorkOrderSpecSchema);
+
+    await runner.ask({ system: "s", prompt: "p", schema });
+    await runner.ask({ system: "s", prompt: "p", schema });
+
+    expect(engine.requests.map((entry) => entry.cwd)).toEqual(["/copy-1", "/copy-2"]);
+  });
+
+  it("reports a repository that cannot be read without running the model", async () => {
+    const engine = new FakeEngine(() => ({ structured: request }));
+    const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date()));
+    const runner = createManagerRunner(new RunScheduler({ claude: engine }, log, 1), {
+      engine: "claude",
+      cwd: async () => {
+        throw new Error("gh: not logged in");
+      },
+      timeoutMs: 1000,
+    });
+
+    const outcome = await runner.ask({ system: "s", prompt: "p", schema: createAnswerSchema(WorkOrderSpecSchema) });
+
+    expect(outcome).toEqual({ ok: false, error: "could not read the repository: gh: not logged in" });
+    expect(engine.requests).toEqual([]);
   });
 
   it("passes an engine failure up as a message", async () => {

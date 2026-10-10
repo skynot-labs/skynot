@@ -22,6 +22,23 @@ describe("git workspace", () => {
     expect(await readFile(path.join(dir, "src/app.txt"), "utf8")).toBe("app\n");
   });
 
+  it("gives a reading copy at the tip of the base branch, refreshed on every call", async () => {
+    const first = await workspace.readingCopy("acme/widgets", "main");
+    expect(await readFile(path.join(first, "src/app.txt"), "utf8")).toBe("app\n");
+
+    const upstream = path.join(sandbox.root, "upstream");
+    await git(sandbox.root, "clone", "--quiet", sandbox.origin, upstream);
+    await addFiles(upstream, { "src/later.txt": "later\n" });
+    await git(upstream, "add", "-A");
+    await git(upstream, "commit", "-m", "later");
+    await git(upstream, "push", "origin", "main");
+
+    const second = await workspace.readingCopy("acme/widgets", "main");
+
+    expect(second).toBe(first);
+    expect(await readFile(path.join(second, "src/later.txt"), "utf8")).toBe("later\n");
+  });
+
   it("reports new, modified and deleted files", async () => {
     const dir = await workspace.prepare("acme/widgets", "main", "taller/wo-0001");
     await addFiles(dir, { "src/new.txt": "new\n" });

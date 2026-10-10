@@ -6,6 +6,10 @@ import type { CommandOutcome, FileChange, Workspace } from "../domain";
 export class FakeWorkspace implements Workspace {
   readonly pushed: string[] = [];
 
+  async readingCopy(): Promise<string> {
+    return tmpdir();
+  }
+
   async prepare(): Promise<string> {
     return mkdtemp(join(tmpdir(), "skynot-fake-worktree-"));
   }

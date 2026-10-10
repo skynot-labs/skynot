@@ -4,7 +4,7 @@ import type { ModelRunner } from "../manager";
 
 export interface ManagerEngineOptions {
   engine: EngineName;
-  cwd: string;
+  cwd: () => Promise<string>;
   timeoutMs: number;
   model?: string;
   maxUsd?: number;
@@ -13,10 +13,17 @@ export interface ManagerEngineOptions {
 export function createManagerRunner(scheduler: RunScheduler, options: ManagerEngineOptions): ModelRunner {
   return {
     async ask({ system, prompt, schema }) {
+      let cwd: string;
+      try {
+        cwd = await options.cwd();
+      } catch (error) {
+        return err(`could not read the repository: ${(error as Error).message}`);
+      }
+
       const request: EngineRequest = {
         prompt,
         system,
-        cwd: options.cwd,
+        cwd,
         access: "read",
         schema: toEngineSchema(schema),
         timeoutMs: options.timeoutMs,

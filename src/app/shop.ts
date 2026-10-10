@@ -33,7 +33,6 @@ export interface ShopConfig {
   dataDir: string;
   managerEngine: EngineName;
   workerEngine: EngineName;
-  managerCwd?: string;
   engines?: Partial<Record<EngineName, RoleEngine>>;
   vcs?: Vcs;
   workspace?: Workspace;
@@ -63,6 +62,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const { policy, dataDir } = config;
   const clock = config.clock ?? systemClock;
   const repo = config.repo ?? policy.repos[0]!.name;
+  const repoRules = policy.repos.find((candidate) => candidate.name === repo) ?? policy.repos[0]!;
 
   const log = new EventLog(new JsonlEventStore(join(dataDir, "events.jsonl")), clock, config.reportError);
   const orders = new OrdersProjection();
@@ -85,7 +85,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     chat,
     runner: createManagerRunner(scheduler, {
       engine: config.managerEngine,
-      cwd: config.managerCwd ?? dataDir,
+      cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
       timeoutMs: MANAGER_TIMEOUT_MS,
       maxUsd: policy.run_budget.max_usd,
     }),

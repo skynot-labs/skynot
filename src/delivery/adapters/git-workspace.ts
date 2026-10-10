@@ -27,6 +27,10 @@ export class GitWorkspace implements Workspace {
       options.clone ?? (async (repo, dir) => void (await run(this.execute, "gh", ["repo", "clone", repo, dir, "--", "--quiet"])));
   }
 
+  readingCopy(repo: string, baseBranch: string): Promise<string> {
+    return this.exclusive(repo, () => this.refresh(repo, baseBranch));
+  }
+
   prepare(repo: string, baseBranch: string, branch: string): Promise<string> {
     return this.exclusive(repo, async () => {
       const source = await this.refresh(repo, baseBranch);
@@ -57,7 +61,7 @@ export class GitWorkspace implements Workspace {
 
   drop(repo: string, dir: string): Promise<void> {
     return this.exclusive(repo, async () => {
-      await this.git(this.readingCopy(repo), "worktree", "remove", "--force", dir).catch(() => rm(dir, { recursive: true, force: true }));
+      await this.git(this.readingCopyPath(repo), "worktree", "remove", "--force", dir).catch(() => rm(dir, { recursive: true, force: true }));
     });
   }
 
@@ -73,12 +77,12 @@ export class GitWorkspace implements Workspace {
     return result;
   }
 
-  private readingCopy(repo: string): string {
+  private readingCopyPath(repo: string): string {
     return join(this.options.root, "repos", repo);
   }
 
   private async refresh(repo: string, baseBranch: string): Promise<string> {
-    const dir = this.readingCopy(repo);
+    const dir = this.readingCopyPath(repo);
     const cloned = await this.git(dir, "rev-parse", "--git-dir").then(
       () => true,
       () => false,
