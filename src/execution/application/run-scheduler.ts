@@ -30,11 +30,11 @@ export class RunScheduler {
     private readonly engines: Partial<Record<EngineName, RoleEngine>>,
     private readonly log: EventLog,
     private readonly maxParallel: number,
-    private readonly paused: () => boolean = () => false,
+    private readonly paused: (projectId?: string) => boolean = () => false,
   ) {
-    // after the projections that decide whether the shop is paused have seen the event
+    // after the projections that decide what is paused have seen the event
     log.subscribe((event) => {
-      if (event.type === "control.resumed") queueMicrotask(() => this.pump());
+      if (event.type === "control.resumed" || event.type === "control.project_resumed") queueMicrotask(() => this.pump());
     });
   }
 
@@ -85,8 +85,10 @@ export class RunScheduler {
   }
 
   private pump(): void {
-    while (!this.paused() && this.running < this.maxParallel && this.waiting.length > 0) {
-      const job = this.waiting.shift()!;
+    while (this.running < this.maxParallel) {
+      const eligible = this.waiting.findIndex((waiting) => !this.paused(waiting.submission.projectId));
+      if (eligible === -1) return;
+      const job = this.waiting.splice(eligible, 1)[0]!;
       this.running++;
       this.active.set(job.runId, job);
       void this.execute(job).finally(() => {
@@ -125,7 +127,13 @@ function finishedEvent(runId: RunId, outcome: Outcome) {
   return outcome.ok
     ? {
         type: "execution.run_completed",
-        payload: { runId, costUsd: outcome.value.costUsd, turns: outcome.value.turns, model: outcome.value.model },
+        payload: {
+          runId,
+          costUsd: outcome.value.costUsd,
+          turns: outcome.value.turns,
+          model: outcome.value.model,
+          ...(outcome.value.usage && { usage: outcome.value.usage }),
+        },
       }
     : { type: "execution.run_failed", payload: { runId, failure: outcome.error } };
 }

@@ -101,6 +101,29 @@ describe("run scheduler", () => {
     expect(runs.list()[0]).toMatchObject({ role: "architect", orderId: "WO-0001", status: "completed", costUsd: 0.25 });
   });
 
+  it("records the tokens, turns and model a run reports, on success and on failure", async () => {
+    const usage = { inputTokens: 1200, outputTokens: 80, cachedInputTokens: 900 };
+    let calls = 0;
+    const engine = new FakeEngine(() => (++calls === 1 ? { text: "hi", turns: 4, model: "sonnet", usage } : { kind: "failed", message: "out of turns", usage }));
+    const { scheduler, log, runs } = await createScheduler(engine, 1);
+
+    await scheduler.submit(submission("architect"));
+    await scheduler.submit(submission("developer"));
+
+    const finished = (await log.readAfter(0)).filter((event) => event.type !== "execution.run_requested" && event.type !== "execution.run_started");
+    expect(finished.map((event) => event.payload)).toMatchObject([{ turns: 4, model: "sonnet", usage }, { failure: { kind: "failed", usage } }]);
+    expect(runs.list()).toMatchObject([{ turns: 4, model: "sonnet", usage }, { turns: null, model: null, usage }]);
+  });
+
+  it("leaves usage out of the event when the engine reports none", async () => {
+    const { scheduler, log, runs } = await createScheduler(new FakeEngine(() => ({ text: "hi" })), 1);
+
+    await scheduler.submit(submission());
+
+    expect((await log.readAfter(0)).at(-1)?.payload).not.toHaveProperty("usage");
+    expect(runs.list()[0]?.usage).toBeNull();
+  });
+
   it("reports an engine failure once, without retrying on its own", async () => {
     const engine = new FakeEngine(() => ({ kind: "failed", message: "rate limited" }));
     const { scheduler, runs } = await createScheduler(engine, 1);

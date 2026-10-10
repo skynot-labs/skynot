@@ -4,7 +4,10 @@ import { z } from "zod";
 import { followUpFromReview } from "../../delivery";
 import type { Result } from "../../kernel";
 import type { OrderError, WorkOrder } from "../../orders";
+import { MAX_PROJECT_DESCRIPTION, MAX_PROJECT_NAME, type Project, type ProjectFile, type ProjectRegistry } from "../../projects";
 import type { TeamChange, TeamError } from "../../team";
+import { PREFERENCE_KEY, setPreference } from "../preferences";
+import { registrationProblem, type ProjectsFolder } from "../projects";
 import type { Shop } from "../shop";
 import { readState } from "./state";
 
@@ -12,12 +15,42 @@ export interface ApiOptions {
   allowedHosts: readonly string[];
   onError?: (error: unknown) => void;
   devTools?: { mergePullRequest(orderId: string): Promise<boolean> };
+  // Only the director's console registers or describes a project; without this both commands are refused.
+  projects?: { registry: ProjectRegistry; folder: () => Promise<ProjectsFolder>; policyRepos: readonly string[] };
 }
 
 const text = z.string().trim().min(1).max(4000);
 const orderId = z.string().regex(/^WO-\d{4}$/);
 const projectId = z.string().regex(/^[a-z][a-z0-9-]{1,39}$/);
 const bucket = z.enum(["lt5", "5-15", "15-30", "gt30"]);
+const command = z.string().min(1);
+const registration = z.object({
+  id: projectId,
+  repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
+  baseBranch: z.string().min(1),
+  verifyCommands: z.array(command).min(1),
+  setupCommand: command.optional(),
+  protectedPaths: z.array(command).optional(),
+  name: z.string().trim().min(1).max(MAX_PROJECT_NAME).optional(),
+  description: z.string().trim().min(1).max(MAX_PROJECT_DESCRIPTION).optional(),
+});
+const profile = z.object({ project: projectId, name: z.string().nullable().optional(), description: z.string().nullable().optional() });
+const preference = z.object({ key: z.string().regex(PREFERENCE_KEY), value: z.record(z.string(), z.unknown()).nullable() });
+const NOT_MANAGED = "projects are not managed from the console in this mode";
+const invalid = (error: z.ZodError): string => `invalid request: ${error.issues.map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`).join("; ")}`;
+
+function toProjectFile({ repo, baseBranch, verifyCommands, setupCommand, protectedPaths, name, description }: z.infer<typeof registration>): ProjectFile {
+  return {
+    version: 1,
+    ...(name && { name }),
+    ...(description && { description }),
+    repo,
+    base_branch: baseBranch,
+    setup_command: setupCommand ?? null,
+    verify_commands: verifyCommands,
+    protected_paths: protectedPaths ?? [],
+  };
+}
 
 const STATUS_FOR: Record<OrderError["kind"], 400 | 404 | 409> = {
   not_found: 404,
@@ -51,6 +84,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   api.get("/api/events", (context) => {
     const after = Number(context.req.query("after") ?? context.req.header("last-event-id") ?? 0) || 0;
     return streamSSE(context, async (stream) => {
+      await stream.write(": open\n\n");
       let lastSent = after;
       const send = async (event: { sequence: number; type: string }) => {
         if (event.sequence <= lastSent) return;
@@ -147,6 +181,65 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   api.post("/api/commands/resume-shop", async (context) => {
     const resumed = await shop.control.resume();
     return resumed.ok ? context.json({ paused: false }) : context.json({ error: resumed.error }, 409);
+  });
+
+  for (const [path, run, paused] of [
+    ["pause-project", (id: string) => shop.control.pauseProject(id, "paused by the director"), true],
+    ["resume-project", (id: string) => shop.control.resumeProject(id), false],
+  ] as const) {
+    api.post(`/api/commands/${path}`, async (context) => {
+      const body = z.object({ project: projectId }).safeParse(await context.req.json().catch(() => null));
+      if (!body.success) return context.json({ error: "invalid request" }, 400);
+      if (!shop.desk(body.data.project)) return context.json({ error: `no project ${body.data.project}` }, 404);
+
+      const result = await run(body.data.project);
+      return result.ok ? context.json({ project: body.data.project, paused }) : context.json({ error: result.error }, 409);
+    });
+  }
+
+  const registered: Project[] = [];
+  api.post("/api/commands/register-project", async (context) => {
+    if (!options.projects) return context.json({ error: NOT_MANAGED }, 409);
+    const { registry, folder, policyRepos } = options.projects;
+    const body = registration.safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: invalid(body.error) }, 400);
+
+    let problem: string | null;
+    try {
+      problem = registrationProblem(body.data, [...shop.desks.map((desk) => desk.project), ...registered], await folder(), policyRepos);
+    } catch (error) {
+      problem = (error as Error).message;
+    }
+    if (problem) return context.json({ error: problem }, 409);
+
+    const result = await registry.register(body.data.id, toProjectFile(body.data));
+    if (!result.ok) return context.json({ error: result.error }, 409);
+    registered.push(result.value);
+    await shop.log.record([{ type: "projects.registered", payload: { projectId: result.value.id } }]);
+    return context.json({ id: result.value.id, restartRequired: true }, 201);
+  });
+
+  api.post("/api/commands/describe-project", async (context) => {
+    if (!options.projects) return context.json({ error: NOT_MANAGED }, 409);
+    const body = profile.safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: invalid(body.error) }, 400);
+    const { project, name, description } = body.data;
+    const desk = shop.desk(project);
+    if (!desk) return context.json({ error: `no project ${project}` }, 404);
+
+    const result = await options.projects.registry.describe(project, { ...(name !== undefined && { name }), ...(description !== undefined && { description }) });
+    if (!result.ok) return context.json({ error: result.error }, 409);
+    desk.project = { ...desk.project, name: result.value.name, description: result.value.description };
+    await shop.log.record([{ type: "projects.described", payload: { projectId: project } }]);
+    return context.json({ id: project, name: desk.project.name, description: desk.project.description });
+  });
+
+  api.post("/api/commands/set-preference", async (context) => {
+    const body = preference.safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: "invalid request" }, 400);
+
+    const result = await setPreference(shop.log, shop.preferences, body.data.key, body.data.value);
+    return result.ok ? context.json({ key: body.data.key, value: body.data.value }) : context.json({ error: result.error.message }, result.error.kind === "too_large" ? 413 : 409);
   });
 
   const changeId = z.string().regex(/^chg_[0-9a-f-]+$/);

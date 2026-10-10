@@ -217,6 +217,114 @@ describe("console api", () => {
   });
 });
 
+describe("what the studio reads from the state", () => {
+  it("shows the finished runs with their outcome and tokens, each role's totals and the project's tokens", async () => {
+    const before = await getState();
+    expect(before.project).toEqual({ id: "widgets", repo: "acme/widgets", name: null, description: null });
+    expect(before.projects).toMatchObject([{ id: "widgets", name: null, description: null, paused: false }]);
+    expect([before.runs, before.agents, before.costs.tokens]).toEqual([[], [], null]);
+
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+    const state = await getState();
+
+    expect(state.runs.map((run) => run.role)).toEqual(["developer", "manager", "manager"]);
+    expect(state.runs[0]).toMatchObject({ role: "developer", engine: "codex", model: "fake", turns: 1, orderId: id, outcome: "completed", failure: null, costUsd: 0.31 });
+    expect(state.runs[0]?.usage).toEqual({ inputTokens: 212_000, outputTokens: 6_800, cachedInputTokens: 187_000 });
+    expect(state.runs[0]?.runId).toMatch(/^run_/);
+    expect(state.runs.every((run) => run.startedAt !== null && run.finishedAt !== null)).toBe(true);
+    expect(state.agents).toMatchObject([
+      { role: "manager", runs: 2, lastOutcome: "completed", usage: { inputTokens: 36_800 } },
+      { role: "developer", runs: 1, spentUsd: 0.31, lastOutcome: "completed" },
+    ]);
+    expect(state.costs.tokens).toEqual({ inputTokens: 248_800, outputTokens: 7_440, cachedInputTokens: 217_200 });
+  });
+
+  it("keeps a question in the answered list once the director answers it", async () => {
+    await post("/api/commands/send-message", { text: "Export the inventory to CSV" });
+    await settle();
+    expect((await getState()).answered).toEqual([]);
+
+    const [question] = shop.chat.openDecisions();
+    await post("/api/commands/answer-decision", { decisionId: question!.id, answer: "Keep it small" });
+    await settle();
+
+    const state = await getState();
+    expect(state.answered).toMatchObject([{ id: question!.id, kind: "manager_question", from: "manager", answer: "Keep it small", orderId: null }]);
+    expect(state.inbox).toEqual([]);
+  });
+
+  it("refuses to register or describe a project when the console was given no registry", async () => {
+    const registered = await post("/api/commands/register-project", { id: "blog", repo: "acme/blog", baseBranch: "main", verifyCommands: ["npm test"] });
+    const described = await post("/api/commands/describe-project", { project: "widgets", name: "Widgets" });
+
+    expect([registered.status, described.status]).toEqual([409, 409]);
+    expect(await registered.json()).toEqual({ error: "projects are not managed from the console in this mode" });
+    expect((await getState()).project.name).toBeNull();
+  });
+});
+
+describe("console preferences", () => {
+  const set = (key: string, value: unknown) => post("/api/commands/set-preference", { key, value });
+
+  it("sets, reads and removes a preference, and keeps the others after a restart", async () => {
+    expect((await getState()).preferences).toEqual({});
+
+    expect((await set("avatar/manager", { hair: "short", colors: { skin: 2 } })).status).toBe(200);
+    expect((await set("studio/desks/blog", { x: 3, y: 4 })).status).toBe(200);
+    expect((await set("studio/theme", { name: "night" })).status).toBe(200);
+    expect((await set("studio/theme", null)).status).toBe(200);
+    expect((await getState()).preferences).toEqual({ "avatar/manager": { hair: "short", colors: { skin: 2 } }, "studio/desks/blog": { x: 3, y: 4 } });
+
+    shop.stop();
+    shop = await createShop({ policy: examplePolicy(), dataDir, team: shop.team, engines: { claude: createMockManager(), codex: createMockDeveloper() }, vcs, workspace: new FakeWorkspace() });
+    api = createApi(shop, { allowedHosts: [HOST] });
+
+    expect((await getState()).preferences).toEqual({ "avatar/manager": { hair: "short", colors: { skin: 2 } }, "studio/desks/blog": { x: 3, y: 4 } });
+  });
+
+  it("records nothing when the value is the one already stored, or when a missing key is removed", async () => {
+    await set("avatar/manager", { hair: "short", colors: { skin: 2 } });
+    const cursor = shop.cursor.value;
+
+    expect((await set("avatar/manager", { colors: { skin: 2 }, hair: "short" })).status).toBe(200);
+    expect((await set("studio/theme", null)).status).toBe(200);
+    expect(shop.cursor.value).toBe(cursor);
+
+    await set("avatar/manager", { hair: "long", colors: { skin: 2 } });
+    expect(shop.cursor.value).toBe(cursor + 1);
+  });
+
+  it("refuses a key outside the console's namespaces and a value that is not an object", async () => {
+    for (const key of ["policy/limits", "avatar", "avatar/Manager", "studio/desks/blog/extra", "avatar/x", "../avatar/manager"]) {
+      expect((await set(key, { a: 1 })).status, key).toBe(400);
+    }
+    for (const value of ["night", 3, ["a"], undefined]) expect((await set("studio/theme", value)).status).toBe(400);
+    expect((await getState()).preferences).toEqual({});
+  });
+
+  it("refuses a value over 2048 bytes and accepts one at the limit", async () => {
+    const sized = (bytes: number) => ({ a: "x".repeat(bytes - JSON.stringify({ a: "" }).length) });
+
+    expect((await set("studio/theme", sized(2049))).status).toBe(413);
+    expect((await set("studio/theme", { a: "é".repeat(1100) })).status).toBe(413);
+    expect((await getState()).preferences).toEqual({});
+    expect((await set("studio/theme", sized(2048))).status).toBe(200);
+  });
+
+  it("keeps at most 200 keys, and still lets the director change or remove one of them", async () => {
+    for (let index = 0; index < 200; index++) await set(`studio/desk-${index}`, { index });
+
+    const extra = await set("studio/one-too-many", { a: 1 });
+    expect(extra.status).toBe(409);
+    expect((await set("studio/desk-0", { index: -1 })).status).toBe(200);
+    expect((await set("studio/desk-1", null)).status).toBe(200);
+    expect((await set("studio/one-too-many", { a: 1 })).status).toBe(200);
+    expect(Object.keys((await getState()).preferences)).toHaveLength(200);
+  });
+});
+
 describe("console api safety", () => {
   it("refuses requests whose Host is not on the allowed list, which blocks DNS rebinding", async () => {
     const response = await api.request("/api/state", { headers: { host: "evil.example.com" } });
@@ -283,6 +391,20 @@ describe("event stream", () => {
       { id: "2", event: "test.two" },
       { id: "3", event: "test.three" },
     ]);
+  });
+
+  it("opens the stream at once when there is nothing to replay, so the client knows it is connected", async () => {
+    await shop.log.record([{ type: "test.one", payload: {} }]);
+    const controller = new AbortController();
+    const response = await api.request(`/api/events?after=${shop.cursor.value}`, { headers: { host: HOST }, signal: controller.signal });
+    const reader = response.body!.getReader();
+
+    const first = await Promise.race([reader.read(), new Promise<null>((resolve) => setTimeout(() => resolve(null), 500))]);
+    controller.abort();
+    await reader.cancel().catch(() => undefined);
+
+    expect(first).not.toBeNull();
+    expect(new TextDecoder().decode(first!.value)).toMatch(/^:/);
   });
 
   it("does not hold up the rest of the shop while a client is connected", async () => {

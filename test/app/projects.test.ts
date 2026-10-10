@@ -3,10 +3,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDeliveryRules } from "../../src/app/delivery-rules";
-import { projectsFromPolicy, readProjects } from "../../src/app/projects";
+import { projectsFolder, projectsFromPolicy, readProjects, registrationProblem } from "../../src/app/projects";
 import { ActionBudget, ActionCounts } from "../../src/governance";
 import { fixedClock } from "../../src/kernel";
 import { EventLog, InMemoryEventStore } from "../../src/kernel/events";
+import { YamlProjectRegistry, type Project } from "../../src/projects";
 import { YamlTeamRepository } from "../../src/team";
 import { examplePolicy } from "../governance/fixtures";
 
@@ -68,13 +69,82 @@ describe("reading the projects", () => {
   });
 });
 
+describe("registering a project in a running shop", () => {
+  const project = (id: string, repo: string): Project => ({ id, name: null, description: null, repo, baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [] });
+  const fromFolder = { dir: "projects", holdsProjects: true };
+  const noFolder = { dir: "projects", holdsProjects: false };
+  const pinned = [project("widgets", "acme/widgets"), project("blog", "acme/blog")];
+
+  it("accepts a new id on a new repository, anywhere in the order when policy.yaml pins the first project", () => {
+    expect(registrationProblem({ id: "alpha", repo: "acme/alpha" }, pinned, fromFolder, ["acme/widgets"])).toBeNull();
+    expect(registrationProblem({ id: "zeta", repo: "acme/zeta" }, [project("blog", "acme/blog")], fromFolder, [])).toBeNull();
+  });
+
+  it("refuses an id already used and a repository another project serves, whatever its case", () => {
+    expect(registrationProblem({ id: "blog", repo: "acme/other" }, pinned, fromFolder, ["acme/widgets"])).toContain("already a project called blog");
+    expect(registrationProblem({ id: "journal", repo: "Acme/Blog" }, pinned, fromFolder, ["acme/widgets"])).toContain("acme/blog already belongs to the project blog");
+  });
+
+  it("refuses the first folder while the shop runs from policy.yaml or the demo, saying the current project would vanish", () => {
+    const fromPolicy = registrationProblem({ id: "blog", repo: "acme/blog" }, [project("widgets", "acme/widgets")], noFolder, ["acme/widgets"]);
+    const fromDemo = registrationProblem({ id: "blog", repo: "acme/blog" }, [project("demo", "demo/todo")], noFolder, ["acme/widgets"]);
+
+    expect(fromPolicy).toContain("widgets would vanish");
+    expect(fromPolicy).toContain("policy.yaml");
+    expect(fromPolicy).toContain("Create projects/<id>/project.yaml for each current project first");
+    expect(fromDemo).toContain("the simulated demo");
+    expect(fromDemo).toContain("demo would vanish");
+  });
+
+  it("refuses a newcomer that would become the first project and inherit the history recorded before projects existed", () => {
+    const unpinned = [project("blog", "acme/blog"), project("docs", "acme/docs")];
+
+    expect(registrationProblem({ id: "alpha", repo: "acme/alpha" }, unpinned, fromFolder, ["acme/gone"])).toContain("Choose an id that sorts after blog");
+    expect(registrationProblem({ id: "alpha", repo: "acme/alpha" }, unpinned, fromFolder, [])).toContain("would become the first project");
+    expect(registrationProblem({ id: "zeta", repo: "acme/gone" }, unpinned, fromFolder, ["acme/gone"])).toContain("policy.yaml names acme/gone first");
+    expect(registrationProblem({ id: "cms", repo: "acme/cms" }, unpinned, fromFolder, ["acme/gone"])).toBeNull();
+  });
+
+  it("agrees with what the next start really does: an accepted project is listed and the first project stays first", async () => {
+    for (const [name, repo] of [["blog", "acme/blog"], ["docs", "acme/docs"]] as const) {
+      await mkdir(path.join(dir, name));
+      await writeFile(path.join(dir, name, "project.yaml"), yaml(repo));
+    }
+    const policy = { ...examplePolicy(), repos: [] };
+    const current = await readProjects(policy, false, dir);
+    const registry = new YamlProjectRegistry(dir);
+    const file = (repo: string) => ({ version: 1 as const, repo, base_branch: "main", setup_command: null, verify_commands: ["npm test"], protected_paths: [] });
+
+    expect(registrationProblem({ id: "cms", repo: "acme/cms" }, current, await projectsFolder(dir), [])).toBeNull();
+    expect(await registry.register("cms", { ...file("acme/cms"), name: "The CMS" })).toMatchObject({ ok: true });
+    expect((await readProjects(policy, false, dir)).map((listed) => [listed.id, listed.name])).toEqual([["blog", null], ["cms", "The CMS"], ["docs", null]]);
+
+    expect(registrationProblem({ id: "alpha", repo: "acme/alpha" }, current, await projectsFolder(dir), [])).not.toBeNull();
+    await registry.register("alpha", file("acme/alpha"));
+    expect((await readProjects(policy, false, dir))[0]).toMatchObject({ id: "alpha" });
+  });
+
+  it("sees a shop that runs from policy.yaml as one whose folder holds no project, even when the folder exists", async () => {
+    await mkdir(path.join(dir, "some-app"));
+    const current = await readProjects(examplePolicy(), false, dir);
+
+    expect(await projectsFolder(dir)).toEqual({ dir, holdsProjects: false });
+    expect(await projectsFolder(path.join(dir, "none"))).toEqual({ dir: path.join(dir, "none"), holdsProjects: false });
+    expect(registrationProblem({ id: "blog", repo: "acme/blog" }, current, await projectsFolder(dir), ["acme/widgets"])).toContain("widgets would vanish");
+
+    await new YamlProjectRegistry(dir).register("blog", { version: 1, repo: "acme/blog", base_branch: "main", setup_command: null, verify_commands: ["npm test"], protected_paths: [] });
+    expect((await readProjects(examplePolicy(), false, dir)).map((listed) => listed.id)).toEqual(["blog"]);
+    expect(await projectsFolder(dir)).toEqual({ dir, holdsProjects: true });
+  });
+});
+
 describe("delivery rules by project", () => {
   const rules = () => {
     const policy = examplePolicy();
     const clock = fixedClock(new Date("2026-10-11T12:00:00.000Z"));
     const budget = new ActionBudget(policy, new EventLog(new InMemoryEventStore(), clock), new ActionCounts(), clock);
     return createDeliveryRules(policy, budget, [
-      { id: "blog", repo: "acme/blog", baseBranch: "develop", setupCommand: null, verifyCommands: ["make test"], protectedPaths: ["infra/"] },
+      { id: "blog", name: null, description: null, repo: "acme/blog", baseBranch: "develop", setupCommand: null, verifyCommands: ["make test"], protectedPaths: ["infra/"] },
       ...projectsFromPolicy(policy),
     ]);
   };

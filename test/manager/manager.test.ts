@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createManagerRunner } from "../../src/app/model-runner";
 import { createOrderDesk } from "../../src/app/order-desk";
 import { FakeEngine, RunScheduler } from "../../src/execution";
-import { err, fixedClock, ok, type Result } from "../../src/kernel";
+import { err, fixedClock, ok, type Clock, type Result } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
 import { ChatProjection, ManagerService, SYSTEM_PROMPT, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type TeamDesk, type TeamProposal } from "../../src/manager";
 import { OrderService, OrdersProjection, WorkOrderSpecSchema } from "../../src/orders";
@@ -27,8 +27,13 @@ function scriptedRunner(script: Script) {
 const say = (message: string, extra: Record<string, unknown> = {}) =>
   ok({ message, question: null, options: [], order: null, consult: [], team: null, ...extra });
 
-async function createManager(script: Script, advisors?: AdvisorBench, team?: TeamDesk) {
-  const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date("2026-10-09T12:00:00.000Z")));
+function tickingClock(): Clock {
+  let seconds = 0;
+  return { now: () => new Date(Date.UTC(2026, 9, 9, 12, 0, seconds++)) };
+}
+
+async function createManager(script: Script, advisors?: AdvisorBench, team?: TeamDesk, clock: Clock = fixedClock(new Date("2026-10-09T12:00:00.000Z"))) {
+  const log = new EventLog(new InMemoryEventStore(), clock);
   const orders = new OrdersProjection();
   const chat = new ChatProjection();
   await attachProjection(log, orders);
@@ -113,6 +118,42 @@ describe("manager", () => {
     expect(chat.openDecisions()).toEqual([]);
     expect(prompts[1]).toContain('Answer to "Include archived items?": Only active');
     expect(chat.messages().at(-1)?.orderId).toBe("WO-0001");
+  });
+
+  it("keeps an answered question as history, with when it was asked and when it was answered", async () => {
+    const { manager, chat, log } = await createManager(
+      [say("One thing first.", { question: "Include archived items?", options: ["Yes", "Only active"] }), say("Which colour?", { question: "Which colour?", options: [] })],
+      undefined,
+      undefined,
+      tickingClock(),
+    );
+    await manager.handleMessage("Export items to CSV");
+    expect(chat.answeredDecisions()).toEqual([]);
+    const [decision] = chat.openDecisions();
+
+    await manager.answerDecision(decision!.id, "Only active");
+
+    const events = await log.readAfter(0);
+    const at = (type: string) => events.find((event) => event.type === type)!.occurredAt;
+    expect(at("manager.decision_answered") > at("manager.decision_asked")).toBe(true);
+    expect(chat.answeredDecisions()).toEqual([
+      { id: decision!.id, question: "Include archived items?", options: ["Yes", "Only active"], ticket: null, answer: "Only active", askedAt: at("manager.decision_asked"), answeredAt: at("manager.decision_answered") },
+    ]);
+    expect(chat.openDecisions().map((open) => open.question)).toEqual(["Which colour?"]);
+    expect(chat.openDecisions()[0]?.answeredAt).toBeNull();
+  });
+
+  it("keeps the ticket number of an answered doubt, and a rebuilt conversation tells the same history", async () => {
+    const { manager, chat, log } = await createManager([say("I need to know more.", { question: "Which pages get the feed?", options: [] }), say("Understood.")]);
+    await manager.handleTicket({ number: 42, title: "Add an RSS feed", body: "" });
+
+    await manager.answerDecision(chat.openDecisions()[0]!.id, "Only the blog");
+
+    expect(chat.answeredDecisions()).toMatchObject([{ ticket: 42, question: "Which pages get the feed?", answer: "Only the blog" }]);
+    const rebuilt = new ChatProjection();
+    await attachProjection(log, rebuilt);
+    expect(rebuilt.answeredDecisions()).toEqual(chat.answeredDecisions());
+    expect(rebuilt.openDecisions()).toEqual([]);
   });
 
   it("refuses to answer an unknown question or answer the same one twice", async () => {

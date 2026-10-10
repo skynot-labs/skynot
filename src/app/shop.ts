@@ -42,6 +42,7 @@ import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
 import { projectsFromPolicy } from "./projects";
 import { createOrderDesk } from "./order-desk";
+import { PreferencesProjection } from "./preferences";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
 import { ReviewNotice } from "./review-notice";
@@ -99,6 +100,7 @@ export interface Shop {
   scheduler: RunScheduler;
   control: ShopControl;
   activity: ActivityProjection;
+  preferences: PreferencesProjection;
   orderService: OrderService;
   briefingChanges: BriefingChanges;
   briefingService: BriefingService;
@@ -132,11 +134,12 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const briefingChanges = new BriefingChanges();
   const cursor = new LastSequence();
   const control = new ShopControl(log);
-  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges]) await attachProjection(log, projection);
+  const preferences = new PreferencesProjection();
+  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges, preferences]) await attachProjection(log, projection);
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
-  const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, () => control.paused() !== null);
+  const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, (projectId) => control.pausedFor(projectId) !== null);
   const vcs = config.vcs ?? new GhVcs(config.exec);
   const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces"), ...(config.exec && { execute: config.exec }) });
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
@@ -272,6 +275,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     scheduler,
     control,
     activity,
+    preferences,
     orderService,
     briefingChanges,
     briefingService,

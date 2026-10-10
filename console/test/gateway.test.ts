@@ -35,6 +35,7 @@ function order(id: string, overrides: Partial<Order> = {}): Order {
     question: null,
     questionAt: null,
     answers: [],
+    answered: [],
     reviews: 0,
     review: null,
     checks: null,
@@ -49,11 +50,11 @@ function question(overrides: Partial<InboxItem>): InboxItem {
 
 function shopState(overrides: Partial<ShopState> = {}): ShopState {
   return {
-    project: { id: "shop", repo: "skynot-labs/shop" },
+    project: { id: "shop", repo: "skynot-labs/shop", name: null, description: null },
     projects: [
-      { id: "blog", repo: "skynot-labs/blog", awaitingSignature: 1, blocked: 0, questions: 2, needsYou: 3 },
-      { id: "shop", repo: "skynot-labs/shop", awaitingSignature: 0, blocked: 0, questions: 0, needsYou: 0 },
-      { id: "docs", repo: "skynot-labs/docs", awaitingSignature: 0, blocked: 0, questions: 0, needsYou: 0 },
+      { id: "blog", repo: "skynot-labs/blog", name: null, description: null, paused: false, awaitingSignature: 1, blocked: 0, questions: 2, needsYou: 3 },
+      { id: "shop", repo: "skynot-labs/shop", name: null, description: null, paused: false, awaitingSignature: 0, blocked: 0, questions: 0, needsYou: 0 },
+      { id: "docs", repo: "skynot-labs/docs", name: null, description: null, paused: false, awaitingSignature: 0, blocked: 0, questions: 0, needsYou: 0 },
     ],
     repo: "skynot-labs/shop",
     reviewing: true,
@@ -75,7 +76,12 @@ function shopState(overrides: Partial<ShopState> = {}): ShopState {
     briefing: null,
     hireable: [],
     paused: null,
-    costs: { today: 1.5, total: 20, cap: 5, project: 7.25 },
+    costs: { today: 1.5, total: 20, cap: 5, project: 7.25, tokens: null },
+    projectPaused: null,
+    runs: [],
+    agents: [],
+    answered: [],
+    preferences: {},
     presence: { working: [], waiting: [] },
     activity: [],
     simulated: true,

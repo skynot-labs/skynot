@@ -102,7 +102,7 @@ describe("readiness", () => {
 });
 
 describe("readiness of several projects", () => {
-  const project = (id: string, repo: string) => ({ id, repo, baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [] });
+  const project = (id: string, repo: string) => ({ id, name: null, description: null, repo, baseBranch: "main", setupCommand: null, verifyCommands: ["npm test"], protectedPaths: [] });
 
   it("checks the tools once and the repository of each project, naming the project that has the problem", async () => {
     const exec = world({ "gh api repos/acme/blog": done("", 1, "HTTP 404") });

@@ -6,9 +6,10 @@ export interface PauseState {
   readonly reason: string;
 }
 
-// While paused the shop starts no new run; the ones in progress finish. The pause survives a restart.
+// While paused the shop, or one project, starts no new run; the ones in progress finish. A pause survives a restart.
 export class ShopControl implements Projection {
   private state: PauseState | null = null;
+  private readonly projects = new Map<string, PauseState>();
   private lastCapDay: string | null = null;
 
   constructor(private readonly log: EventLog) {}
@@ -20,10 +21,24 @@ export class ShopControl implements Projection {
       if (capDay) this.lastCapDay = capDay;
     }
     if (event.type === "control.resumed") this.state = null;
+    if (event.type === "control.project_paused") {
+      const { projectId, reason } = event.payload as { projectId: string; reason: string };
+      this.projects.set(projectId, { since: event.occurredAt, reason });
+    }
+    if (event.type === "control.project_resumed") this.projects.delete((event.payload as { projectId: string }).projectId);
   }
 
   paused(): PauseState | null {
     return this.state;
+  }
+
+  projectPaused(projectId: string): PauseState | null {
+    return this.projects.get(projectId) ?? null;
+  }
+
+  // What holds a run back: the shop pause first, then its project's.
+  pausedFor(projectId?: string): PauseState | null {
+    return this.state ?? (projectId === undefined ? null : this.projectPaused(projectId));
   }
 
   // The day the cost cap last paused the shop, so a resume on that day is not undone by the same cap.
@@ -40,6 +55,18 @@ export class ShopControl implements Projection {
   async resume(): Promise<Result<null, string>> {
     if (!this.state) return err("the shop is not paused");
     await this.log.record([{ type: "control.resumed", payload: {} }]);
+    return ok(null);
+  }
+
+  async pauseProject(projectId: string, reason: string): Promise<Result<PauseState, string>> {
+    if (this.projects.has(projectId)) return err("the project is already paused");
+    await this.log.record([{ type: "control.project_paused", payload: { projectId, reason } }]);
+    return ok(this.projects.get(projectId)!);
+  }
+
+  async resumeProject(projectId: string): Promise<Result<null, string>> {
+    if (!this.projects.has(projectId)) return err("the project is not paused");
+    await this.log.record([{ type: "control.project_resumed", payload: { projectId } }]);
     return ok(null);
   }
 }

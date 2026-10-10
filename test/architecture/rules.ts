@@ -19,6 +19,8 @@ interface Location {
 }
 
 const IMPORT_SPECIFIER = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
+const PROJECT_REGISTRY = /\b(?:Yaml)?ProjectRegistry\b/;
+const MAY_REGISTER_PROJECTS = (filePath: string) => filePath === "src/app/main.ts" || filePath.startsWith("src/app/http/");
 
 export function checkArchitecture(files: SourceFile[]): Violation[] {
   return files.flatMap((file) => violationsIn(file));
@@ -29,6 +31,8 @@ function violationsIn(file: SourceFile): Violation[] {
   if (!from) return [];
 
   const violations: Violation[] = [];
+  const registry = from.context === "app" && !MAY_REGISTER_PROJECTS(file.path) ? PROJECT_REGISTRY.exec(file.content)?.[0] : undefined;
+  if (registry) violations.push({ file: file.path, imports: registry, reason: "only main and the HTTP layer may reach project registration" });
   for (const match of file.content.matchAll(IMPORT_SPECIFIER)) {
     const specifier = match[1]!;
     if (!specifier.startsWith(".")) continue;
