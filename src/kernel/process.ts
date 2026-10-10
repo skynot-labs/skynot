@@ -26,16 +26,27 @@ export async function run(execute: Exec, command: string, args: string[], option
   return result.stdout;
 }
 
+function killGroup(pid: number | undefined): void {
+  if (pid === undefined) return;
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    // already gone
+  }
+}
+
 export const exec: Exec = (command, args, options = {}) =>
   new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],
+      detached: true,
     });
     let stdout = "";
     let stderr = "";
-    const timer = options.timeoutMs ? setTimeout(() => child.kill("SIGKILL"), options.timeoutMs) : undefined;
+    // Kill the whole group: a shell's grandchildren would otherwise keep the pipes open.
+    const timer = options.timeoutMs ? setTimeout(() => killGroup(child.pid), options.timeoutMs) : undefined;
 
     child.stdout.on("data", (chunk) => (stdout += chunk));
     child.stderr.on("data", (chunk) => (stderr += chunk));
