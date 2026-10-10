@@ -133,3 +133,70 @@ describe("run scheduler", () => {
     expect(runs.list()[0]?.status).toBe("failed");
   });
 });
+
+describe("stopping runs", () => {
+  const untilStopped = (request: EngineRequest) =>
+    new Promise<{ text: string }>((resolve) => request.signal?.addEventListener("abort", () => resolve({ text: "late" })));
+
+  it("kills a running run through its signal and records it as stopped", async () => {
+    const engine = new FakeEngine(untilStopped);
+    const { scheduler, runs } = await createScheduler(engine, 2);
+    const outcome = scheduler.submit(submission());
+    await waitFor(() => runs.list()[0]?.status === "running");
+
+    const found = await scheduler.cancel(runs.list()[0]!.id);
+    await outcome;
+
+    expect(found).toBe(true);
+    expect(engine.requests[0]?.signal?.aborted).toBe(true);
+  });
+
+  it("takes a queued run out of the queue without ever starting it", async () => {
+    const { engine, release } = gatedEngine();
+    const { scheduler, runs } = await createScheduler(engine, 1);
+    const first = scheduler.submit(submission("developer", "WO-0001"));
+    await waitFor(() => engine.requests.length === 1);
+    const second = scheduler.submit(submission("developer", "WO-0002"));
+    await waitFor(() => runs.list().length === 2);
+    const queued = runs.list().find((run) => run.orderId === "WO-0002")!;
+
+    expect(await scheduler.cancel(queued.id)).toBe(true);
+
+    expect(await second).toMatchObject({ ok: false, error: { kind: "cancelled" } });
+    expect(runs.list().find((run) => run.id === queued.id)).toMatchObject({ status: "failed", failure: { kind: "cancelled" } });
+    release();
+    expect(await first).toMatchObject({ ok: true });
+    expect(engine.requests).toHaveLength(1);
+  });
+
+  it("does not run a request whose signal was already aborted", async () => {
+    const engine = new FakeEngine();
+    const { scheduler } = await createScheduler(engine, 1);
+    const stop = new AbortController();
+    stop.abort();
+
+    const outcome = await scheduler.submit({ ...submission(), request: { ...request, signal: stop.signal } });
+
+    expect(outcome).toMatchObject({ ok: false, error: { kind: "cancelled" } });
+    expect(engine.requests).toHaveLength(0);
+  });
+
+  it("stops a run when the signal of its request is aborted later", async () => {
+    const engine = new FakeEngine(untilStopped);
+    const { scheduler, runs } = await createScheduler(engine, 1);
+    const stop = new AbortController();
+    const outcome = scheduler.submit({ ...submission(), request: { ...request, signal: stop.signal } });
+    await waitFor(() => runs.list()[0]?.status === "running");
+
+    stop.abort();
+    await outcome;
+
+    expect(engine.requests[0]?.signal?.aborted).toBe(true);
+  });
+
+  it("says no for a run that is not live", async () => {
+    const { scheduler } = await createScheduler(new FakeEngine(), 1);
+
+    expect(await scheduler.cancel("run_unknown")).toBe(false);
+  });
+});

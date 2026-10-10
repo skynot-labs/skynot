@@ -15,12 +15,14 @@ export function Floor({ state, send }: { state: ShopState; send: Send }) {
       <ul class="presence">
         {working.map((entry) => (
           <li key={entry.runId}>
-            <span class="role">{entry.role}</span> working{entry.orderId ? ` on ${entry.orderId}` : ""} <span class="engine">({entry.engine})</span>
+            <span class="role">{entry.role}</span> working{entry.orderId ? ` on ${entry.orderId}` : ""} <span class="engine">({entry.engine})</span>{" "}
+            <button type="button" class="stop" onClick={() => send("/api/commands/stop-run", { runId: entry.runId })}>Stop</button>
           </li>
         ))}
         {waiting.map((entry) => (
           <li key={entry.runId} class="waiting">
-            <span class="role">{entry.role}</span> waiting, number {entry.position} in line
+            <span class="role">{entry.role}</span> waiting, number {entry.position} in line{" "}
+            <button type="button" class="stop" onClick={() => send("/api/commands/stop-run", { runId: entry.runId })}>Stop</button>
           </li>
         ))}
       </ul>

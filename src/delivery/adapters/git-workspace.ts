@@ -73,8 +73,8 @@ export class GitWorkspace implements Workspace {
     });
   }
 
-  async run(dir: string, command: string, timeoutMs: number): Promise<CommandOutcome> {
-    const result = await this.execute("sh", ["-c", command], { cwd: dir, timeoutMs });
+  async run(dir: string, command: string, timeoutMs: number, signal?: AbortSignal): Promise<CommandOutcome> {
+    const result = await this.execute("sh", ["-c", command], { cwd: dir, timeoutMs, ...(signal && { signal }) });
     const output = `${result.stdout}${result.stderr}`.trim();
     return { ok: result.code === 0, output: result.code === TIMED_OUT ? `timed out: ${output}` : output };
   }
