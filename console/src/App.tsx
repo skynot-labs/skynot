@@ -188,15 +188,11 @@ export function App() {
     project?.agents.filter((a) => a.status === "working").length ?? 0;
   const queued =
     project?.agents.filter((a) => a.status === "queued").length ?? 0;
+  const pending = project?.needsYou ?? 0;
   const toSign =
     project?.orders.filter((o) => o.status === "awaiting_signature").length ??
     0;
-  const pending = project
-    ? project.inbox.length +
-      toSign +
-      project.teamChanges.length +
-      project.briefingChanges.length
-    : 0;
+  const blocked = project?.orders.filter((o) => o.blocked !== null).length ?? 0;
   const failing =
     snapshot?.readiness.filter((f) => f.level === "fail").length ?? 0;
   const toReview =
@@ -518,7 +514,8 @@ export function App() {
                   <span class="stat-detail">
                     {project.inbox.length}{" "}
                     {project.inbox.length === 1 ? "question" : "questions"} ·{" "}
-                    {pending - project.inbox.length} to sign
+                    {pending - project.inbox.length - blocked} to sign
+                    {blocked > 0 && ` · ${blocked} blocked`}
                   </span>
                 </div>
               </button>

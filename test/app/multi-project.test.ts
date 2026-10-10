@@ -226,6 +226,31 @@ describe("the director's inbox", () => {
     expect((await call(shop, "/api/commands/answer-question", { orderId: "WO-0099", answer: "green" })).status).toBe(404);
     expect((await call(shop, "/api/commands/answer-question", { orderId: blogOrder, answer: "" })).status).toBe(400);
   });
+
+  it("counts a signature, a team change and a blocked order as waiting, and stops counting a block once its order is delivered", async () => {
+    const { shop, vcs } = await openShop({ blog: { ...team(), library: { designer: { engine: "claude", description: "screens", soul: "You design." } } } });
+    const waiting = async () => {
+      const response = await createApi(shop, { allowedHosts: ["console"] }).request("/api/state?project=blog", { headers: { host: "console" } });
+      const state = (await response.json()) as { projects: Array<{ id: string; needsYou: number }>; orders: Array<{ id: string; blocked: string | null }> };
+      return { needsYou: state.projects.find((entry) => entry.id === "blog")?.needsYou, blocked: state.orders.map((order) => order.blocked) };
+    };
+    const blogOrder = await fileAnOrder(shop, "blog", "Add an RSS feed");
+    expect(await waiting()).toEqual({ needsYou: 1, blocked: [null] });
+
+    const change = await shop.desk("blog")!.teamService.propose({ action: "hire", role: "designer", reason: "wording heavy" });
+    expect(change.ok).toBe(true);
+    expect((await waiting()).needsYou).toBe(2);
+
+    await shop.orderService.sign(blogOrder);
+    await shop.flow.idle();
+    await shop.log.record([{ type: "delivery.work_blocked", payload: { orderId: blogOrder, reason: "the checks failed" } }]);
+    expect(await waiting()).toEqual({ needsYou: 2, blocked: ["the checks failed"] });
+
+    vcs.setPullRequestState("acme/blog", shop.orders.get(blogOrder)!.pullRequest!, "merged");
+    await shop.watcher.poll();
+    expect(shop.orders.get(blogOrder)?.status).toBe("delivered");
+    expect(await waiting()).toEqual({ needsYou: 1, blocked: [null] });
+  });
 });
 
 describe("work taken from GitHub", () => {
