@@ -1,6 +1,6 @@
 # Phase 3 · Control, flow and an independent reviewer
 
-**Status:** decisions taken; slices 3.1 and 3.2 built; 3.3 and 3.4 not started. See [vision](../vision.md) and
+**Status:** decisions taken; slices 3.1, 3.2 and 3.4 built; 3.3 not started. See [vision](../vision.md) and
 [phase 2](phase-2.md) for what exists.
 
 ## Why
@@ -54,6 +54,19 @@ answers approve or changes requested with reasons, as an event and a comment on 
 reviewer runs on a different engine or model than the author's. If changes are requested, the service runs
 a follow-up with the findings, at most N rounds; then it stops and tells the director. CI status joins
 the card here.
+
+## Decisions taken building 3.4
+
+- The reviewer is an optional fixed role, `code_reviewer`, not an advisor: advisors read plans, it reads diffs.
+  The service refuses a team where it matches the developer's engine and model.
+- It gets the order and the pull request's diff (cut at 60,000 characters, and it says so) and can read the base
+  branch. Verdict, summary and findings are an event and a comment on the pull request.
+- The first `changes_requested` of an order goes back to the worker once, as a follow-up; the update is
+  reviewed again. Further rounds, or one the director asks for with Review, never send work back on their own;
+  after round two the director is told in the chat.
+- "Ready to merge" on the card means approved by the reviewer and CI neither red nor running. The merge is
+  still the director's; GitHub is not asked to block it.
+- CI status comes from check runs, polled with the merge watcher. Legacy commit statuses are not read.
 
 ## Not in phase 3
 

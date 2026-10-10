@@ -1,5 +1,6 @@
 export * from "./domain";
 export { IssueFiler, type IssueFilerDependencies } from "./application/issue-filer";
+export { PullRequestReview, type PullRequestReviewDependencies } from "./application/pull-request-review";
 export { Implementer, type ImplementerDependencies } from "./application/implementer";
 export { GitWorkspace, type GitWorkspaceOptions } from "./adapters/git-workspace";
 export { GhVcs } from "./adapters/gh-vcs";

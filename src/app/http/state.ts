@@ -7,6 +7,7 @@ const ACTIVITY_LIMIT = 100;
 export function readState(shop: Shop) {
   return {
     repo: shop.repo,
+    reviewing: shop.reviewing,
     cursor: shop.cursor.value,
     orders: shop.orders.list().map((order) => ({
       id: order.id,
@@ -24,6 +25,7 @@ export function readState(shop: Shop) {
       deliveredAt: order.deliveredAt,
       spentUsd: shop.runs.spentOnOrder(order.id),
       ...shop.activity.linksFor(order.id),
+      ready: isReady(shop.activity.linksFor(order.id), shop.reviewing),
     })),
     chat: shop.chat.messages(),
     decisions: shop.chat.openDecisions(),
@@ -47,4 +49,10 @@ function presence(shop: Shop) {
       .filter((run) => run.status === "queued")
       .map((run) => ({ runId: run.id, role: run.role, orderId: run.orderId, position: shop.runs.queuePosition(run.id) })),
   };
+}
+
+// "Reviewed" means approved by the independent reviewer, and the pull request's checks are not red or running.
+function isReady(links: ReturnType<Shop["activity"]["linksFor"]>, reviewing: boolean): boolean {
+  const checksOk = links.checks === null || links.checks === "none" || links.checks === "passing";
+  return links.pullRequestUrl !== null && checksOk && (!reviewing || links.review?.verdict === "approved");
 }

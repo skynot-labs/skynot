@@ -10,7 +10,7 @@ export interface MergeWatcherDependencies {
   orderService: OrderService;
   repo: string;
   flow: Pick<OrderFlow, "followUp">;
-  progressOf(id: string): { blocked: string | null };
+  progressOf(id: string): { blocked: string | null; checks: string | null };
 }
 
 const CONFLICT_INSTRUCTION =
@@ -40,6 +40,7 @@ export class MergeWatcher {
       try {
         const state = await vcs.pullRequestState(repo, order.pullRequest!);
         if (state === "merged") await orderService.deliver(order.id);
+        if (state === "open") await this.reportChecks(order.id, order.pullRequest!);
         if (state === "closed" && !this.reportedClosed.has(order.id)) {
           this.reportedClosed.add(order.id);
           await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: "the pull request was closed without merging" } }]);
@@ -49,6 +50,12 @@ export class MergeWatcher {
       }
     }
     await this.syncConflicting();
+  }
+
+  private async reportChecks(orderId: string, pullRequest: number): Promise<void> {
+    const { vcs, repo, log, progressOf } = this.deps;
+    const state = await vcs.pullRequestChecks(repo, pullRequest);
+    if (state !== (progressOf(orderId).checks ?? "none")) await log.record([{ type: "delivery.checks_changed", payload: { orderId, state } }]);
   }
 
   // Once per merge: a worker that cannot resolve the conflict blocks the order and the director takes over.

@@ -1,5 +1,5 @@
 import { exec, run, type Exec } from "../../kernel/process";
-import type { IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
+import type { ChecksState, IssueRef, NewPullRequest, PullRequestState, Vcs } from "../domain";
 
 interface Created {
   number: number;
@@ -22,6 +22,24 @@ export class GhVcs implements Vcs {
   async pullRequestConflicts(repo: string, number: number): Promise<boolean> {
     const pull = JSON.parse(await this.api([`repos/${repo}/pulls/${number}`])) as { mergeable_state: string };
     return pull.mergeable_state === "dirty";
+  }
+
+  async pullRequestDiff(repo: string, number: number): Promise<string> {
+    return this.api(["-H", "Accept: application/vnd.github.diff", `repos/${repo}/pulls/${number}`]);
+  }
+
+  async pullRequestChecks(repo: string, number: number): Promise<ChecksState> {
+    const pull = JSON.parse(await this.api([`repos/${repo}/pulls/${number}`])) as { head: { sha: string } };
+    const runs = JSON.parse(await this.api([`repos/${repo}/commits/${pull.head.sha}/check-runs`])) as {
+      check_runs: Array<{ status: string; conclusion: string | null }>;
+    };
+    if (runs.check_runs.length === 0) return "none";
+    if (runs.check_runs.some((run) => ["failure", "cancelled", "timed_out", "action_required"].includes(run.conclusion ?? ""))) return "failing";
+    return runs.check_runs.every((run) => run.status === "completed") ? "passing" : "pending";
+  }
+
+  async commentOnPullRequest(repo: string, number: number, text: string): Promise<void> {
+    await this.api(["-X", "POST", `repos/${repo}/issues/${number}/comments`, "-f", `body=${text}`]);
   }
 
   async addLabel(repo: string, issue: number, label: string): Promise<void> {

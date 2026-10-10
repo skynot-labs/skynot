@@ -32,7 +32,7 @@ export function Orders({ state, send }: { state: ShopState; send: Send }) {
           <div class="stage" key={stage.title}>
             <h3>{stage.title} <span class="count">{stage.orders.length}</span></h3>
             {stage.orders.map((order) => (
-              <OrderCard key={order.id} order={order} simulated={state.simulated} send={send} />
+              <OrderCard key={order.id} order={order} simulated={state.simulated} reviewing={state.reviewing} send={send} />
             ))}
           </div>
         ))}
@@ -40,7 +40,7 @@ export function Orders({ state, send }: { state: ShopState; send: Send }) {
   );
 }
 
-function OrderCard({ order, simulated, send }: { order: OrderView; simulated: boolean; send: Send }) {
+function OrderCard({ order, simulated, reviewing, send }: { order: OrderView; simulated: boolean; reviewing: boolean; send: Send }) {
   const act = (name: string, extra: object = {}) => send(`/api/commands/${name}`, { orderId: order.id, ...extra });
 
   return (
@@ -90,6 +90,8 @@ function OrderCard({ order, simulated, send }: { order: OrderView; simulated: bo
           <button type="button" onClick={() => act("discard-order")}>Discard</button>
         </div>
       )}
+
+      {order.status === "in_review" && <Verdict order={order} reviewing={reviewing} act={act} />}
 
       {order.status === "in_review" && <FollowUp orderId={order.id} send={send} />}
 
@@ -144,5 +146,28 @@ function FollowUp({ orderId, send }: { orderId: string; send: Send }) {
       <input value={text} placeholder="follow-up for the worker, e.g. resolve the conflicts with main" onInput={(event) => setText(event.currentTarget.value)} />
       <button type="submit" disabled={!text.trim()}>Follow up</button>
     </form>
+  );
+}
+
+const CHECKS_LABEL = { none: "no checks", pending: "checks running", passing: "checks passing", failing: "checks failing" } as const;
+
+function Verdict({ order, reviewing, act }: { order: OrderView; reviewing: boolean; act: (name: string) => Promise<boolean> }) {
+  const { review, checks } = order;
+  return (
+    <div class="verdict">
+      {order.ready && <strong class="ready">Ready to merge</strong>}
+      {reviewing && !review && <span class="reason">Not reviewed yet</span>}
+      {review?.verdict === "approved" && <span class="reason">Approved by the reviewer. {review.summary}</span>}
+      {review?.verdict === "changes_requested" && (
+        <div class="blocked">
+          Reviewer asks for changes: {review.summary}
+          <ul>{review.findings.map((finding) => <li key={finding}>{finding}</li>)}</ul>
+        </div>
+      )}
+      {checks && checks !== "none" && <span class={`reason checks-${checks}`}>{CHECKS_LABEL[checks]}</span>}
+      {reviewing && (
+        <button type="button" onClick={() => act("review-order")}>{review ? "Review again" : "Review"}</button>
+      )}
+    </div>
   );
 }

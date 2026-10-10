@@ -4,6 +4,7 @@ import {
   GitWorkspace,
   Implementer,
   IssueFiler,
+  PullRequestReview,
   type Vcs,
   type Workspace,
 } from "../delivery";
@@ -26,12 +27,14 @@ import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { BlockedNotice } from "./blocked-notice";
 import { CostGuard } from "./cost-guard";
+import { createCodeReviewer } from "./code-reviewer";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
 import { createOrderDesk } from "./order-desk";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
+import { ReviewNotice } from "./review-notice";
 import { createWorkerRunner } from "./worker-runner";
 
 export interface ShopConfig {
@@ -65,6 +68,7 @@ export interface Shop {
   watcher: MergeWatcher;
   cursor: LastSequence;
   repo: string;
+  reviewing: boolean;
   maxUsdPerDay: number | undefined;
   stop(): void;
 }
@@ -115,7 +119,23 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     }),
   });
 
+  const reviewerRole = config.team.roles.code_reviewer;
+  const reviewer = reviewerRole
+    ? new PullRequestReview({
+        log,
+        vcs,
+        reviewer: createCodeReviewer(scheduler, {
+          engine: reviewerRole.engine,
+          ...withModel(reviewerRole),
+          cwd: async () => workspace.readingCopy(repo, repoRules.base_branch),
+          timeoutMs: MANAGER_TIMEOUT_MS,
+          maxUsd: policy.run_budget.max_usd,
+        }),
+      })
+    : undefined;
+
   const flow = new OrderFlow({
+    ...(reviewer && { reviewer }),
     log,
     orders: orderService,
     filer: new IssueFiler({ log, vcs, rules }),
@@ -138,6 +158,11 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     runs,
     control,
     maxUsdPerDay: policy.run_budget.max_usd_per_day,
+    ...(config.reportError && { onError: config.reportError }),
+  }).start();
+  const stopReviewNotice = new ReviewNotice({
+    log,
+    say: (text, orderId) => manager.tell(text, { orderId }),
     ...(config.reportError && { onError: config.reportError }),
   }).start();
   const stopNotice = new BlockedNotice({
@@ -169,10 +194,12 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     watcher,
     cursor,
     repo,
+    reviewing: reviewer !== undefined,
     maxUsdPerDay: policy.run_budget.max_usd_per_day,
     stop() {
       stopFlow();
       stopNotice();
+      stopReviewNotice();
       stopCostGuard();
       watcher.stop();
     },

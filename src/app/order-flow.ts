@@ -1,7 +1,10 @@
-import type { Implementer, IssueFiler, WorkItem } from "../delivery";
+import { followUpFromReview, type Implementer, type IssueFiler, type PullRequestReview, type WorkItem } from "../delivery";
 import { err, ok, type Result } from "../kernel";
 import type { EventLog, StoredEvent } from "../kernel/events";
 import { blockersOf, renderCard, type OrderError, type OrderService, type OrderStatus, type WorkOrder } from "../orders";
+
+// the reviewer's first findings go back to the worker once; after that the director decides
+const AUTOMATIC_ROUNDS = 1;
 
 const RETRYABLE: readonly OrderStatus[] = ["signed", "on_bench"];
 
@@ -10,6 +13,7 @@ export interface OrderFlowDependencies {
   orders: OrderService;
   filer: IssueFiler;
   implementer: Implementer;
+  reviewer?: Pick<PullRequestReview, "run">;
   repo: string;
   findOrder(id: string): WorkOrder | undefined;
   listOrders(): WorkOrder[];
@@ -20,6 +24,7 @@ export interface OrderFlowDependencies {
     protectedPaths: readonly string[];
     approvedPaths: readonly string[];
     waitingOn: readonly string[];
+    reviews: number;
   };
 }
 
@@ -76,6 +81,17 @@ export class OrderFlow {
 
     await this.claim(orderId, { type: "delivery.follow_up_requested", payload: { orderId, instruction } });
     this.launch(orderId, (signal) => this.runFollowUp(order, issue, instruction, signal));
+    return ok(order);
+  }
+
+  requestReview(orderId: string): Result<WorkOrder, OrderError> {
+    const order = this.deps.findOrder(orderId);
+    if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
+    if (!this.deps.reviewer) return err({ kind: "invalid_transition", message: "the team has no code reviewer" });
+    if (order.status !== "in_review" || order.pullRequest === null) return err({ kind: "invalid_transition", message: `${orderId} has no open pull request to review` });
+    if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
+
+    this.launch(orderId, (signal) => this.review(orderId, signal));
     return ok(order);
   }
 
@@ -170,10 +186,25 @@ export class OrderFlow {
     this.inFlight.add(run);
   }
 
+  private async review(orderId: string, signal: AbortSignal): Promise<void> {
+    const { reviewer, findOrder, progressOf, repo, log } = this.deps;
+    const order = findOrder(orderId);
+    if (!reviewer || order?.status !== "in_review" || order.pullRequest === null || signal.aborted) return;
+
+    const { reviews, issue } = progressOf(orderId);
+    const outcome = await reviewer.run(toWorkItem(order), repo, order.pullRequest, reviews + 1, signal);
+    if (!outcome.ok || outcome.value.verdict === "approved" || reviews >= AUTOMATIC_ROUNDS || signal.aborted || issue === null) return;
+
+    const instruction = followUpFromReview(outcome.value);
+    await log.record([{ type: "delivery.follow_up_requested", payload: { orderId, instruction } }]);
+    await this.runFollowUp(order, issue, instruction, signal);
+  }
+
   private async runFollowUp(order: WorkOrder, issue: number, instruction: string, signal: AbortSignal): Promise<void> {
     const { implementer, repo, log } = this.deps;
     try {
-      await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
+      const updated = await implementer.followUp(toWorkItem(order), repo, issue, order.pullRequest!, instruction, this.deps.progressOf(order.id).approvedPaths, signal);
+      if (updated.ok) await this.review(order.id, signal);
     } catch (error) {
       await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: (error as Error).message } }]);
     }
@@ -207,6 +238,7 @@ export class OrderFlow {
       if (!pullRequest.ok) return;
 
       await orders.openPullRequest(orderId, pullRequest.value.number);
+      await this.review(orderId, signal);
     } catch (error) {
       await log.record([{ type: "delivery.work_blocked", payload: { orderId, reason: (error as Error).message } }]);
     }

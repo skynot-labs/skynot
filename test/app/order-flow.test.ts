@@ -4,7 +4,8 @@ import { ActivityProjection } from "../../src/app/activity";
 import { createDeliveryRules } from "../../src/app/delivery-rules";
 import { OrderFlow } from "../../src/app/order-flow";
 import { createWorkerRunner } from "../../src/app/worker-runner";
-import { FakeVcs, GitWorkspace, Implementer, IssueFiler } from "../../src/delivery";
+import { FakeVcs, GitWorkspace, Implementer, IssueFiler, PullRequestReview, type CodeReviewer, type Review } from "../../src/delivery";
+import { ok } from "../../src/kernel";
 import { FakeEngine, RunScheduler, RunsProjection, type EngineRequest } from "../../src/execution";
 import { ActionBudget, ActionCounts, type Policy } from "../../src/governance";
 import { fixedClock } from "../../src/kernel";
@@ -41,7 +42,7 @@ function shopPolicy(limits: Partial<Policy["limits"]> = {}): Policy {
 
 type WorkerWork = (dir: string, request?: EngineRequest) => Promise<void>;
 
-async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string } = {}) {
+async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string; reviews?: Array<Review | string> } = {}) {
   const policy = options.policy ?? shopPolicy();
   const clock = fixedClock(new Date("2026-10-09T12:00:00.000Z"));
   const log = new EventLog(new InMemoryEventStore(), clock);
@@ -62,7 +63,16 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   const worker = createWorkerRunner(scheduler, { engine: "claude" });
   const orderService = new OrderService(log, orders);
 
+  const verdicts = [...(options.reviews ?? [])];
+  const reviewer: CodeReviewer = {
+    review: async () => {
+      const next = verdicts.shift() ?? "no verdict scripted";
+      return typeof next === "string" ? { ok: false, error: next } : ok(next);
+    },
+  };
+
   const flow = new OrderFlow({
+    ...(options.reviews && { reviewer: new PullRequestReview({ log, vcs, reviewer }) }),
     log,
     orders: orderService,
     filer: new IssueFiler({ log, vcs, rules }),
@@ -173,6 +183,71 @@ describe("order flow", () => {
 
     expect(shop.vcs.pullRequests.map((pullRequest) => pullRequest.head).sort()).toEqual(["taller/wo-0001", "taller/wo-0002"]);
     expect(shop.orders.list().map((order) => order.status)).toEqual(["in_review", "in_review"]);
+  });
+
+  describe("independent review", () => {
+    const approved: Review = { verdict: "approved", summary: "Matches the criteria.", findings: [] };
+    const changes: Review = { verdict: "changes_requested", summary: "A criterion lacks a test.", findings: ["src/feature.txt: no test for the empty case"] };
+    const reviewsOf = (shop: Awaited<ReturnType<typeof createShop>>, id: string) =>
+      shop.log.readAfter(0).then((events) => events.filter((event) => event.type === "delivery.review_completed" && (event.payload as { orderId: string }).orderId === id).map((event) => event.payload as { round: number; verdict: string }));
+
+    it("reviews the pull request once it opens, records the verdict and comments on it", async () => {
+      const shop = await createShop(createsFeature, { reviews: [approved] });
+
+      const id = await proposeAndSign(shop);
+
+      expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "approved" });
+      expect(shop.vcs.comments).toMatchObject([{ number: 2, text: expect.stringContaining("approved") }]);
+    });
+
+    it("sends the first findings back to the worker once and reviews the update", async () => {
+      let runs = 0;
+      const shop = await createShop((dir) => addFiles(dir, { [`src/feature${++runs === 1 ? "" : "-fixed"}.txt`]: "feature\n" }), { reviews: [changes, approved] });
+
+      const id = await proposeAndSign(shop);
+
+      expect(await reviewsOf(shop, id)).toMatchObject([{ round: 1, verdict: "changes_requested" }, { round: 2, verdict: "approved" }]);
+      expect(shop.activity.recent(50).some((entry) => entry.text.includes("follow-up requested: The independent reviewer asked for changes"))).toBe(true);
+      expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "approved" });
+    });
+
+    it("stops after the automatic round when the reviewer still asks for changes", async () => {
+      const shop = await createShop(createsFeature, { reviews: [changes, changes, changes] });
+
+      const id = await proposeAndSign(shop);
+
+      expect(await reviewsOf(shop, id)).toHaveLength(2);
+      expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "changes_requested" });
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+    });
+
+    it("keeps the pull request in review and says so when the reviewer fails", async () => {
+      const shop = await createShop(createsFeature, { reviews: ["the engine is unavailable"] });
+
+      const id = await proposeAndSign(shop);
+
+      expect(shop.orders.get(id)?.status).toBe("in_review");
+      expect(shop.activity.linksFor(id).review).toBeNull();
+      expect(shop.activity.recent(50).some((entry) => entry.text === "the review failed: the engine is unavailable")).toBe(true);
+    });
+
+    it("lets the director ask for a review again, and does not send that one back on its own", async () => {
+      const shop = await createShop(createsFeature, { reviews: ["the engine is unavailable", approved] });
+      const id = await proposeAndSign(shop);
+
+      expect(shop.flow.requestReview(id).ok).toBe(true);
+      await shop.flow.idle();
+
+      expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "approved" });
+    });
+
+    it("does nothing, and says so, when the team has no reviewer", async () => {
+      const shop = await createShop(createsFeature);
+      const id = await proposeAndSign(shop);
+
+      expect(shop.flow.requestReview(id)).toMatchObject({ ok: false, error: { message: "the team has no code reviewer" } });
+      expect(shop.activity.linksFor(id).reviews).toBe(0);
+    });
   });
 
   describe("sequencing", () => {
