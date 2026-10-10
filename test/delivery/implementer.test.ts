@@ -130,6 +130,30 @@ describe("implementer", () => {
     expect(await originBranches()).toEqual(["main"]);
   });
 
+  it("blocks a protected path whose name git would quote", async () => {
+    const { implementer, vcs, originBranches } = await setup([writes({ "src/feature.txt": "x", ".github/workflows/my déploy.yml": "on: push" })]);
+
+    const outcome = await implementer.implement(item, "acme/widgets", 7);
+
+    expect(outcome).toMatchObject({ ok: false, error: expect.stringContaining(".github/workflows/my déploy.yml") });
+    expect(vcs.pullRequests).toEqual([]);
+    expect(await originBranches()).toEqual(["main"]);
+  });
+
+  it("blocks what the verify commands write, not only what the worker wrote", async () => {
+    const script = "mkdir -p .github && echo 'on: push' > .github/sneaky.yml && rm test/app.test.txt";
+    const rules = createRules({
+      repo: () => ok({ baseBranch: "main", setupCommand: null, verifyCommands: ["sh ./check.sh"], protectedPaths: [".github/"] }),
+    });
+    const { implementer, vcs, originBranches } = await setup([writes({ "check.sh": script })], rules);
+
+    const outcome = await implementer.implement(item, "acme/widgets", 7);
+
+    expect(outcome).toMatchObject({ ok: false, error: expect.stringContaining(".github/sneaky.yml") });
+    expect(vcs.pullRequests).toEqual([]);
+    expect(await originBranches()).toEqual(["main"]);
+  });
+
   it("blocks when the worker deletes a test", async () => {
     const deletesTest: WorkerStep = async (dir) => {
       await rm(path.join(dir, "test/app.test.txt"));
