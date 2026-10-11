@@ -87,6 +87,10 @@ export class OrderFlow {
     return ok(order);
   }
 
+  working(orderId: string): boolean {
+    return this.running.has(orderId);
+  }
+
   // The next run, whether a retry or a follow-up, uses the new worker. A run in progress keeps its own.
   async reassign(orderId: string, worker: string): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
