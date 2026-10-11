@@ -4,7 +4,7 @@ import type { Agent, Avatar, Order, Project, Send } from "../contracts";
 import { agentWork, type Reach } from "../application/agent-work";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
-import { agentStatus, clock, dayTime, orderStatus, runOutcome, usd } from "./format";
+import { ago, agentStatus, dayTime, orderStatus, runOutcome, usd } from "./format";
 import "./agent-desk.css";
 
 type DeskTab = "work" | "soul" | "look";
@@ -181,7 +181,7 @@ function Work({
         </span>
         {work.trace.slice(0, TRACE_SHOWN).map((entry) => (
           <div class="agent-trace-entry" key={entry.sequence}>
-            <time>{clock(entry.at)}</time>
+            <time title={dayTime(entry.at)}>{ago(entry.at)}</time>
             <p>
               {entry.text}
               {entry.orderId && <small>{entry.orderId}</small>}
@@ -197,7 +197,9 @@ function Work({
           <span class="swatch-label">LAST RUNS</span>
           {work.runs.slice(0, RUNS_SHOWN).map((run) => (
             <div class="agent-run" key={run.runId}>
-              <time>{run.finishedAt ? dayTime(run.finishedAt) : "—"}</time>
+              <time title={run.finishedAt ? dayTime(run.finishedAt) : undefined}>
+                {run.finishedAt ? ago(run.finishedAt) : "—"}
+              </time>
               {run.outcome && (
                 <span class={`status-chip ${run.outcome}`}>
                   {runOutcome[run.outcome]}

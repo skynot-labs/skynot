@@ -22,7 +22,7 @@ import { DecisionInbox } from "./DecisionInbox";
 import { ManagerChat } from "./Dialogs";
 import { Icon } from "./Icon";
 import { AvatarCanvas } from "./AvatarCanvas";
-import { agentStatus, clock } from "./format";
+import { ago, agentStatus } from "./format";
 
 export type DockCard = "decisions" | "manager";
 
@@ -370,7 +370,7 @@ export function Studio({
               <div>
                 {activity.text}
                 <small>
-                  {clock(activity.at)}
+                  {ago(activity.at)}
                   {activity.orderId ? " · " + activity.orderId : ""}
                 </small>
               </div>

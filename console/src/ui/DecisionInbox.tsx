@@ -11,7 +11,7 @@ import type {
   TeamChange,
 } from "../contracts";
 import { Icon } from "./Icon";
-import { clock } from "./format";
+import { ago, dayTime } from "./format";
 import "./decisions.css";
 
 const TEAM_ACTION: Record<TeamChange["action"], string> = {
@@ -81,7 +81,8 @@ function AnsweredQuestion({
           </>
         )}
         Answered{" "}
-        <time dateTime={entry.answeredAt}>{moment(entry.answeredAt)}</time>
+        <time dateTime={entry.answeredAt}>{moment(entry.answeredAt)}</time> ·{" "}
+        {ago(entry.answeredAt)}
       </p>
     </article>
   );
@@ -132,7 +133,11 @@ function Question({
           ticket !== null && <span>ticket #{ticket}</span>
         )}
       </div>
-      {askedAt && <p class="question-author">Asked at {clock(askedAt)}</p>}
+      {askedAt && (
+        <p class="question-author" title={dayTime(askedAt)}>
+          Asked {ago(askedAt)}
+        </p>
+      )}
       <h3>{question}</h3>
       <form
         onSubmit={(event) => {

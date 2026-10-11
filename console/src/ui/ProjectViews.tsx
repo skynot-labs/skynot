@@ -20,7 +20,7 @@ import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
 import {
   agentStatus,
-  clock,
+  ago,
   dayTime,
   orderStatus,
   runOutcome,
@@ -977,7 +977,7 @@ export function ActivityView({
                 <Icon name={ACTIVITY_ICON[a.kind]} />
               </span>
             )}
-            <time>{clock(a.at)}</time>
+            <time title={dayTime(a.at)}>{ago(a.at)}</time>
             <div>
               <p>
                 {a.url ? (
@@ -989,7 +989,7 @@ export function ActivityView({
                 )}
               </p>
               <small>
-                {a.kind}
+                {dayTime(a.at)} · {a.kind}
                 {a.by && " · by "}
                 {a.by &&
                   (agent ? (
