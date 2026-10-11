@@ -10,7 +10,7 @@ import {
   type Appearance,
 } from "./application/appearance";
 import { Icon } from "./ui/Icon";
-import { Studio, StudioHero } from "./ui/Studio";
+import { Studio, StudioHero, type DockCard } from "./ui/Studio";
 import { DecisionInbox } from "./ui/DecisionInbox";
 import {
   ActivityView,
@@ -104,6 +104,7 @@ export function App() {
   const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
   const [tab, setTab] = useState<Tab>("studio");
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [dockChoice, setDock] = useState<DockCard | null>(null);
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
   );
@@ -203,6 +204,13 @@ export function App() {
     project?.orders.filter((o) => o.status === "awaiting_signature").length ??
     0;
   const blocked = project?.orders.filter((o) => o.blocked !== null).length ?? 0;
+  const dock = dockChoice ?? (pending > 0 ? "decisions" : "manager");
+  // In the studio the chat sits beside the office; elsewhere it opens over the page.
+  const openManager = () => {
+    if (tab !== "studio") return setDialog({ kind: "manager" });
+    setDialog(null);
+    setDock("manager");
+  };
   const failing =
     snapshot?.readiness.filter((f) => f.level === "fail").length ?? 0;
   const toReview =
@@ -222,12 +230,74 @@ export function App() {
         >
           <Brand />
         </a>
-        <div class="workspace-breadcrumb">
-          <span>Workspace</span>
-          <Icon name="arrow" />
-          <strong>{project?.name ?? "Your dev shop"}</strong>
-        </div>
+        {tab === "studio" && project ? (
+          <div class="topbar-studio">
+            <div>
+              <h1>
+                The <span>{project.name}</span> studio.
+              </h1>
+              {project.description && <p>{project.description}</p>}
+            </div>
+            <span class="studio-live-label">
+              {active} WORKING · {project.agents.length} AGENTS
+            </span>
+          </div>
+        ) : (
+          <div class="workspace-breadcrumb">
+            <span>Workspace</span>
+            <Icon name="arrow" />
+            <strong>{project?.name ?? "Your dev shop"}</strong>
+          </div>
+        )}
         <div class="top-actions">
+          {tab === "studio" && project && snapshot && (
+            <>
+              <div class="studio-pause-controls" role="group" aria-label="Pause">
+                <button
+                  class={project.paused ? "paused" : ""}
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: project.paused ? "resume-project" : "pause-project",
+                      payload: { project: project.id },
+                    })
+                  }
+                  title="While this project is paused nothing new starts in it; what is running finishes. The other projects keep working."
+                >
+                  <Icon name={project.paused ? "play" : "pause"} />
+                  <span>
+                    {project.paused
+                      ? "Resume this project"
+                      : "Pause this project"}
+                  </span>
+                </button>
+                <button
+                  class={snapshot.paused ? "paused" : ""}
+                  disabled={busy}
+                  onClick={() =>
+                    void send({
+                      name: snapshot.paused ? "resume-shop" : "pause-shop",
+                      payload: {},
+                    })
+                  }
+                  title="While the shop is paused nothing new starts in any project; what is running finishes."
+                >
+                  <Icon name={snapshot.paused ? "play" : "pause"} />
+                  <span>
+                    {snapshot.paused ? "Resume the shop" : "Pause the shop"}
+                  </span>
+                </button>
+              </div>
+              <button
+                class="icon-button"
+                onClick={() => setDialog({ kind: "studio" })}
+                aria-label="Style the studio"
+                title="Style the studio"
+              >
+                <Icon name="gear" />
+              </button>
+            </>
+          )}
           <a
             class="icon-button design-link"
             href="/design"
@@ -238,7 +308,7 @@ export function App() {
           </a>
           <button
             class="icon-button"
-            onClick={() => setDialog({ kind: "manager" })}
+            onClick={openManager}
             aria-label="Open the chat with the Manager"
             title="Your Manager"
           >
@@ -337,7 +407,7 @@ export function App() {
           <button
             class="manager-nav"
             title="Your Manager"
-            onClick={() => setDialog({ kind: "manager" })}
+            onClick={openManager}
           >
             <Icon name="chat" />
             <span>Your Manager</span>
@@ -433,11 +503,12 @@ export function App() {
                 appearance={appearance}
                 settings={studioSettings}
                 onAgent={openAgent}
-                onManager={() => setDialog({ kind: "manager" })}
+                onManager={openManager}
                 onOrder={openOrder}
                 onTeam={() => setTab("agents")}
                 onContext={() => setTab("context")}
-                onCustomize={() => setDialog({ kind: "studio" })}
+                dock={dock}
+                onDock={setDock}
                 send={send}
                 busy={busy}
               />
@@ -470,7 +541,7 @@ export function App() {
                   )}
                   <button
                     class="primary-button"
-                    onClick={() => setDialog({ kind: "manager" })}
+                    onClick={openManager}
                   >
                     <Icon name="chat" />
                     Talk to the Manager
@@ -581,7 +652,7 @@ export function App() {
                     project={project}
                     send={send}
                     busy={busy}
-                    onManager={() => setDialog({ kind: "manager" })}
+                    onManager={openManager}
                     onOrder={openOrder}
                     onTeam={() => setTab("agents")}
                   />
@@ -694,7 +765,7 @@ export function App() {
               send={send}
               busy={busy}
               onOrder={openOrder}
-              onManager={() => setDialog({ kind: "manager" })}
+              onManager={openManager}
               look={
                 <AvatarEditor
                   agent={selectedAgent}

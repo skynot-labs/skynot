@@ -269,6 +269,8 @@ export function DecisionInbox({
   onManager,
   onOrder,
   onTeam,
+  collapsed = false,
+  onToggle,
 }: {
   project: Project;
   send: Send;
@@ -276,7 +278,10 @@ export function DecisionInbox({
   onManager: () => void;
   onOrder: (order: Order) => void;
   onTeam: () => void;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }) {
+  const Heading = onToggle ? "button" : "div";
   const proposals = project.orders.filter(
     (order) => order.status === "awaiting_signature",
   );
@@ -300,8 +305,15 @@ export function DecisionInbox({
   const askerName = (item: { from: string }) =>
     project.agents.find((agent) => agent.id === item.from)?.name ?? item.from;
   return (
-    <section class="director-inbox" aria-label="Decision desk">
-      <div class="inbox-heading">
+    <section
+      class={`director-inbox ${collapsed ? "collapsed" : ""}`}
+      aria-label="Decision desk"
+    >
+      <Heading
+        class="inbox-heading"
+        onClick={onToggle}
+        aria-expanded={onToggle ? !collapsed : undefined}
+      >
         <span class="director-icon">
           <Icon name="chat" />
         </span>
@@ -310,7 +322,8 @@ export function DecisionInbox({
           <h2>Decision desk</h2>
         </div>
         <span class="inbox-counter">{project.needsYou}</span>
-      </div>
+        {onToggle && <Icon name="chevron" />}
+      </Heading>
       <p class="inbox-intro">
         Questions, doubts and proposals. Your call gets the team moving.
       </p>

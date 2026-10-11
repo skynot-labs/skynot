@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { closeDialog, dialog, expect, openProject, openView, test } from "./support";
+import { closeDialog, closeManagerChat, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, test } from "./support";
 
 const PROJECT = "alpha";
 const TURN = { timeout: 20_000 };
@@ -14,8 +14,7 @@ const boardColumn = (page: Page, stage: string) =>
   page.locator("section").filter({ has: page.getByRole("heading", { name: stage, level: 3 }) }).last();
 
 async function tellTheManager(page: Page, message: string): Promise<Locator> {
-  await page.getByRole("button", { name: "Open the chat with the Manager" }).click();
-  const chat = dialog(page);
+  const chat = await openManagerChat(page);
   await chat.getByLabel("Message to the Manager").fill(message);
   await chat.getByRole("button", { name: "Send" }).click();
   await expect(chat.getByLabel("Message to the Manager")).toHaveValue("");
@@ -41,7 +40,8 @@ test.describe.serial("an order's life in alpha", () => {
 
     const chat = await tellTheManager(page, idea);
     await expect(chat.getByRole("article").filter({ hasText: "MANAGER" }).getByText(questionAbout(idea))).toBeVisible(TURN);
-    await closeDialog(page);
+    await closeManagerChat(page);
+    await openDecisionDesk(page);
 
     await expect(page.getByRole("complementary").getByRole("button", { name: PROJECT })).toContainText("1 WAITING FOR YOU");
     await expect(metrics(page).getByRole("button", { name: /WAITING FOR YOU/ })).toContainText("1 to decide");
@@ -196,7 +196,8 @@ test("a discarded order leaves the signing queue and never reaches a developer",
   const chat = await tellTheManager(page, idea);
   await chat.getByRole("button", { name: "Keep it small" }).click(TURN);
   await expect(chat.getByText("That settles it. Filing the order.")).toBeVisible(TURN);
-  await closeDialog(page);
+  await closeManagerChat(page);
+  await openDecisionDesk(page);
 
   await openView(page, "Decisions");
   await deskTab(page, "To sign").click();
@@ -215,7 +216,8 @@ test("a discarded order leaves the signing queue and never reaches a developer",
 
   const afterwards = await tellTheManager(page, "/ping");
   await expect(afterwards.getByText("Nothing on the bench but the paperwork.")).toBeVisible(TURN);
-  await closeDialog(page);
+  await closeManagerChat(page);
+  await openDecisionDesk(page);
 
   await openView(page, "Activity");
   const trail = page.getByRole("article").filter({ hasText: orderId });
@@ -288,7 +290,8 @@ test("a question the chat has moved past stays pinned above it until it is answe
   await chat.getByRole("button", { name: "Keep it small" }).click(TURN);
   await expect(chat.getByText("That settles it. Filing the order.").last()).toBeVisible(TURN);
   await expect(pinned).toBeHidden();
-  await closeDialog(page);
+  await closeManagerChat(page);
+  await openDecisionDesk(page);
 
   await openView(page, "Decisions");
   await deskTab(page, "To sign").click();

@@ -39,3 +39,21 @@ export async function closeDialog(page: Page): Promise<void> {
   await dialog(page).getByRole("button", { name: "Close dialog" }).click();
   await expect(dialog(page)).toBeHidden();
 }
+
+// In the studio the chat is a card beside the office; in any other view it opens over the page.
+export async function openManagerChat(page: Page): Promise<Locator> {
+  await page.getByRole("button", { name: "Open the chat with the Manager" }).click();
+  const chat = dialog(page).or(page.getByRole("region", { name: "Your Manager" }));
+  await expect(chat.getByRole("textbox", { name: "Message to the Manager" })).toBeVisible();
+  return chat;
+}
+
+export async function closeManagerChat(page: Page): Promise<void> {
+  if (await dialog(page).isVisible()) await closeDialog(page);
+}
+
+// The desk shares its dock with the chat, and only one of the two is open.
+export async function openDecisionDesk(page: Page): Promise<void> {
+  const heading = page.getByRole("region", { name: "Decision desk" }).getByRole("button", { name: /Decision desk/ });
+  if ((await heading.count()) > 0 && (await heading.getAttribute("aria-expanded")) === "false") await heading.click();
+}
