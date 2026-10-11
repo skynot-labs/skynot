@@ -2,6 +2,7 @@ import type { JSX } from "preact";
 import { useState } from "preact/hooks";
 import type { MinutesBucket, Order, Project, Send } from "../contracts";
 import { Icon } from "./Icon";
+import { RichLine } from "./RichText";
 import { orderStatus, usd } from "./format";
 import { orderActions } from "./order-actions";
 import "./views.css";
@@ -78,7 +79,9 @@ export function OrderDetail({
         )}
       </div>
       <h3 class="order-detail-title">{order.title}</h3>
-      <p class="order-objective">{order.objective}</p>
+      <p class="order-objective">
+        <RichLine text={order.objective} />
+      </p>
 
       {order.question && (
         <div class="order-notice">
@@ -244,9 +247,10 @@ export function OrderDetail({
         <ul>
           {order.criteria.map((criterion) => (
             <li key={criterion.statement}>
-              {criterion.statement}
+              <RichLine text={criterion.statement} />
               <small>
-                {criterion.verification.kind}: {criterion.verification.detail}
+                {criterion.verification.kind}:{" "}
+                <RichLine text={criterion.verification.detail} />
               </small>
             </li>
           ))}
@@ -257,7 +261,9 @@ export function OrderDetail({
           <h4>OUT OF SCOPE</h4>
           <ul>
             {order.outOfScope.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item}>
+                <RichLine text={item} />
+              </li>
             ))}
           </ul>
         </section>
@@ -304,16 +310,21 @@ function Verdict({
       )}
       {reviewing && !review && <p>Not reviewed yet</p>}
       {review?.verdict === "approved" && (
-        <p>Approved by the reviewer. {review.summary}</p>
+        <p>
+          Approved by the reviewer. <RichLine text={review.summary} />
+        </p>
       )}
       {review?.verdict === "changes_requested" && (
         <div class="order-notice blocked">
-          Reviewer asks for changes: {review.summary}
-          <ul>
+          <strong>Reviewer asks for changes.</strong>{" "}
+          <RichLine text={review.summary} />
+          <ol>
             {review.findings.map((finding) => (
-              <li key={finding}>{finding}</li>
+              <li key={finding}>
+                <RichLine text={finding} />
+              </li>
             ))}
-          </ul>
+          </ol>
         </div>
       )}
       {checks && checks !== "none" && (

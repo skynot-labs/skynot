@@ -171,6 +171,7 @@ export function StudioHero({
             busy={busy}
             open={dock === "manager"}
             onToggle={() => toggle("manager")}
+            onOrder={onOrder}
           />
         </div>
         {(paused || project.paused) && (
@@ -232,12 +233,14 @@ function ManagerDock({
   busy,
   open,
   onToggle,
+  onOrder,
 }: {
   project: Project;
   send: Send;
   busy: boolean;
   open: boolean;
   onToggle: () => void;
+  onOrder: (order: Order) => void;
 }) {
   const body = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(open);
@@ -269,7 +272,12 @@ function ManagerDock({
         <Icon name="chevron" />
       </button>
       <div class="manager-dock-body" ref={body}>
-        <ManagerChat project={project} send={send} busy={busy} />
+        <ManagerChat
+          project={project}
+          send={send}
+          busy={busy}
+          onOrder={onOrder}
+        />
       </div>
     </section>
   );

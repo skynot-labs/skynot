@@ -4,6 +4,7 @@ import type { Agent, Avatar, Order, Project, Send } from "../contracts";
 import { agentWork, type Reach } from "../application/agent-work";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
+import { RichLine } from "./RichText";
 import { ago, agentStatus, dayTime, orderStatus, runOutcome, usd } from "./format";
 import "./agent-desk.css";
 
@@ -183,7 +184,7 @@ function Work({
           <div class="agent-trace-entry" key={entry.sequence}>
             <time title={dayTime(entry.at)}>{ago(entry.at)}</time>
             <p>
-              {entry.text}
+              <RichLine text={entry.text} />
               {entry.orderId && <small>{entry.orderId}</small>}
             </p>
           </div>

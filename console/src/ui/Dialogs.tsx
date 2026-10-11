@@ -1,7 +1,9 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
-import type { Decision, Message, Project, Send } from "../contracts";
+import type { Decision, Message, Order, Project, Send } from "../contracts";
+import { orderStatus } from "./format";
 import { Icon } from "./Icon";
+import { RichLine, RichText } from "./RichText";
 import "./shell.css";
 export { AvatarEditor } from "./AvatarEditor";
 
@@ -64,10 +66,12 @@ export function ManagerChat({
   project,
   send,
   busy,
+  onOrder,
 }: {
   project: Project;
   send: Send;
   busy: boolean;
+  onOrder: (order: Order) => void;
 }) {
   const [message, setMessage] = useState("");
   const list = useRef<HTMLDivElement>(null);
@@ -121,6 +125,7 @@ export function ManagerChat({
             project={project}
             send={send}
             busy={busy}
+            onOrder={onOrder}
           />
         ))}
         {project.chat.length === 0 && (
@@ -374,11 +379,13 @@ function ChatMessage({
   project,
   send,
   busy,
+  onOrder,
 }: {
   message: Message;
   project: Project;
   send: Send;
   busy: boolean;
+  onOrder: (order: Order) => void;
 }) {
   const order = message.orderId
     ? project.orders.find((candidate) => candidate.id === message.orderId)
@@ -392,10 +399,44 @@ function ChatMessage({
       id={decision ? `chat-${decision.id}` : undefined}
     >
       <span>{authors[message.author]}</span>
-      <p>{order ? message.text.split("\n\n")[0] : message.text}</p>
-      {order && <pre class="chat-card">{order.card}</pre>}
+      <RichText text={order ? message.text.split("\n\n")[0]! : message.text} />
+      {order && <ChatOrder order={order} onOrder={onOrder} />}
       {decision && <ChatQuestion decision={decision} send={send} busy={busy} />}
     </article>
+  );
+}
+
+function ChatOrder({
+  order,
+  onOrder,
+}: {
+  order: Order;
+  onOrder: (order: Order) => void;
+}) {
+  return (
+    <div class="chat-order">
+      <header>
+        <span class="mono muted">{order.id}</span>
+        <span class={`status-chip ${order.status}`}>
+          {orderStatus[order.status]}
+        </span>
+        <span class="chat-order-risk">{order.risk} risk</span>
+      </header>
+      <strong>
+        <RichLine text={order.title} />
+      </strong>
+      <ul>
+        {order.criteria.map((criterion) => (
+          <li key={criterion.statement}>
+            <RichLine text={criterion.statement} />
+          </li>
+        ))}
+      </ul>
+      <button class="text-button" type="button" onClick={() => onOrder(order)}>
+        Open the order
+        <Icon name="arrow" />
+      </button>
+    </div>
   );
 }
 
