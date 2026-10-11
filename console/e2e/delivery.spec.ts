@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { closeDialog, closeManagerChat, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, test } from "./support";
+import { closeDialog, closeManagerChat, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, tellTheManager, test } from "./support";
 
 const PROJECT = "alpha";
 const TURN = { timeout: 20_000 };
@@ -12,15 +12,6 @@ const metrics = (page: Page) => page.getByRole("region", { name: "Project metric
 const sectionWith = (page: Page, text: string | RegExp) => page.locator("section").filter({ hasText: text }).last();
 const boardColumn = (page: Page, stage: string) =>
   page.locator("section").filter({ has: page.getByRole("heading", { name: stage, level: 3 }) }).last();
-
-async function tellTheManager(page: Page, message: string): Promise<Locator> {
-  const chat = await openManagerChat(page);
-  await chat.getByLabel("Message to the Manager").fill(message);
-  await chat.getByRole("button", { name: "Send" }).click();
-  await expect(chat.getByLabel("Message to the Manager")).toHaveValue("");
-  await expect(chat.getByRole("article").filter({ hasText: "YOU · DIRECTOR" }).filter({ hasText: message })).toBeVisible();
-  return chat;
-}
 
 const questionAbout = (idea: string) => `Keep "${idea}" small, or cover the edge cases too?`;
 

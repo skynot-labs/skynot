@@ -9,9 +9,9 @@ import "./design/design-system.css";
 import { render } from "preact";
 import { App } from "./App";
 import { DesignSystem } from "./design/DesignSystem";
+import { isDesignPage } from "./paths";
 
-const designPage = /^\/design\/?$/.test(window.location.pathname);
 render(
-  designPage ? <DesignSystem /> : <App />,
+  isDesignPage(window.location) ? <DesignSystem /> : <App />,
   document.getElementById("app")!,
 );

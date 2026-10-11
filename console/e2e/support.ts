@@ -48,6 +48,15 @@ export async function openManagerChat(page: Page): Promise<Locator> {
   return chat;
 }
 
+export async function tellTheManager(page: Page, message: string): Promise<Locator> {
+  const chat = await openManagerChat(page);
+  await chat.getByLabel("Message to the Manager").fill(message);
+  await chat.getByRole("button", { name: "Send" }).click();
+  await expect(chat.getByLabel("Message to the Manager")).toHaveValue("");
+  await expect(chat.getByRole("article").filter({ hasText: "YOU · DIRECTOR" }).filter({ hasText: message })).toBeVisible();
+  return chat;
+}
+
 export async function closeManagerChat(page: Page): Promise<void> {
   if (await dialog(page).isVisible()) await closeDialog(page);
 }

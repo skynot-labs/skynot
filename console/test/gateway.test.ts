@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { HttpGateway, mapState } from "../src/adapters/http-gateway";
+import { HttpGateway, Unauthorized, mapState } from "../src/adapters/http-gateway";
 import type { InboxItem, Order, ShopState } from "../src/contracts";
 
 const ACCENTS = ["mint", "lavender"];
@@ -326,9 +326,65 @@ describe("HttpGateway", () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  it("refuses an API on another origin", () => {
-    expect(() => new HttpGateway("https://elsewhere.test/api")).toThrow();
-    expect(() => new HttpGateway("//elsewhere.test/api")).toThrow();
+  const OFFICE = { office: "https://office.example.ts.net", token: "a-session-token" };
+
+  it("asks the office that served the page, with no session, when it has no connection", async () => {
+    answerWith({ status: 200, body: shopState() });
+
+    await new HttpGateway().read();
+
+    expect(calls[0]?.url).toBe("/api/state");
+    expect(calls[0]?.init?.credentials).toBe("same-origin");
+    expect(new Headers(calls[0]?.init?.headers).has("authorization")).toBe(false);
+  });
+
+  it("asks the connected office and carries its session on every request", async () => {
+    answerWith({ status: 200, body: { contract: 1, requiresSession: true } }, { status: 200, body: shopState() }, { status: 200, body: {} });
+    const gateway = new HttpGateway(OFFICE);
+
+    await gateway.meta();
+    await gateway.read();
+    await gateway.send({ name: "recheck", payload: {} });
+
+    expect(calls.map((call) => call.url)).toEqual([
+      "https://office.example.ts.net/api/meta",
+      "https://office.example.ts.net/api/state",
+      "https://office.example.ts.net/api/commands/recheck",
+    ]);
+    for (const call of calls) {
+      expect(new Headers(call.init?.headers).get("authorization")).toBe("Bearer a-session-token");
+      expect(call.init?.credentials).toBe("omit");
+      expect(call.url).not.toContain("a-session-token");
+    }
+    expect(new Headers(calls[2]?.init?.headers).get("content-type")).toBe("application/json");
+  });
+
+  it("reads which contract the office speaks and whether it asks for a session", async () => {
+    answerWith({ status: 200, body: { contract: 3, requiresSession: true } }, { status: 200, body: { contract: 1, requiresSession: false } });
+
+    expect(await new HttpGateway().meta()).toEqual({ contract: 3, requiresSession: true });
+    expect(await new HttpGateway().meta()).toEqual({ contract: 1, requiresSession: false });
+  });
+
+  it("fails when what answers is not an office", async () => {
+    answerWith({ status: 404, body: "<html>Not Found</html>" }, { status: 200, body: "<html>a static page</html>" });
+
+    await expect(new HttpGateway().meta()).rejects.toThrow("404");
+    await expect(new HttpGateway().meta()).rejects.toThrow("contract");
+  });
+
+  it("tells a refused session apart from any other failure, on a read and on a command", async () => {
+    const refusal = { status: 401, body: { error: "pair this studio with the office first" } };
+    answerWith(refusal, refusal, { status: 403, body: { error: "unknown host" } });
+    let refused = 0;
+    const gateway = new HttpGateway(OFFICE, () => refused++);
+
+    await expect(gateway.read()).rejects.toThrow(Unauthorized);
+    await expect(gateway.send({ name: "recheck", payload: {} })).rejects.toThrow("pair this studio with the office first");
+    expect(refused).toBe(2);
+
+    await expect(gateway.read()).rejects.not.toBeInstanceOf(Unauthorized);
+    expect(refused).toBe(2);
   });
 
   it("reads the default project when none is asked for", async () => {
@@ -415,28 +471,31 @@ describe("HttpGateway", () => {
   });
 
   describe("watching the shop's events", () => {
-    class FakeEventSource {
-      static opened: FakeEventSource[] = [];
-      onopen: (() => void) | null = null;
-      onerror: (() => void) | null = null;
-      onmessage: ((event: { data: unknown }) => void) | null = null;
-      closed = false;
-      constructor(readonly url: string) {
-        FakeEventSource.opened.push(this);
-      }
-      close() {
-        this.closed = true;
-      }
-      emit(data: unknown) {
-        this.onmessage?.({ data });
-      }
+    interface Stream {
+      url: string;
+      init: RequestInit | undefined;
+      write(text: string): void;
+      end(): void;
     }
+    const event = (sequence: unknown) => `id: ${String(sequence)}\ndata: ${JSON.stringify({ sequence })}\n\n`;
+    const settled = () => vi.advanceTimersByTimeAsync(150);
+    const reconnected = () => vi.advanceTimersByTimeAsync(5000);
 
-    async function watching() {
-      FakeEventSource.opened = [];
-      vi.stubGlobal("EventSource", FakeEventSource);
-      answerWith({ status: 200, body: shopState() });
-      const gateway = new HttpGateway();
+    afterEach(() => vi.useRealTimers());
+
+    async function watching(options: { refuseStream?: boolean; onUnauthorized?: () => void } = {}) {
+      vi.useFakeTimers();
+      const streams: Stream[] = [];
+      const encoder = new TextEncoder();
+      vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+        if (!url.includes("/events")) return Response.json(shopState());
+        if (options.refuseStream) return Response.json({ error: "pair this studio with the office first" }, { status: 401 });
+        let controller!: ReadableStreamDefaultController<Uint8Array>;
+        const body = new ReadableStream<Uint8Array>({ start: (value) => void (controller = value) });
+        streams.push({ url, init, write: (text) => controller.enqueue(encoder.encode(text)), end: () => controller.close() });
+        return new Response(body, { status: 200 });
+      });
+      const gateway = new HttpGateway(undefined, options.onUnauthorized);
       await gateway.read();
       const changes: number[] = [];
       const connection: boolean[] = [];
@@ -444,61 +503,113 @@ describe("HttpGateway", () => {
         () => changes.push(changes.length + 1),
         (connected) => connection.push(connected),
       );
-      return { source: FakeEventSource.opened[0]!, changes, connection, unwatch };
+      await settled();
+      return { streams, changes, connection, unwatch };
     }
-    const settled = () => new Promise((resolve) => setTimeout(resolve, 150));
 
     it("listens from the last event it has read, and reads again every time the stream opens", async () => {
-      const { source, changes, connection } = await watching();
+      const { streams, changes, connection } = await watching();
 
-      expect(source.url).toBe("/api/events?after=42");
-      source.onopen?.();
-      source.onerror?.();
-      source.onopen?.();
+      expect(streams.map((stream) => stream.url)).toEqual(["/api/events?after=42"]);
+      expect(connection).toEqual([true]);
+      expect(changes).toHaveLength(1);
 
+      streams[0]!.end();
+      await settled();
+      expect(connection).toEqual([true, false]);
+
+      await reconnected();
+      expect(streams).toHaveLength(2);
       expect(connection).toEqual([true, false, true]);
       expect(changes).toHaveLength(2);
     });
 
+    it("comes back by itself after the stream ends, from the last event it saw", async () => {
+      const { streams } = await watching();
+
+      streams[0]!.write(event(43) + event(47));
+      streams[0]!.end();
+      await reconnected();
+
+      expect(streams.map((stream) => stream.url)).toEqual(["/api/events?after=42", "/api/events?after=47"]);
+    });
+
     it("reads once for a burst of new events, and not at all for ones it has already seen", async () => {
-      const { source, changes } = await watching();
+      const { streams, changes } = await watching();
+      const stream = streams[0]!;
 
-      source.emit(JSON.stringify({ sequence: 41 }));
-      source.emit(JSON.stringify({ sequence: 42 }));
-      await settled();
-      expect(changes).toHaveLength(0);
-
-      source.emit(JSON.stringify({ sequence: 43 }));
-      source.emit(JSON.stringify({ sequence: 44 }));
+      stream.write(event(41) + event(42));
       await settled();
       expect(changes).toHaveLength(1);
 
-      source.emit(JSON.stringify({ sequence: 44 }));
+      stream.write(event(43));
+      stream.write(event(44));
+      await settled();
+      expect(changes).toHaveLength(2);
+
+      stream.write(event(44));
+      await settled();
+      expect(changes).toHaveLength(2);
+    });
+
+    it("reads an event that arrives in pieces, and skips the stream's comments", async () => {
+      const { streams, changes } = await watching();
+      const stream = streams[0]!;
+
+      stream.write(": open\n\n: keepalive\n\n");
       await settled();
       expect(changes).toHaveLength(1);
+
+      stream.write('id: 43\r\ndata: {"sequ');
+      await settled();
+      expect(changes).toHaveLength(1);
+
+      stream.write('ence":43}\r\n');
+      stream.write("\r\n");
+      await settled();
+      expect(changes).toHaveLength(2);
     });
 
     it("ignores what is not an event", async () => {
-      const { source, changes } = await watching();
+      const { streams, changes } = await watching();
+      const stream = streams[0]!;
 
-      source.emit("not json");
-      source.emit(JSON.stringify({ sequence: "50" }));
-      source.emit(JSON.stringify({ sequence: 50.5 }));
-      source.emit(50);
+      stream.write("data: not json\n\n");
+      stream.write(event("50"));
+      stream.write(event(50.5));
+      stream.write("data: 50\n\n");
+      stream.write("event: note\nid: 51\n\n");
       await settled();
 
-      expect(changes).toHaveLength(0);
+      expect(changes).toHaveLength(1);
     });
 
-    it("stops listening, and drops a read that was about to happen", async () => {
-      const { source, changes, unwatch } = await watching();
+    it("stops listening, drops a read that was about to happen, and does not come back", async () => {
+      const { streams, changes, connection, unwatch } = await watching();
 
-      source.emit(JSON.stringify({ sequence: 43 }));
+      streams[0]!.write(event(43));
+      await vi.advanceTimersByTimeAsync(1);
       unwatch();
-      await settled();
+      streams[0]!.write(event(44));
+      streams[0]!.end();
+      await reconnected();
 
-      expect(source.closed).toBe(true);
+      expect(streams[0]!.init?.signal?.aborted).toBe(true);
+      expect(streams).toHaveLength(1);
+      expect(changes).toHaveLength(1);
+      expect(connection).toEqual([true]);
+    });
+
+    it("reports a refused session once and stops asking", async () => {
+      let refused = 0;
+      const { streams, changes, connection } = await watching({ refuseStream: true, onUnauthorized: () => refused++ });
+
+      await reconnected();
+
+      expect(refused).toBe(1);
+      expect(connection).toEqual([false]);
       expect(changes).toHaveLength(0);
+      expect(streams).toHaveLength(0);
     });
   });
 });

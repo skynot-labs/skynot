@@ -1,0 +1,42 @@
+.connection-screen {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--sk-space-6);
+}
+.connection-card {
+  width: min(100%, 440px);
+  padding: var(--sk-space-8);
+  background: var(--sk-color-surface);
+  border: 1px solid var(--sk-color-border);
+  border-radius: var(--sk-radius-md);
+}
+.connection-card .eyebrow {
+  margin-top: var(--sk-space-8);
+}
+.connection-card h1 {
+  font-size: 24px;
+  letter-spacing: -0.6px;
+}
+.connection-card input[type="password"] {
+  width: 100%;
+  padding: 13px 14px;
+  background: #1e1d28;
+  color: var(--sk-color-text);
+  border: 1px solid #45404f;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.connection-card .modal-actions {
+  align-items: center;
+}
+.office-link {
+  display: flex;
+  gap: var(--sk-space-2);
+  align-items: center;
+}
+.office-link .text-button {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: uppercase;
+}

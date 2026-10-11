@@ -3,6 +3,7 @@ import type { ComponentChildren } from "preact";
 import tokens from "./tokens.json";
 import logo from "./logo.json";
 import { Brand } from "./Brand";
+import { paths } from "../paths";
 import { Icon } from "../ui/Icon";
 import { AvatarCanvas } from "../ui/AvatarCanvas";
 import { defaultAvatar } from "../config";
@@ -105,7 +106,7 @@ function Download({
   children: ComponentChildren;
 }) {
   return (
-    <a class="ds-download" href={`/brand/${file}`} download={file}>
+    <a class="ds-download" href={`${paths.brand}${file}`} download={file}>
       {children}
       <Icon name="arrow" />
     </a>
@@ -138,17 +139,17 @@ export function DesignSystem() {
         Skip to content
       </a>
       <header class="ds-header">
-        <a href="/" aria-label="Skynot — back to the studio">
+        <a href={paths.studio} aria-label="Skynot — back to the studio">
           <Brand />
         </a>
         <span class="ds-header-label">
           IDENTITY & DESIGN <b>v{tokens.version}</b>
         </span>
-        <a class="ds-back" href="/github/">
+        <a class="ds-back" href={paths.github}>
           <Icon name="link" />
           <span>GitHub kit</span>
         </a>
-        <a class="ds-back" href="/">
+        <a class="ds-back" href={paths.studio}>
           <Icon name="arrow" />
           <span>Back to the studio</span>
         </a>
@@ -187,7 +188,7 @@ export function DesignSystem() {
             </div>
             <div class="ds-board-logo">
               <img
-                src="/brand/skynot-logo.svg"
+                src={`${paths.brand}skynot-logo.svg`}
                 width="328"
                 height="80"
                 alt="Skynot primary logo"
@@ -265,7 +266,7 @@ export function DesignSystem() {
             <article class="ds-logo-card">
               <div class="ds-logo-stage ds-logo-dark">
                 <img
-                  src="/brand/skynot-logo.svg"
+                  src={`${paths.brand}skynot-logo.svg`}
                   alt="Light logo on a dark background"
                   width="328"
                   height="80"
@@ -282,7 +283,7 @@ export function DesignSystem() {
             <article class="ds-logo-card">
               <div class="ds-logo-stage ds-logo-paper">
                 <img
-                  src="/brand/skynot-logo-ink.svg"
+                  src={`${paths.brand}skynot-logo-ink.svg`}
                   alt="Dark logo on a light background"
                   width="328"
                   height="80"
@@ -300,7 +301,7 @@ export function DesignSystem() {
               <div class="ds-logo-stage ds-monogram-stage">
                 <div class="ds-clear-space">
                   <img
-                    src="/brand/skynot-mark.svg"
+                    src={`${paths.brand}skynot-mark.svg`}
                     alt="Skynot symbol in one continuous stroke with its clear space"
                     width="80"
                     height="80"
@@ -323,8 +324,8 @@ export function DesignSystem() {
                 key={traceKey}
                 src={
                   traceKey === 0
-                    ? "/brand/skynot-mark.svg"
-                    : `/brand/skynot-mark-trace.svg?replay=${traceKey}`
+                    ? `${paths.brand}skynot-mark.svg`
+                    : `${paths.brand}skynot-mark-trace.svg?replay=${traceKey}`
                 }
                 width="144"
                 height="144"
@@ -569,7 +570,7 @@ export function DesignSystem() {
             <article class="ds-component-card">
               <span class="ds-label">ACTIONS & STATES</span>
               <div class="ds-example-actions">
-                <a class="ds-button" href="/">
+                <a class="ds-button" href={paths.studio}>
                   Open the studio
                   <Icon name="arrow" />
                 </a>
@@ -622,7 +623,7 @@ export function DesignSystem() {
                   </div>
                 ))}
               </div>
-              <a class="ds-text-link" href="/">
+              <a class="ds-text-link" href={paths.studio}>
                 Customize avatars in the studio ↗
               </a>
             </article>
@@ -638,7 +639,7 @@ export function DesignSystem() {
           </div>
         </section>
         <footer class="ds-footer">
-          <a href="/" aria-label="Skynot — back to the studio">
+          <a href={paths.studio} aria-label="Skynot — back to the studio">
             <Brand tagline={false} />
           </a>
           <p>
@@ -646,7 +647,7 @@ export function DesignSystem() {
             <br />
             Working identity · v{tokens.version}
           </p>
-          <a class="ds-text-link" href="/">
+          <a class="ds-text-link" href={paths.studio}>
             Back to the studio ↗
           </a>
         </footer>

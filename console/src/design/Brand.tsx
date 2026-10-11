@@ -1,6 +1,8 @@
+import { paths } from "../paths";
+
 export function Brand({
   tagline = true,
-  assetBase = "/brand/",
+  assetBase = paths.brand,
 }: {
   tagline?: boolean;
   assetBase?: string;

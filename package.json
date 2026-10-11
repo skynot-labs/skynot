@@ -19,7 +19,8 @@
     "design:export": "node console/scripts/export-design.mjs",
     "github:export": "node console/scripts/export-github.mjs",
     "build:github": "npm run design:export && npm run github:export && vite build --config console/vite.github.config.ts",
-    "test:e2e": "npm run build:console && playwright test -c console/e2e"
+    "build:studio": "vite build --config console/vite.config.ts --base ./ --outDir dist/github/studio",
+    "test:e2e": "npm run build:console && npm run build:studio && playwright test -c console/e2e"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
