@@ -7,6 +7,8 @@ export type IdlePose = (Spot & { walking: boolean; doing: string | null }) | nul
 
 const STEP = 0.5;
 const CLEARANCE = 0.3;
+// Room to stand without a shoulder inside a desk or a face behind a monitor.
+const STANDING_ROOM = 0.9;
 const TILES_PER_SECOND = 1.4;
 const MIN_LINGER_MS = 5_000;
 const MIN_CYCLE_MS = 40_000;
@@ -29,31 +31,37 @@ function walkable(floor: Floor) {
     u: ((cell % columns) + 1) * STEP,
     v: (Math.floor(cell / columns) + 1) * STEP,
   });
-  const free = Array.from({ length: columns * rows }, (_, cell) => {
-    const { u, v } = spot(cell);
-    return !floor.blocked.some(
-      (rect) =>
-        u > rect.u - CLEARANCE &&
-        u < rect.u + rect.width + CLEARANCE &&
-        v > rect.v - CLEARANCE &&
-        v < rect.v + rect.depth + CLEARANCE,
-    );
-  });
-  const nearest = (target: Spot): number | null => {
+  const clear = (margin: number) =>
+    Array.from({ length: columns * rows }, (_, cell) => {
+      const { u, v } = spot(cell);
+      return !floor.blocked.some(
+        (rect) =>
+          u > rect.u - margin &&
+          u < rect.u + rect.width + margin &&
+          v > rect.v - margin &&
+          v < rect.v + rect.depth + margin,
+      );
+    });
+  const free = clear(CLEARANCE);
+  const roomy = clear(STANDING_ROOM);
+  const nearest = (target: Spot, among = free): number | null => {
     let best: number | null = null;
-    free.forEach((open, cell) => {
+    among.forEach((open, cell) => {
       if (open && (best === null || length(spot(cell), target) < length(spot(best), target))) best = cell;
     });
     return best;
   };
-  return { columns, rows, free, spot, nearest };
+  return { columns, rows, free, roomy, spot, nearest };
 }
 
-/** Breadth-first over half tiles, eight directions, never cutting a corner. Null when the floor does not connect them. */
+/**
+ * Breadth-first over half tiles, eight directions, never cutting a corner. It ends at the roomy spot nearest to `to`,
+ * so nobody stops to stand wedged against furniture. Null when the floor does not connect them.
+ */
 export function route(floor: Floor, from: Spot, to: Spot): Spot[] | null {
-  const { columns, rows, free, spot, nearest } = walkable(floor);
+  const { columns, rows, free, roomy, spot, nearest } = walkable(floor);
   const start = nearest(from);
-  const goal = nearest(to);
+  const goal = nearest(to, roomy) ?? nearest(to);
   if (start === null || goal === null) return null;
   const cameFrom = new Map<number, number>([[start, start]]);
   const queue = [start];

@@ -20,6 +20,14 @@ describe("an idle agent's life in the studio", () => {
     expect(path.length).toBeGreaterThan(7);
   });
 
+  it("stops where there is room to stand, not wedged against the furniture it was sent to", () => {
+    const beside = { u: 6.2, v: 4.5 };
+    const end = route(floor, home, beside)!.at(-1)!;
+    const gap = Math.max(desk.u - end.u, end.u - (desk.u + desk.width), desk.v - end.v, end.v - (desk.v + desk.depth));
+    expect(gap).toBeGreaterThanOrEqual(0.9);
+    expect(Math.hypot(end.u - beside.u, end.v - beside.v)).toBeLessThan(1.5);
+  });
+
   it("finds no way to a spot the floor does not connect", () => {
     const wall = { u: 7, v: 0, width: 0.5, depth: 10 };
     expect(route({ ...floor, blocked: [desk, wall] }, home, { u: 11, v: 8 })).toBeNull();
