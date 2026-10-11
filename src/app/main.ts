@@ -6,6 +6,7 @@ import { FakeVcs, FakeWorkspace } from "../delivery";
 import { readPolicy, readTeam } from "./config";
 import { lockDataDir } from "./data-lock";
 import { briefingStore, PROJECTS_DIR, projectsFolder, readProjects } from "./projects";
+import { pairingLink, readOfficeAccess } from "./http/access";
 import { createApi } from "./http/api";
 import { createMockDeveloper, createMockManager } from "./mock-engines";
 import { ClaudeEngine, CodexEngine } from "../execution";
@@ -47,8 +48,10 @@ const shop = await createShop({
   }),
 });
 
+const access = await readOfficeAccess(process.env, dataDir);
 const api = createApi(shop, {
   allowedHosts: [`127.0.0.1:${port}`, `localhost:${port}`],
+  ...(access && { access }),
   onError: (error) => console.error("command failed:", error),
   projects: { registry: new YamlProjectRegistry(PROJECTS_DIR), folder: () => projectsFolder(), policyRepos: policy.repos.map((repo) => repo.name) },
   ...(mock && {
@@ -89,6 +92,11 @@ serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
   if (github) console.log(`GitHub: acting as ${github.identity}`);
   console.log(`skynot console on http://127.0.0.1:${port}${mock ? "  (simulated engines, nothing leaves this machine)" : ""}`);
   if (!existsSync(consoleDir)) console.log("The console is not built yet: run `npm run build:console`.");
+  if (access) {
+    console.log(`\nThe office answers at ${access.address} and asks every request for a session.`);
+    console.log(`Pair a studio by opening this link. Whoever has it can run the shop, so treat it as a password:\n  ${pairingLink(access.studio, access)}`);
+    if (!access.studio.startsWith(access.address)) console.log(`The console this office serves pairs with:\n  ${pairingLink(`${access.address}/`, access)}`);
+  }
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

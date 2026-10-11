@@ -9,10 +9,14 @@ import type { TeamChange, TeamError } from "../../team";
 import { PREFERENCE_KEY, setPreference } from "../preferences";
 import { registrationProblem, type ProjectsFolder } from "../projects";
 import type { Shop } from "../shop";
+import { issueSession, pairingDesk, sessionIsValid, type OfficeAccess } from "./access";
+import { CONTRACT } from "./contract";
 import { readState } from "./state";
 
 export interface ApiOptions {
   allowedHosts: readonly string[];
+  // Set when the office answers beyond this machine; without it nothing asks for a session.
+  access?: OfficeAccess;
   onError?: (error: unknown) => void;
   devTools?: { mergePullRequest(orderId: string): Promise<boolean> };
   // Only the director's console registers or describes a project; without this both commands are refused.
@@ -63,18 +67,48 @@ const STATUS_FOR: Record<OrderError["kind"], 400 | 404 | 409> = {
 export function createApi(shop: Shop, options: ApiOptions): Hono {
   const api = new Hono();
 
+  const { access } = options;
+  const hosts = access ? [...options.allowedHosts, new URL(access.address).host] : options.allowedHosts;
+  const pair = access && pairingDesk(access);
+
   api.use("*", async (context, next) => {
     const host = context.req.header("host") ?? "";
-    if (!options.allowedHosts.includes(host)) return context.json({ error: "unknown host" }, 403);
+    if (!hosts.includes(host)) return context.json({ error: "unknown host" }, 403);
+
+    const origin = context.req.header("origin");
+    const fromStudio = origin !== undefined && access?.studios.includes(origin) === true;
+    if (fromStudio) {
+      context.header("access-control-allow-origin", origin);
+      context.header("access-control-allow-headers", "authorization, content-type");
+      context.header("vary", "origin");
+      if (context.req.method === "OPTIONS") return context.body(null, 204);
+    }
 
     if (context.req.method === "POST") {
-      const origin = context.req.header("origin");
-      if (origin && new URL(origin).host !== host) return context.json({ error: "cross-origin request refused" }, 403);
+      if (origin && !fromStudio && (!URL.canParse(origin) || new URL(origin).host !== host)) return context.json({ error: "cross-origin request refused" }, 403);
       if (!context.req.header("content-type")?.startsWith("application/json")) {
         return context.json({ error: "send application/json" }, 415);
       }
     }
+
+    const { path } = context.req;
+    const needsSession = path.startsWith("/api/") && path !== "/api/meta" && path !== "/api/sessions";
+    if (access && needsSession && !sessionIsValid(access, context.req.header("authorization")?.replace(/^Bearer /, "") ?? "")) {
+      return context.json({ error: "pair this studio with the office first" }, 401);
+    }
     await next();
+  });
+
+  api.get("/api/meta", (context) => context.json({ contract: CONTRACT, requiresSession: Boolean(access) }));
+
+  api.post("/api/sessions", async (context) => {
+    if (!access || !pair) return context.json({ error: "this office takes no sessions: it answers on this machine only" }, 404);
+    const body = z.object({ secret: z.string().min(1).max(200) }).safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: "the pairing secret is required" }, 400);
+
+    const outcome = pair(body.data.secret);
+    if (outcome === "locked") return context.json({ error: "too many wrong secrets: wait a minute" }, 429);
+    return outcome === "paired" ? context.json(issueSession(access)) : context.json({ error: "that is not this office's pairing secret" }, 401);
   });
 
   api.get("/api/state", (context) => {
