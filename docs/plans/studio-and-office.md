@@ -1,6 +1,7 @@
 # Plan · A public studio, and an office anyone can run
 
-**Status:** draft for the director's review. Nothing here is decided or built. See [vision](../vision.md) for what
+**Status:** draft under review with the director. Nothing is built. The director has settled that the public
+studio is the main way in, not only a showcase, and that this goes before greenfield. See [vision](../vision.md) for what
 exists, and [running on a server](../running-on-a-server.md) for the only remote setup that works today.
 
 ## Why
@@ -20,7 +21,7 @@ This is not a competitor to `claude` or `codex`. It is a small, readable project
    writes the three configuration files and runs the readiness check.
 3. Starts the office. It prints a link; opening it connects the public studio to their office.
 
-The office runs on their own machine. A tunnel is only for reaching it from another device.
+The office runs wherever they want, on their own machine or a server, and has an address the studio can reach.
 
 ## Proposed decisions
 
@@ -33,10 +34,12 @@ None is taken; each is here to be argued with.
    studio stops importing types from the office's code, and a test keeps it that way.
 3. **The office says what it speaks.** The studio checks the contract's major version when it connects and says
    so when they differ, instead of failing inside a view.
-4. **Local first.** The public studio talks to the office on `127.0.0.1`. Nothing is exposed to the internet by
-   default.
-5. **A pairing token, not a login.** The office creates a token at first start and prints a link that carries it.
-   One director, one token, revocable. No password, no JWT, no user table until there is a second user.
+4. **The office has an HTTPS address.** A public page cannot reliably reach `127.0.0.1` (see the checks below), so
+   the office is reached by name over HTTPS: a tailnet name, a tunnel or a server. The office is told which
+   address it answers as and which studios may call it.
+5. **One kind of session, several ways to get it.** The studio knows one thing: a bearer token for the office.
+   The office issues it after either proof of who is asking: a GitHub sign-in checked against a list of allowed
+   logins, or a secret the office printed at first start. Adding a way to sign in never changes the studio.
 6. **The office keeps a studio of its own.** It still serves a console built from the same commit, on the same
    origin. That is what works offline, in a browser that blocks the public one, and when versions differ.
 7. **One repository until the contract has changed once.** Three packages with the boundary enforced by a test and
@@ -48,11 +51,12 @@ Cheap experiments. A failure changes the plan, so they come first.
 
 | # | Assumption | Status |
 | --- | --- | --- |
-| 1 | A page served over HTTPS can call an office on `http://127.0.0.1`, including the event stream, in Chrome and Firefox | not checked |
-| 2 | What Safari does with the same call, and what recent Chrome asks the user to allow | not checked; a similar project reports Safari blocks it and Chrome 142 asks for a permission |
-| 3 | A GitHub App can be created from a manifest with the callback on `127.0.0.1`, returning its id and private key | not checked |
-| 4 | The event stream survives a free tunnel for an hour without dropping silently | not checked; the same project calls such tunnels unreliable |
-| 5 | The simulated shop can run inside the browser, for the public demo | not checked; it reads files today |
+| 1 | The public page can call an office on `http://127.0.0.1`, with a token and an event stream | **Checked 2026-10-11, from the real Pages origin.** Chromium 156 refuses until the user grants local network access, then all of it works. Firefox 157 stops at the same permission; granting it was not exercised. WebKit refuses outright as insecure content, with no permission to grant. So it cannot be the default |
+| 2 | The public page can call an office on an HTTPS tailnet name, without the same permission | not checked; tailnet addresses may count as a local network |
+| 3 | The public page can call an office behind a public HTTPS address, with a token and an event stream | not checked; expected to work, since nothing local is involved |
+| 4 | A GitHub App can be created from a manifest with the callback on `127.0.0.1`, returning its id and private key | not checked; needs the director's browser |
+| 5 | The event stream survives a tunnel for an hour without dropping silently | not checked; a similar project calls free tunnels unreliable |
+| 6 | The simulated shop can run inside the browser, for the public demo | not checked; its Node-only imports are in the adapters and the composition, which a browser build would replace |
 
 ## Slices
 
@@ -90,8 +94,8 @@ another language for the office, and separate repositories. Each waits for a pai
   leaked shop. It needs revocation and a limit on attempts, and the guide must say plainly what it protects.
 - **One public studio serves everyone.** A script injected into it reaches every office connected to it. It needs
   a strict content policy, no third-party scripts, and the token kept out of anything a script can read later.
-- **Browsers are closing this door.** Calling a local address from a public page is being restricted. If slice C
-  only works in one browser, the bundled console becomes the main path and the public studio the demo.
+- **A reachable office is a public office.** With a tunnel or a server, the token is in front of the whole
+  internet, not of one machine. A tailnet keeps it private at the price of asking the newcomer for an account.
 - **Two things to release instead of one.** Every change that touches both sides becomes two releases in the right
   order. That is the lesson wanted, and it is also the cost.
 - **The setup command touches someone's GitHub account.** It must show what it will create before it does, and
@@ -99,7 +103,9 @@ another language for the office, and separate repositories. Each waits for a pai
 
 ## Open for the director
 
-- Does this go before greenfield and curated memory in the [roadmap](../vision.md#phases), and replace the deploy
-  half of phase 7?
-- If browsers block the local call, is a public studio that is mostly a demo still worth slices C and E?
+- Which address does the getting started guide lead with: a tailnet, a tunnel, or a server?
+- How is the office handed to a newcomer: a clone of this repository, or a small repository of configuration
+  that runs a published image? The second needs a release of the office first.
 - One repository first, or three from the start?
+- This moves ahead of greenfield and curated memory in the [roadmap](../vision.md#phases) and replaces the deploy
+  half of phase 7; the table there changes when the plan is approved.
