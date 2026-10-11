@@ -72,6 +72,7 @@ function shopState(overrides: Partial<ShopState> = {}): ShopState {
       { role: "backend_dev", name: null, engine: "claude", model: null },
       { role: "ui-designer", name: null, engine: "claude", model: null },
     ],
+    souls: [],
     teamChanges: [],
     briefingChanges: [],
     briefing: null,

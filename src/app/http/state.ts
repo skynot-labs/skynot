@@ -46,6 +46,7 @@ export function readState(shop: Shop, projectId?: string) {
     inbox: inboxOf(shop, project.id),
     answered: answeredOf(shop, project.id),
     team: describeRoles({ roles: desk.team.roles, ...(desk.team.workers && { workers: desk.team.workers }), advisors: desk.roster.members() }),
+    souls: desk.roster.profiles(),
     teamChanges: desk.roster.pending(),
     briefingChanges: shop.briefingChanges.pendingFor(project.id),
     briefing: shop.briefingChanges.signedFor(project.id),

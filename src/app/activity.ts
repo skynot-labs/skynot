@@ -6,6 +6,7 @@ export interface ActivityEntry {
   readonly at: string;
   readonly orderId: string | null;
   readonly projectId: string;
+  readonly role: string | null;
   readonly kind: "order" | "delivery" | "run" | "advice";
   readonly text: string;
   readonly url: string | null;
@@ -41,6 +42,7 @@ const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
+type Described = Omit<ActivityEntry, "sequence" | "at" | "projectId" | "role">;
 
 export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
@@ -56,7 +58,7 @@ export class ActivityProjection implements Projection {
     if (event.type === "orders.proposed") this.orderProjects.set(payload.orderId as string, typeof payload.projectId === "string" ? payload.projectId : this.firstProject);
     if (event.type === "execution.run_requested") this.runProjects.set(payload.runId as string, this.projectOf(payload));
     const entry = this.describe(event, payload);
-    if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, projectId: this.projectOf(payload), ...entry });
+    if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, projectId: this.projectOf(payload), role: this.roleOf(event.type, payload), ...entry });
     this.trackLinks(event.type, payload, event.occurredAt);
   }
 
@@ -72,11 +74,19 @@ export class ActivityProjection implements Projection {
     return this.firstProject;
   }
 
+  // Only what names its role: an order's other steps belong to whoever holds the order.
+  private roleOf(type: string, payload: Payload): string | null {
+    if (type.startsWith("execution.")) return this.runOrders.get(payload.runId as string)?.role ?? null;
+    if (type === "manager.answer_rejected") return "manager";
+    if (type === "delivery.worker_assigned") return payload.worker as string;
+    return typeof payload.role === "string" ? payload.role : null;
+  }
+
   linksFor(orderId: string): OrderLinks {
     return this.links.get(orderId) ?? NO_LINKS;
   }
 
-  private describe(event: StoredEvent, payload: Payload): Omit<ActivityEntry, "sequence" | "at" | "projectId"> | null {
+  private describe(event: StoredEvent, payload: Payload): Described | null {
     const orderId = typeof payload.orderId === "string" ? payload.orderId : null;
     const order = (text: string, url: string | null = null) => ({ orderId, kind: "order" as const, text, url });
     const delivery = (text: string, url: string | null = null) => ({ orderId, kind: "delivery" as const, text, url });
@@ -177,7 +187,7 @@ export class ActivityProjection implements Projection {
     }
   }
 
-  private runEntry(payload: Payload, text: string): Omit<ActivityEntry, "sequence" | "at" | "projectId"> | null {
+  private runEntry(payload: Payload, text: string): Described | null {
     const run = this.runOrders.get(payload.runId as string);
     return run ? { orderId: run.orderId, kind: "run", text: `${run.role} run ${text}`, url: null } : null;
   }
