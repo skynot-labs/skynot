@@ -31,6 +31,17 @@ export class TeamService {
     });
   }
 
+  // The director's own word needs no proposal: it is signed as it is given.
+  refocus(role: string, focus: string): Promise<Result<void, TeamError>> {
+    return this.exclusive(async () => {
+      const problem = this.problemWith({ action: "refocus", role, focus });
+      if (problem) return invalid(problem);
+
+      await this.log.record([{ type: "team.change_signed", payload: { changeId: newId("chg"), action: "refocus", role, focus: focus.trim() } }]);
+      return ok(undefined);
+    });
+  }
+
   sign(id: string): Promise<ChangeResult> {
     return this.settle(id, "team.change_signed");
   }

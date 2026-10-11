@@ -6,6 +6,13 @@ export interface RoleSummary {
   readonly description: string;
 }
 
+export interface RoleProfile {
+  readonly role: string;
+  readonly description: string;
+  readonly soul: string;
+  readonly focus: string | null;
+}
+
 // The team file says who is known and who starts on the team; signed changes move people in and out.
 export class RosterProjection implements Projection {
   private readonly known: Record<string, Advisor>;
@@ -52,6 +59,12 @@ export class RosterProjection implements Projection {
 
   members(): Record<string, Advisor> {
     return Object.fromEntries([...this.onTeam].filter((name) => name in this.known).map((name) => [name, this.withFocus(name)]));
+  }
+
+  profiles(): RoleProfile[] {
+    return [...this.onTeam]
+      .filter((name) => name in this.known)
+      .map((name) => ({ role: name, description: this.known[name]!.description, soul: this.known[name]!.soul, focus: this.foci.get(name) ?? null }));
   }
 
   isMember(role: string): boolean {

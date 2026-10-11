@@ -139,6 +139,28 @@ describe("changing what a member concentrates on", () => {
     expect(await team.service.propose({ action: "refocus", role: "architect", reason: "x" })).toMatchObject({ ok: false, error: { message: "a refocus needs the new focus" } });
   });
 
+  it("takes a focus straight from the director, with nothing left to sign", async () => {
+    const team = await openTeam();
+
+    expect(await team.service.refocus("architect", "  migrations of existing data ")).toEqual({ ok: true, value: undefined });
+
+    expect(team.roster.pending()).toEqual([]);
+    expect(team.roster.profiles()).toEqual([
+      { role: "architect", description: "design", soul: "soul of design", focus: "migrations of existing data" },
+      { role: "reviewer", description: "scope", soul: "soul of scope", focus: null },
+    ]);
+    expect((await openTeam(team.store)).roster.members().architect?.soul).toContain("migrations of existing data");
+  });
+
+  it("refuses the director's focus for someone who is not on the team, or while a change for them waits", async () => {
+    const team = await openTeam();
+    await propose(team, "dismiss", "reviewer");
+
+    expect(await team.service.refocus("designer", "colors")).toMatchObject({ ok: false, error: { message: expect.stringContaining("not on the team") } });
+    expect(await team.service.refocus("reviewer", "scope creep")).toMatchObject({ ok: false, error: { message: "there is already a pending change for reviewer" } });
+    expect(team.roster.profiles().map((profile) => profile.focus)).toEqual([null, null]);
+  });
+
   it("replaces an earlier focus with the next one signed", async () => {
     const team = await openTeam();
     await team.service.sign(await propose(team, "refocus", "architect", "first"));

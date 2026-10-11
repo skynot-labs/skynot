@@ -24,6 +24,8 @@ const orderId = z.string().regex(/^WO-\d{4}$/);
 const projectId = z.string().regex(PROJECT_ID);
 const bucket = z.enum(["lt5", "5-15", "15-30", "gt30"]);
 const command = z.string().min(1);
+const roleName = z.string().regex(/^[a-z][a-z0-9-]{1,23}$/);
+const MAX_FOCUS = 300;
 const registration = z.object({
   id: projectId,
   repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
@@ -155,7 +157,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   orderCommand("answer-question", (id, body) => shop.flow.answerQuestion(id, (body as { answer: string }).answer), { answer: text });
   orderCommand("start-now", (id) => shop.flow.startNow(id));
   orderCommand("review-order", async (id) => shop.flow.requestReview(id));
-  orderCommand("reassign-order", (id, body) => shop.flow.reassign(id, (body as { worker: string }).worker), { worker: z.string().regex(/^[a-z][a-z0-9-]{1,23}$/) });
+  orderCommand("reassign-order", (id, body) => shop.flow.reassign(id, (body as { worker: string }).worker), { worker: roleName });
   orderCommand("stop-order", async (id) => shop.flow.stop(id));
   orderCommand("approve-protected-paths", (id) => shop.flow.approveProtected(id));
   orderCommand("follow-up", (id, body) => shop.flow.followUp(id, (body as { text: string }).text), { text });
@@ -253,6 +255,16 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
         ? context.json({ id: result.value.id, status: result.value.status })
         : context.json({ error: result.error.message }, result.error.kind === "not_found" ? 404 : 409);
     });
+
+  api.post("/api/commands/set-focus", async (context) => {
+    const body = z.object({ project: projectId, role: roleName, focus: z.string().trim().min(3).max(MAX_FOCUS) }).safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: invalid(body.error) }, 400);
+    const desk = shop.desk(body.data.project);
+    if (!desk) return context.json({ error: `no project ${body.data.project}` }, 404);
+
+    const result = await desk.teamService.refocus(body.data.role, body.data.focus);
+    return result.ok ? context.json({ role: body.data.role, focus: body.data.focus }) : context.json({ error: result.error.message }, 409);
+  });
 
   const serviceOf = (id: string) => (shop.desks.find((desk) => desk.roster.change(id)) ?? shop.desks[0]!).teamService;
   teamCommand("sign-team-change", (id) => serviceOf(id).sign(id));

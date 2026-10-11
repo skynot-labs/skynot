@@ -152,6 +152,24 @@ describe("console api", () => {
     expect((await post("/api/commands/discard-team-change", { changeId: "nope" })).status).toBe(400);
   });
 
+  it("sets an advisor's focus from the console and shows its soul, and refuses one for a role with no soul", async () => {
+    const hired = await shop.teamService.propose({ action: "hire", role: "designer", reason: "wording heavy" });
+    if (!hired.ok) throw new Error("propose failed");
+    await post("/api/commands/sign-team-change", { changeId: hired.value.id });
+    const project = (await getState()).project.id;
+
+    const set = await post("/api/commands/set-focus", { project, role: "designer", focus: "empty states" });
+
+    expect(set.status).toBe(200);
+    const state = await getState();
+    expect(state.souls).toEqual([{ role: "designer", description: "screens", soul: "You design.", focus: "empty states" }]);
+    expect(state.activity[0]).toMatchObject({ role: "designer", text: "designer has a new focus: empty states" });
+    expect((await post("/api/commands/set-focus", { project, role: "developer", focus: "tests first" })).status).toBe(409);
+    expect((await post("/api/commands/set-focus", { project, role: "designer", focus: "x" })).status).toBe(400);
+    expect((await post("/api/commands/set-focus", { project: "nowhere", role: "designer", focus: "empty states" })).status).toBe(404);
+    expect((await getState()).souls[0]?.focus).toBe("empty states");
+  });
+
   it("refuses to approve protected paths for an order that is not waiting for it, and for one that does not exist", async () => {
     const id = await fileAnOrder();
     await post("/api/commands/sign-order", { orderId: id });
@@ -248,7 +266,7 @@ describe("what the studio reads from the state", () => {
     await settle();
     const state = await getState();
 
-    expect(state.activity.filter((entry) => entry.kind === "run").map((entry) => entry.text)).toContain("developer run finished, $0.31");
+    expect(state.activity.filter((entry) => entry.kind === "run").map((entry) => [entry.role, entry.text])).toContainEqual(["developer", "developer run finished, $0.31"]);
   });
 
   it("carries no cost for a role whose engine reported none, in its runs, its totals and the logbook", async () => {
