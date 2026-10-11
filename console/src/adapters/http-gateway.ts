@@ -1,8 +1,10 @@
+import type { Connection } from "../application/connection";
 import { config, defaultAvatar } from "../config";
 import type { Agent, AgentStatus, Command, Project, ProjectSummary, ShopState, Snapshot } from "../contracts";
 
 const DEV_COMMANDS: ReadonlySet<Command["name"]> = new Set(["merge-pull-request"]);
 const DEBOUNCE_MS = 60;
+const RECONNECT_MS = 2000;
 
 export function mapState(state: ShopState, accents: readonly string[] = config.accents): Snapshot {
   const accentAt = (index: number) => accents[Math.max(index, 0) % accents.length] ?? "";
@@ -94,11 +96,32 @@ function readSnapshot(state: unknown): Snapshot {
   }
 }
 
+export class Unauthorized extends Error {}
+
+export interface OfficeMeta {
+  contract: number;
+  requiresSession: boolean;
+}
+
 export class HttpGateway {
   private cursor = 0;
+  private readonly base: string;
 
-  constructor(private readonly base = "/api") {
-    if (!base.startsWith("/") || base.startsWith("//")) throw new Error("Use a same-origin API path.");
+  // Without a connection it talks to the office that served this page; with one, to that office and with its session.
+  constructor(
+    private readonly connection?: Connection,
+    private readonly onUnauthorized?: () => void,
+  ) {
+    this.base = connection ? `${connection.office}/api` : "/api";
+  }
+
+  async meta(): Promise<OfficeMeta> {
+    const response = await this.request("/meta");
+    const meta: unknown = response.ok ? await response.json().catch(() => null) : null;
+    if (typeof meta !== "object" || meta === null || !("contract" in meta) || typeof meta.contract !== "number") {
+      throw new Error(`The office did not say which contract it speaks (${response.status}).`);
+    }
+    return { contract: meta.contract, requiresSession: "requiresSession" in meta && meta.requiresSession === true };
   }
 
   async read(projectId?: string): Promise<Snapshot> {
@@ -110,44 +133,91 @@ export class HttpGateway {
 
   async send(command: Command): Promise<void> {
     const scope = DEV_COMMANDS.has(command.name) ? "dev" : "commands";
-    const response = await fetch(`${this.base}/${scope}/${command.name}`, {
+    const response = await this.request(`/${scope}/${command.name}`, {
       method: "POST",
-      credentials: "same-origin",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(command.payload),
     });
     if (!response.ok) throw new Error(await errorOf(response, `The shop refused the command (${response.status}).`));
   }
 
+  // EventSource cannot carry the session, so the stream is read from a plain request.
   watch(onChange: () => void, onConnection: (connected: boolean) => void): () => void {
-    const source = new EventSource(`${this.base}/events?after=${this.cursor}`);
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = new AbortController();
+    let debounce: ReturnType<typeof setTimeout> | undefined;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     let seen = this.cursor;
-    source.onopen = () => {
-      onConnection(true);
-      onChange();
-    };
-    source.onerror = () => onConnection(false);
-    source.onmessage = (event) => {
-      const sequence = sequenceOf(event.data);
-      if (sequence === null || sequence <= seen) return;
+
+    const notice = (data: string) => {
+      const sequence = sequenceOf(data);
+      if (stop.signal.aborted || sequence === null || sequence <= seen) return;
       seen = sequence;
-      clearTimeout(timer);
-      timer = setTimeout(onChange, DEBOUNCE_MS);
+      clearTimeout(debounce);
+      debounce = setTimeout(onChange, DEBOUNCE_MS);
     };
+    const listen = async () => {
+      try {
+        const response = await this.request(`/events?after=${seen}`, { signal: stop.signal, headers: { accept: "text/event-stream" } });
+        if (response.ok && response.body && !stop.signal.aborted) {
+          onConnection(true);
+          onChange();
+          await readServerSentEvents(response.body, notice);
+        }
+      } catch (cause) {
+        if (cause instanceof Unauthorized) return onConnection(false);
+      }
+      if (stop.signal.aborted) return;
+      onConnection(false);
+      retry = setTimeout(() => void listen(), RECONNECT_MS);
+    };
+    void listen();
+
     return () => {
-      clearTimeout(timer);
-      source.close();
+      stop.abort();
+      clearTimeout(debounce);
+      clearTimeout(retry);
     };
   }
 
   // A remembered project the shop no longer has answers 404: the default project is read instead.
   private async get(projectId?: string): Promise<Response> {
     const query = projectId ? `?project=${encodeURIComponent(projectId)}` : "";
-    const response = await fetch(`${this.base}/state${query}`, { credentials: "same-origin" });
+    const response = await this.request(`/state${query}`);
     if (response.ok) return response;
     if (response.status === 404 && projectId) return this.get();
     throw new Error(await errorOf(response, `The shop did not answer (${response.status}).`));
+  }
+
+  private async request(path: string, init: RequestInit = {}): Promise<Response> {
+    const session = this.connection && { authorization: `Bearer ${this.connection.token}` };
+    const response = await fetch(`${this.base}${path}`, {
+      ...init,
+      credentials: this.connection ? "omit" : "same-origin",
+      headers: { ...init.headers, ...session },
+    });
+    if (response.status !== 401) return response;
+    this.onUnauthorized?.();
+    throw new Unauthorized(await errorOf(response, "The office no longer accepts this session."));
+  }
+}
+
+async function readServerSentEvents(body: ReadableStream<Uint8Array>, onData: (data: string) => void): Promise<void> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let unfinished = "";
+  let data: string[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    const lines = (unfinished + decoder.decode(value, { stream: true })).split(/\r?\n/);
+    unfinished = lines.pop() ?? "";
+    for (const line of lines) {
+      if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
+      else if (line === "" && data.length > 0) {
+        onData(data.join("\n"));
+        data = [];
+      }
+    }
   }
 }
 
@@ -157,8 +227,7 @@ async function errorOf(response: Response, fallback: string): Promise<string> {
   return typeof message === "string" ? message : fallback;
 }
 
-function sequenceOf(data: unknown): number | null {
-  if (typeof data !== "string") return null;
+function sequenceOf(data: string): number | null {
   try {
     const event: unknown = JSON.parse(data);
     const sequence = typeof event === "object" && event !== null && "sequence" in event ? event.sequence : null;

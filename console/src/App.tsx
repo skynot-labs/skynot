@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Agent, Command, Order } from "./contracts";
-import { HttpGateway } from "./adapters/http-gateway";
+import type { HttpGateway } from "./adapters/http-gateway";
 import { useConsole } from "./application/use-console";
+import { useOffice } from "./application/use-office";
+import { ConnectionScreen, ContractMismatch } from "./ui/Connection";
+import { paths } from "./paths";
 import {
   agentAppearance,
   appearanceFrom,
@@ -97,9 +100,16 @@ const headings: Record<Exclude<Tab, "studio">, [string, string, string]> = {
 };
 const projectKey = "skynot.project";
 const sidebarKey = "skynot.sidebar";
-const gateway = new HttpGateway();
 
 export function App() {
+  const { office, connect, disconnect } = useOffice();
+  if (office.stage === "starting") return null;
+  if (office.stage === "asking") return <ConnectionScreen address={office.address} problem={office.problem} onConnect={connect} />;
+  if (office.stage === "mismatched") return <ContractMismatch {...office} onLeave={disconnect} />;
+  return <Console gateway={office.gateway} remote={office.remote} onDisconnect={disconnect} />;
+}
+
+function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remote: string | null; onDisconnect: () => void }) {
   const [projectId, setProjectId] = useState(rememberedProject);
   const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
   const [tab, setTab] = useState<Tab>("studio");
@@ -305,7 +315,7 @@ export function App() {
           )}
           <a
             class="icon-button design-link"
-            href="/design"
+            href={paths.design}
             aria-label="Open identity and design"
             title="Identity and design"
           >
@@ -401,11 +411,11 @@ export function App() {
           </nav>
         </div>
         <div class="sidebar-bottom">
-          <a class="brand-guide-link" href="/github/" title="GitHub kit">
+          <a class="brand-guide-link" href={paths.github} title="GitHub kit">
             <Icon name="link" />
             <span>GitHub kit</span>
           </a>
-          <a class="brand-guide-link" href="/design" title="Identity and design">
+          <a class="brand-guide-link" href={paths.design} title="Identity and design">
             <Icon name="star" />
             <span>Identity and design</span>
           </a>
@@ -701,8 +711,20 @@ export function App() {
             <footer class="main-footer">
               <span>STATE OUTSIDE THE LLM. HUMAN IN THE LOOP.</span>
               <span>
+                {remote && (
+                  <span class="office-link">
+                    OFFICE <b>{remote}</b>
+                    <button
+                      class="text-button"
+                      onClick={onDisconnect}
+                      aria-label={`Disconnect from ${remote}`}
+                    >
+                      Disconnect
+                    </button>
+                  </span>
+                )}
                 <span class={`tiny-led ${connected ? "" : "disconnected"}`} />
-                {connected ? "LIVE" : "RECONNECTING"}
+                <span>{connected ? "LIVE" : "RECONNECTING"}</span>
               </span>
             </footer>
           </>
