@@ -662,7 +662,7 @@ class Office {
     }
     // A shared decision table belongs to the director, not to a worker run.
     add(19.0, () => {
-      block(8.7, 7.85, 3.5, 1.4, 5, "#bd9a81", 41);
+      // Legs first: painted after the top, the far ones showed through it.
       for (const [u, v] of [
         [8.85, 8],
         [11.95, 8],
@@ -670,6 +670,7 @@ class Office {
         [11.95, 9.1],
       ] as const)
         block(u, v, 0.12, 0.12, 41, "#88776c");
+      block(8.7, 7.85, 3.5, 1.4, 5, "#bd9a81", 41);
       for (const [u, v] of [
         [9.0, 9.45],
         [10.3, 9.45],
