@@ -1,5 +1,6 @@
 import { reportedCost, type EngineName } from "../execution";
 import type { Projection, StoredEvent } from "../kernel/events";
+import { DEFAULT_WORKER } from "./worker-runner";
 
 export interface ActivityEntry {
   readonly sequence: number;
@@ -7,6 +8,7 @@ export interface ActivityEntry {
   readonly orderId: string | null;
   readonly projectId: string;
   readonly role: string | null;
+  readonly by: string | null;
   readonly kind: "order" | "delivery" | "run" | "advice";
   readonly text: string;
   readonly url: string | null;
@@ -42,7 +44,26 @@ const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
-type Described = Omit<ActivityEntry, "sequence" | "at" | "projectId" | "role">;
+type Described = Omit<ActivityEntry, "sequence" | "at" | "projectId" | "role" | "by">;
+
+const DIRECTOR = "director";
+// Only what a command of the director's can record; a step the service may also take on its own names nobody.
+const BY_DIRECTOR: ReadonlySet<string> = new Set([
+  "orders.signed",
+  "orders.minutes_recorded",
+  "delivery.protected_paths_approved",
+  "delivery.question_answered",
+  "delivery.wait_skipped",
+  "delivery.work_retried",
+  "delivery.worker_assigned",
+  "team.change_signed",
+  "team.change_discarded",
+  "projects.briefing_signed",
+  "projects.briefing_discarded",
+  "projects.registered",
+  "projects.described",
+]);
+const BY_MANAGER: ReadonlySet<string> = new Set(["orders.proposed", "manager.answer_rejected", "manager.consulted", "team.change_proposed", "projects.briefing_proposed"]);
 
 export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
@@ -58,7 +79,7 @@ export class ActivityProjection implements Projection {
     if (event.type === "orders.proposed") this.orderProjects.set(payload.orderId as string, typeof payload.projectId === "string" ? payload.projectId : this.firstProject);
     if (event.type === "execution.run_requested") this.runProjects.set(payload.runId as string, this.projectOf(payload));
     const entry = this.describe(event, payload);
-    if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, projectId: this.projectOf(payload), role: this.roleOf(event.type, payload), ...entry });
+    if (entry) this.entries.push({ sequence: event.sequence, at: event.occurredAt, projectId: this.projectOf(payload), role: this.roleOf(event.type, payload), by: this.authorOf(event.type, payload), ...entry });
     this.trackLinks(event.type, payload, event.occurredAt);
   }
 
@@ -80,6 +101,16 @@ export class ActivityProjection implements Projection {
     if (type === "manager.answer_rejected") return "manager";
     if (type === "delivery.worker_assigned") return payload.worker as string;
     return typeof payload.role === "string" ? payload.role : null;
+  }
+
+  private authorOf(type: string, payload: Payload): string | null {
+    if (type.startsWith("execution.")) return this.runOrders.get(payload.runId as string)?.role ?? null;
+    if (BY_DIRECTOR.has(type)) return DIRECTOR;
+    if (BY_MANAGER.has(type)) return "manager";
+    if (type === "manager.advised" || type === "manager.advisor_failed") return payload.role as string;
+    if (type === "delivery.review_completed" || type === "delivery.review_failed") return "code_reviewer";
+    if (type === "delivery.question_raised") return this.links.get(payload.orderId as string)?.worker ?? DEFAULT_WORKER;
+    return null;
   }
 
   linksFor(orderId: string): OrderLinks {

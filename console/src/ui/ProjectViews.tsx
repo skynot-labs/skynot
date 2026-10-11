@@ -893,53 +893,130 @@ const ACTIVITY_ICON: Record<Activity["kind"], string> = {
   advice: "chat",
 };
 
-export function ActivityView({ project }: { project: Project }) {
+export function ActivityView({
+  project,
+  appearance,
+  settings,
+  onAgent,
+  onOrder,
+}: {
+  project: Project;
+  appearance: Appearance;
+  settings: StudioPreferences;
+  onAgent: (agent: Agent) => void;
+  onOrder: (order: Order) => void;
+}) {
   const [filter, setFilter] = useState<Activity["kind"] | "all">("all");
+  const [author, setAuthor] = useState("all");
+  const authors = [
+    ...new Set(project.activity.flatMap((a) => (a.by ? [a.by] : []))),
+  ];
+  const agentOf = (id: string | null) =>
+    project.agents.find((agent) => agent.id === id);
+  const nameOf = (id: string) =>
+    id === "director" ? "you" : (agentOf(id)?.name ?? id.replace(/[_-]/g, " "));
   const activities = project.activity.filter(
-    (a) => filter === "all" || a.kind === filter,
+    (a) =>
+      (filter === "all" || a.kind === filter) &&
+      (author === "all" || a.by === author),
   );
   return (
     <section class="panel timeline-panel">
       <div class="panel-heading">
         <span class="panel-title">Work leaves a trace.</span>
-        <select
-          aria-label="Filter the logbook"
-          value={filter}
-          onChange={(e) =>
-            setFilter(e.currentTarget.value as Activity["kind"] | "all")
-          }
-        >
-          <option value="all">Everything</option>
-          <option value="order">Work orders</option>
-          <option value="delivery">Delivery</option>
-          <option value="run">Runs</option>
-          <option value="advice">Advice</option>
-        </select>
+        <div class="timeline-filters">
+          <select
+            aria-label="Filter the logbook by who did it"
+            value={author}
+            onChange={(e) => setAuthor(e.currentTarget.value)}
+          >
+            <option value="all">Everyone</option>
+            {authors.map((id) => (
+              <option value={id} key={id}>
+                {nameOf(id)}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter the logbook"
+            value={filter}
+            onChange={(e) =>
+              setFilter(e.currentTarget.value as Activity["kind"] | "all")
+            }
+          >
+            <option value="all">Everything</option>
+            <option value="order">Work orders</option>
+            <option value="delivery">Delivery</option>
+            <option value="run">Runs</option>
+            <option value="advice">Advice</option>
+          </select>
+        </div>
       </div>
-      {activities.map((a) => (
-        <article class="timeline-entry" key={a.sequence}>
-          <span class="timeline-icon">
-            <Icon name={ACTIVITY_ICON[a.kind]} />
-          </span>
-          <time>{clock(a.at)}</time>
-          <div>
-            <p>
-              {a.url ? (
-                <a href={a.url} target="_blank" rel="noreferrer">
-                  {a.text}
-                </a>
-              ) : (
-                a.text
-              )}
-            </p>
-            <small>
-              {a.kind}
-              {a.orderId ? " · " + a.orderId : ""}
-            </small>
-          </div>
-          <span class="event-sequence">#{a.sequence}</span>
-        </article>
-      ))}
+      {activities.map((a) => {
+        const agent = agentOf(a.by);
+        const order = project.orders.find((o) => o.id === a.orderId);
+        return (
+          <article class="timeline-entry" key={a.sequence}>
+            {agent ? (
+              <button
+                class="timeline-author"
+                onClick={() => onAgent(agent)}
+                title={`Open ${nameOf(agent.id)}'s desk`}
+              >
+                <AvatarCanvas
+                  {...studioAgentAppearance(
+                    project.id,
+                    agent,
+                    appearance,
+                    settings,
+                  )}
+                />
+              </button>
+            ) : (
+              <span class="timeline-icon">
+                <Icon name={ACTIVITY_ICON[a.kind]} />
+              </span>
+            )}
+            <time>{clock(a.at)}</time>
+            <div>
+              <p>
+                {a.url ? (
+                  <a href={a.url} target="_blank" rel="noreferrer">
+                    {a.text}
+                  </a>
+                ) : (
+                  a.text
+                )}
+              </p>
+              <small>
+                {a.kind}
+                {a.by && " · by "}
+                {a.by &&
+                  (agent ? (
+                    <button onClick={() => onAgent(agent)}>
+                      {nameOf(a.by)}
+                    </button>
+                  ) : (
+                    nameOf(a.by)
+                  ))}
+                {a.orderId && " · "}
+                {order ? (
+                  <button
+                    onClick={() => onOrder(order)}
+                    title={order.title}
+                  >
+                    {order.id} · {order.title}
+                  </button>
+                ) : (
+                  a.orderId
+                )}
+              </small>
+            </div>
+            <span class="event-sequence">#{a.sequence}</span>
+          </article>
+        
+        );
+      })}
       {activities.length === 0 && (
         <div class="empty-state">
           {project.activity.length === 0
