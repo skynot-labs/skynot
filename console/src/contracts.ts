@@ -86,6 +86,7 @@ export type Command =
   | { name: "answer-decision"; payload: { decisionId: string; answer: string } }
   | { name: "answer-question"; payload: { orderId: string; answer: string } }
   | { name: OrderCommand; payload: { orderId: string } }
+  | { name: "sign-plan"; payload: { plan: string } }
   | { name: "reassign-order"; payload: { orderId: string; worker: string } }
   | { name: "follow-up"; payload: { orderId: string; text: string } }
   | { name: "record-minutes"; payload: { orderId: string; bucket: MinutesBucket } }

@@ -1,6 +1,7 @@
 import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Decision, Message, Order, Project, Send } from "../contracts";
+import { planOf } from "../application/plans";
 import { orderStatus } from "./format";
 import { Icon } from "./Icon";
 import { RichLine, RichText } from "./RichText";
@@ -400,42 +401,84 @@ function ChatMessage({
     >
       <span>{authors[message.author]}</span>
       <RichText text={order ? message.text.split("\n\n")[0]! : message.text} />
-      {order && <ChatOrder order={order} onOrder={onOrder} />}
+      {message.consulted.length > 0 && (
+        <small class="chat-consulted">
+          Consulted {message.consulted.join(", ")}
+        </small>
+      )}
+      {order && (
+        <ChatPlan
+          orders={planOf(project.orders, order)}
+          send={send}
+          busy={busy}
+          onOrder={onOrder}
+        />
+      )}
       {decision && <ChatQuestion decision={decision} send={send} busy={busy} />}
     </article>
   );
 }
 
-function ChatOrder({
-  order,
+function ChatPlan({
+  orders,
+  send,
+  busy,
   onOrder,
 }: {
-  order: Order;
+  orders: Order[];
+  send: Send;
+  busy: boolean;
   onOrder: (order: Order) => void;
 }) {
+  const first = orders[0]!;
+  const toSign = orders.filter((order) => order.status === "awaiting_signature");
   return (
     <div class="chat-order">
-      <header>
-        <span class="mono muted">{order.id}</span>
-        <span class={`status-chip ${order.status}`}>
-          {orderStatus[order.status]}
-        </span>
-        <span class="chat-order-risk">{order.risk} risk</span>
-      </header>
-      <strong>
-        <RichLine text={order.title} />
-      </strong>
-      <ul>
-        {order.criteria.map((criterion) => (
-          <li key={criterion.statement}>
-            <RichLine text={criterion.statement} />
+      {orders.length > 1 && (
+        <header>
+          <span class="mono muted">PLAN · {orders.length} ORDERS, IN THIS SEQUENCE</span>
+        </header>
+      )}
+      <ol class={orders.length > 1 ? "" : "chat-order-single"}>
+        {orders.map((order) => (
+          <li key={order.id}>
+            <strong>
+              <RichLine text={order.title} />
+            </strong>
+            <p>
+              <RichLine text={order.summary} />
+            </p>
+            <footer>
+              <span class="mono muted">{order.id}</span>
+              <span class={`status-chip ${order.status}`}>
+                {orderStatus[order.status]}
+              </span>
+              <span class="chat-order-risk">{order.risk} risk</span>
+              <button
+                class="text-button"
+                type="button"
+                onClick={() => onOrder(order)}
+              >
+                Open the brief
+                <Icon name="arrow" />
+              </button>
+            </footer>
           </li>
         ))}
-      </ul>
-      <button class="text-button" type="button" onClick={() => onOrder(order)}>
-        Open the order
-        <Icon name="arrow" />
-      </button>
+      </ol>
+      {toSign.length > 0 && (
+        <button
+          class="primary-button"
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            void send({ name: "sign-plan", payload: { plan: first.plan } })
+          }
+        >
+          {orders.length > 1 ? "Sign the plan" : "Sign"}
+          <Icon name="check" />
+        </button>
+      )}
     </div>
   );
 }

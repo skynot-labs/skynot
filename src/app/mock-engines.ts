@@ -13,6 +13,11 @@ export function createMockManager(): FakeEngine {
     if (message.startsWith("Answer to ")) {
       return { structured: { message: "That settles it. Filing the order.", question: null, options: [], orders: [mockOrder(idea)], consult: [], team: null } };
     }
+    if (message.toLowerCase().startsWith("/plan")) {
+      const wanted = shorten(message.slice("/plan".length).trim() || "the idea", 40);
+      const steps = [`Lay the ground for ${wanted}`, `Build ${wanted}`].map((title) => mockOrder(title));
+      return { structured: { message: "Two steps, the second on top of the first. Sign the plan and they start in that sequence.", question: null, options: [], orders: [steps[0], { ...steps[1], needs: [1] }], consult: [], team: null } };
+    }
     if (message.toLowerCase().startsWith("/ping")) {
       return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], orders: [], consult: [], team: null } };
     }

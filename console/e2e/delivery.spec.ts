@@ -75,7 +75,7 @@ test.describe.serial("an order's life in alpha", () => {
     await deskTab(page, "To sign").click();
     const proposal = desk(page).getByRole("article").filter({ hasText: "WORK ORDER ·" });
     await expect(proposal.getByRole("heading", { name: idea })).toBeVisible();
-    await expect(proposal).toContainText(`Deliver what the director asked for: ${idea}.`);
+    await expect(proposal).toContainText(`You get what you asked for: ${idea}.`);
     await proposal.getByRole("button", { name: "Open detail" }).click();
 
     const detail = dialog(page);
@@ -297,4 +297,25 @@ test("a question the chat has moved past stays pinned above it until it is answe
   await deskTab(page, "To sign").click();
   await desk(page).getByRole("article").filter({ hasText: "WORK ORDER ·" }).getByRole("button", { name: "Discard" }).click();
   await expect(desk(page).getByRole("heading", { name: "Nothing to sign." })).toBeVisible();
+});
+
+test("a plan of two orders is signed once, and the second waits for the first", async ({ page }) => {
+  const wanted = "a PDF copy of each invoice";
+  await openProject(page, PROJECT);
+
+  const chat = await tellTheManager(page, `/plan ${wanted}`);
+  const plan = chat.getByRole("article").filter({ hasText: "2 ORDERS, IN THIS SEQUENCE" });
+  await expect(plan.getByText(`Lay the ground for ${wanted}`, { exact: true })).toBeVisible(TURN);
+  await expect(plan.getByText(`Build ${wanted}`, { exact: true })).toBeVisible();
+  await expect(plan.getByRole("button", { name: "Sign", exact: true })).toHaveCount(0);
+
+  await plan.getByRole("button", { name: "Sign the plan" }).click();
+  await expect(plan.getByRole("button", { name: "Sign the plan" })).toBeHidden();
+  await closeManagerChat(page);
+
+  await openView(page, "Work orders");
+  await expect(boardColumn(page, "Needs your signature")).toContainText("Nothing here.");
+  const second = page.getByRole("button", { name: `Build ${wanted}` });
+  await expect(second).toContainText(/Waiting for WO-\d+/);
+  await expect(page.getByRole("button", { name: `Lay the ground for ${wanted}` })).not.toContainText("Waiting for");
 });

@@ -171,6 +171,7 @@ export function StudioHero({
             busy={busy}
             open={dock === "manager"}
             onToggle={() => toggle("manager")}
+            onUse={() => onDock("manager")}
             onOrder={onOrder}
           />
         </div>
@@ -233,6 +234,7 @@ function ManagerDock({
   busy,
   open,
   onToggle,
+  onUse,
   onOrder,
 }: {
   project: Project;
@@ -240,6 +242,8 @@ function ManagerDock({
   busy: boolean;
   open: boolean;
   onToggle: () => void;
+  // The director is writing here: the card must not close under them when something lands on the desk.
+  onUse: () => void;
   onOrder: (order: Order) => void;
 }) {
   const body = useRef<HTMLDivElement>(null);
@@ -271,7 +275,7 @@ function ManagerDock({
         {busyManager && <span class="tiny-led" title="Working on a turn" />}
         <Icon name="chevron" />
       </button>
-      <div class="manager-dock-body" ref={body}>
+      <div class="manager-dock-body" ref={body} onFocusCapture={onUse}>
         <ManagerChat
           project={project}
           send={send}

@@ -97,3 +97,58 @@ code {
   display: grid;
   gap: 6px;
 }
+.chat-consulted {
+  display: block;
+  margin-top: 8px;
+  font: 8px var(--sk-font-mono);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--sk-color-muted);
+}
+.chat-order ol {
+  margin: 0;
+  padding-left: 1.5em;
+  display: grid;
+  gap: 12px;
+}
+.chat-order ol.chat-order-single {
+  padding-left: 0;
+  list-style: none;
+}
+.chat-order li p {
+  margin: 4px 0 7px;
+  color: #c0bbc9;
+}
+.chat-order li footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 8px;
+}
+.chat-order li footer .text-button {
+  margin-left: auto;
+}
+.chat-order > .primary-button {
+  padding: 9px 12px;
+  font-size: 11px;
+}
+.proposal-plan {
+  margin: 0 0 4px;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 12px;
+}
+.inbox-proposal .proposal-plan:has(li + li) {
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+.proposal-plan p {
+  margin: 3px 0 6px;
+}
+.order-files {
+  font-size: 10px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
