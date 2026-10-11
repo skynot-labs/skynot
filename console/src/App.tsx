@@ -714,7 +714,12 @@ export function App() {
             onClose={() => setDialog(null)}
             wide
           >
-            <ManagerChat project={project} send={send} busy={busy} />
+            <ManagerChat
+              project={project}
+              send={send}
+              busy={busy}
+              onOrder={openOrder}
+            />
           </Modal>
         )}
         {dialog?.kind === "studio" && project && (

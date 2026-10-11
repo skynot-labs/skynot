@@ -18,6 +18,7 @@ import {
 } from "../studio/model";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
+import { RichText } from "./RichText";
 import {
   agentStatus,
   ago,
@@ -979,15 +980,15 @@ export function ActivityView({
             )}
             <time title={dayTime(a.at)}>{ago(a.at)}</time>
             <div>
-              <p>
-                {a.url ? (
+              {a.url ? (
+                <p>
                   <a href={a.url} target="_blank" rel="noreferrer">
                     {a.text}
                   </a>
-                ) : (
-                  a.text
-                )}
-              </p>
+                </p>
+              ) : (
+                <RichText text={a.text} />
+              )}
               <small>
                 {dayTime(a.at)} · {a.kind}
                 {a.by && " · by "}
