@@ -13,13 +13,13 @@ export function Modal({
   eyebrow,
   children,
   onClose,
-  wide = false,
+  size = "normal",
 }: {
   title: string;
   eyebrow: string;
   children: ComponentChildren;
   onClose: () => void;
-  wide?: boolean;
+  size?: "normal" | "wide" | "full";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -29,7 +29,7 @@ export function Modal({
   return (
     <dialog
       ref={ref}
-      class={wide ? "modal-wide" : ""}
+      class={size === "normal" ? "" : `modal-${size}`}
       aria-labelledby="dialogTitle"
       onCancel={onClose}
       onClick={(event) => {

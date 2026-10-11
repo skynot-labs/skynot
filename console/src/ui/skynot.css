@@ -818,6 +818,10 @@ td small {
   color: #74647f;
   margin-top: 8px;
 }
+.modal-full {
+  width: min(1320px, calc(100vw - 28px));
+  height: calc(100dvh - 40px);
+}
 .modal-wide {
   width: 660px;
 }

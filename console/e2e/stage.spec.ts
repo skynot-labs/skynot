@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { floorPoint, officeLayout } from "../src/ui/office-layout";
-import { dialog, expect, openProject, test } from "./support";
+import { closeDialog, dialog, expect, openProject, test } from "./support";
 
 // With reduced motion nobody leaves their desk, so a seat is where its agent is.
 test.use({ reducedMotion: "reduce" });
@@ -23,9 +23,33 @@ test.describe("the live office", () => {
     await expect(dialog(page)).toContainText("developer");
   });
 
-  test("the board leads to the work orders", async ({ page }) => {
+  test("the board opens over the office, keeps its place in the address and gives the office back", async ({ page }) => {
     await openProject(page, "beta");
     await clickOffice(page, floorPoint(2.57, officeLayout.room.depth + 0.64, 24));
-    await expect(page.getByRole("navigation", { name: "Project views" }).getByRole("button", { name: "Work orders" })).toHaveAttribute("aria-current", "page");
+    await expect(dialog(page).getByRole("heading", { name: "Work orders." })).toBeVisible();
+    await expect(page).toHaveURL(/#board$/);
+
+    await page.reload();
+    await expect(dialog(page).getByRole("heading", { name: "Work orders." })).toBeVisible();
+
+    await closeDialog(page);
+    await expect(page).not.toHaveURL(/#/);
+    await expect(page.getByRole("navigation", { name: "Project views" }).getByRole("button", { name: "The studio" })).toHaveAttribute("aria-current", "page");
+  });
+
+  test("the activity log opens over the office, and an order opened from it closes back to the log", async ({ page }) => {
+    await openProject(page, "alpha");
+    await page.getByRole("button", { name: "Open the activity log" }).click();
+    const log = dialog(page);
+    await expect(log.getByRole("heading", { name: "What happened." })).toBeVisible();
+    await expect(page).toHaveURL(/#activity$/);
+
+    await log.getByRole("button", { name: /^WO-\d+/ }).first().click();
+    await expect(dialog(page).getByRole("heading", { name: "An order with intent." })).toBeVisible();
+    await dialog(page).getByRole("button", { name: "Close dialog" }).click();
+    await expect(dialog(page).getByRole("heading", { name: "What happened." })).toBeVisible();
+
+    await page.goBack();
+    await expect(dialog(page)).toBeHidden();
   });
 });
