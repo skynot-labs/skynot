@@ -43,10 +43,34 @@ been built or opened yet, so expect to fix small things on the first run.
 | `data/` (event log, clones of managed repos) | Named volume `shop-data` | Yes |
 | `~/.claude`, `~/.codex` logins | Named volumes | Yes |
 | `gh` login | Container's `~/.config/gh` | **No**, log in again |
+| Tailscale login | Named volume `tailscale-state` | Yes |
 | `policy.yaml` | Host folder, untracked | Yes |
 
 Because `data/` is a volume, the clones the shop makes of managed repositories, and the `npm ci`,
 `typecheck` and `test` it runs on code a worker just wrote, all happen inside the container.
+
+## Reaching the office from your other devices
+
+Tailscale is installed and its daemon starts with the container, idle until you join your tailnet. It gives
+the office an HTTPS address only your own devices can reach, which is what a studio elsewhere needs
+([connecting a studio](../docs/connecting-a-studio.md)).
+
+1. Join once. It prints a link to sign in; the login then survives a rebuild:
+   ```bash
+   sudo tailscale up --operator=vscode --hostname=skynot-dev
+   ```
+2. Share the console's port. The first time, Tailscale answers with a link to enable Serve and HTTPS for your
+   tailnet; accept it and run the command again. It prints the address:
+   ```bash
+   tailscale serve --bg 4747
+   ```
+3. Start the office with that address, and open the pairing link it prints from a device of the tailnet:
+   ```bash
+   SKYNOT_OFFICE_URL=https://skynot-dev.<your-tailnet>.ts.net npm run dev
+   ```
+
+The container has no network interface for Tailscale, so programs inside it cannot open connections into your
+tailnet. Sharing goes the other way only.
 
 ## Security model
 
@@ -58,6 +82,9 @@ Because `data/` is a volume, the clones the shop makes of managed repositories, 
   those repositories for a limited time.
 - **The same holds for the agent logins** in the `claude-home` and `codex-home` volumes: whoever runs
   in the container can use your subscriptions. That is the price of letting an agent work here.
+- **In your tailnet the container is a machine like any other.** Any process in it can run `tailscale serve`,
+  or `tailscale funnel`, which publishes a port to the internet. Keep Funnel off in your tailnet's policy
+  unless you want it, and remove the machine from the admin console when you stop using it.
 - **Never pass the token as `GH_TOKEN`** in `local.env` or Compose: it shows up in `docker inspect`.
 - **Do not rely on hooks.** Nothing from the host's `~/.claude` is mounted, so personal hooks and
   global instructions do not apply here. The last gate against a bad push to `main` is branch
