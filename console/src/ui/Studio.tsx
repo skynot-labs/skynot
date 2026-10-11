@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { Agent, Order, Project, Send, Snapshot } from "../contracts";
 import type { Appearance } from "../application/appearance";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../studio/model";
 import { places, layoutChoices } from "../studio/catalog";
 import { Office } from "./office-renderer";
+import type { OfficeStage, StageHandlers } from "../stage/office-stage";
 import {
   officeLayout,
   assignStudioSeats,
@@ -26,7 +27,6 @@ import { AvatarCanvas } from "./AvatarCanvas";
 import { ago, agentStatus } from "./format";
 
 export type DockCard = "decisions" | "manager";
-const FRAME_MS = 100;
 
 export function StudioHero({
   project,
@@ -68,20 +68,39 @@ export function StudioHero({
   const pending = project.needsYou;
   const toggle = (card: DockCard) =>
     onDock(dock !== card ? card : card === "manager" ? "decisions" : "manager");
+  const stageHost = useRef<HTMLDivElement>(null);
+  const stage = useRef<OfficeStage | null>(null);
+  const stageHandlers = useRef<StageHandlers | null>(null);
+  const [live, setLive] = useState(false);
+  const scene = studioScene(project, appearance, settings, paused !== null);
+  const latestScene = useRef(scene);
+  latestScene.current = scene;
+  // The still frame is what shows until the stage is up, and what stays if the browser cannot run it.
   useEffect(() => {
     if (!canvas.current) return;
     const renderer = new Office(canvas.current);
     office.current = renderer;
-    const scene = studioScene(project, appearance, settings, paused !== null);
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    renderer.draw(scene, 0);
-    const timer = reduced
-      ? undefined
-      : setInterval(() => {
-          if (!document.hidden) renderer.draw(scene, performance.now());
-        }, FRAME_MS);
-    return () => clearInterval(timer);
+    renderer.draw(latestScene.current);
+    stage.current?.show(latestScene.current);
   }, [project, appearance, settings, paused]);
+  useEffect(() => {
+    let gone = false;
+    void import("../stage/office-stage")
+      .then(({ OfficeStage }) => OfficeStage.mount(stageHost.current!, () => stageHandlers.current!))
+      .then((mounted) => {
+        if (gone) return mounted.destroy();
+        stage.current = mounted;
+        mounted.show(latestScene.current);
+        setLive(true);
+      })
+      .catch((error: unknown) => console.warn("The live office could not start; the still frame stays.", error));
+    return () => {
+      gone = true;
+      stage.current?.destroy();
+      stage.current = null;
+    };
+  }, []);
+  const officeLabel = `${project.name} studio: ${studioSummary(settings)}, ${layoutChoices[settings.layout].name}. Management, design, development and the decision desk. Use the zone and team buttons to interact.`;
   function hit(event: MouseEvent) {
     const rect = canvas.current!.getBoundingClientRect();
     const ratio = rect.width / officeLayout.width;
@@ -113,6 +132,19 @@ export function StudioHero({
     if (agent.kind === "manager") onManager();
     else onAgent(agent);
   }
+  const agentOf = (id: string) => project.agents.find((member) => member.id === id);
+  stageHandlers.current = {
+    onAgent: (id) => {
+      const agent = agentOf(id);
+      if (agent) openAgent(agent);
+    },
+    onBubble: (id) => {
+      const agent = agentOf(id);
+      if (agent) openBubble(agent);
+    },
+    onDecisions: () => openDesk("questions"),
+    onBoard: onOrders,
+  };
   function openBubble(agent: Agent) {
     const target = agentBubble(project, agent)?.open;
     const order =
@@ -128,13 +160,13 @@ export function StudioHero({
       aria-label={`${project.name} studio`}
     >
       <div class="studio-hero-stage">
-        <div class="studio-canvas-room">
+        <div class={`studio-canvas-room ${live ? "live" : ""}`}>
           <canvas
             ref={canvas}
             id="officeCanvas"
             width={officeLayout.width}
             height={officeLayout.height}
-            aria-label={`${project.name} studio: ${studioSummary(settings)}, ${layoutChoices[settings.layout].name}. Management, design, development and the decision desk. Use the zone and team buttons to interact.`}
+            aria-label={live ? undefined : officeLabel}
             onMouseMove={(event) => {
               const target = hit(event);
               if (office.current) office.current.hover = target?.id ?? null;
@@ -154,6 +186,13 @@ export function StudioHero({
               if (agent && target?.kind === "bubble") openBubble(agent);
               else if (agent) openAgent(agent);
             }}
+          />
+          <div
+            class="office-stage"
+            ref={stageHost}
+            role="img"
+            aria-label={live ? officeLabel : undefined}
+            aria-hidden={live ? undefined : true}
           />
           <button
             class="studio-activity-button"
