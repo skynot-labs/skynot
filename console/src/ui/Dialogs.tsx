@@ -142,6 +142,9 @@ export function ManagerChat({
       <form class="chat-compose" onSubmit={submit}>
         <textarea
           aria-label="Message to the Manager"
+          data-gramm="false"
+          data-gramm_editor="false"
+          data-enable-grammarly="false"
           maxLength={4000}
           rows={2}
           value={message}
