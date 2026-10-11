@@ -74,6 +74,7 @@ function agentOf(state: ShopState, member: ShopState["team"][number], index: num
     spentUsd: totals?.spentUsd ?? null,
     usage: totals?.usage ?? null,
     soul: state.souls.find((soul) => soul.role === role) ?? null,
+    instructions: state.instructions.find((entry) => entry.role === role)?.text ?? null,
     avatar: defaultAvatar(index),
   };
 }

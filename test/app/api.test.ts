@@ -7,11 +7,13 @@ import { createApi } from "../../src/app/http/api";
 import type { readState } from "../../src/app/http/state";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createShop, type Shop } from "../../src/app/shop";
-import { FakeVcs, FakeWorkspace } from "../../src/delivery";
+import { FakeVcs, FakeWorkspace, workerPrompt, type WorkItem } from "../../src/delivery";
+import { SYSTEM_PROMPT } from "../../src/manager";
 import { FakeEngine } from "../../src/execution";
 import { examplePolicy } from "../governance/fixtures";
 
 const HOST = "127.0.0.1:4747";
+const item: WorkItem = { id: "WO-0001", title: "Export", objective: "Export the inventory", criteria: [], outOfScope: [], risk: "low", likelyFiles: [], card: "" };
 
 let dataDir: string;
 let shop: Shop;
@@ -164,10 +166,21 @@ describe("console api", () => {
     const state = await getState();
     expect(state.souls).toEqual([{ role: "designer", description: "screens", soul: "You design.", focus: "empty states" }]);
     expect(state.activity[0]).toMatchObject({ role: "designer", text: "designer has a new focus: empty states" });
+    expect(state.instructions.find((entry) => entry.role === "designer")?.text).toMatch(/^You design\.\n\nFocus the director set for this role: empty states\n\nYou are an advisor/);
     expect((await post("/api/commands/set-focus", { project, role: "developer", focus: "tests first" })).status).toBe(409);
     expect((await post("/api/commands/set-focus", { project, role: "designer", focus: "x" })).status).toBe(400);
     expect((await post("/api/commands/set-focus", { project: "nowhere", role: "designer", focus: "empty states" })).status).toBe(404);
     expect((await getState()).souls[0]?.focus).toBe("empty states");
+  });
+
+  it("shows what each role's engine receives, with the project's own commands in the worker's rules", async () => {
+    const { instructions } = await getState();
+    const textOf = (role: string) => instructions.find((entry) => entry.role === role)?.text;
+
+    expect(instructions.map((entry) => entry.role)).toEqual(["manager", "developer"]);
+    expect(textOf("manager")).toBe(SYSTEM_PROMPT);
+    expect(textOf("developer")).toContain(`one per call: ${shop.desks[0]!.project.verifyCommands.join(", ")}.`);
+    expect(workerPrompt(item, 1, shop.desks[0]!.project)).toContain(textOf("developer"));
   });
 
   it("refuses to approve protected paths for an order that is not waiting for it, and for one that does not exist", async () => {

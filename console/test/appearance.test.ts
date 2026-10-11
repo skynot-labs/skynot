@@ -34,6 +34,7 @@ const agent: Agent = {
   spentUsd: 0,
   usage: null,
   soul: null,
+  instructions: null,
   avatar: plain,
 };
 

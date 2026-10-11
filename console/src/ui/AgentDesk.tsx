@@ -345,16 +345,26 @@ function SoulPanel({
 }) {
   const soul = agent.soul;
   const [focus, setFocus] = useState(soul?.focus ?? "");
+  const instructions = agent.instructions && (
+    <>
+      <span class="swatch-label">
+        INSTRUCTIONS · WHAT ITS ENGINE RECEIVES, AS THE SERVICE SENDS IT
+      </span>
+      <pre class="agent-soul-text">{agent.instructions}</pre>
+    </>
+  );
   if (!soul)
     return (
       <div class="agent-soul">
-        <p class="agent-soul-empty">
-          {agent.kind === "manager"
-            ? "The Manager has no soul file. Its rules are part of the service, and what it knows about this project is the briefing in Context."
-            : "This role has no soul file. A worker takes its instructions from the work order it holds and from the project's rules."}
-        </p>
+        {instructions}
         <p class="form-note">
-          Engine and model come from the team file: {agent.engine} ·{" "}
+          {agent.kind === "manager"
+            ? "On top of these, every turn carries the briefing, the orders, the team and the conversation. "
+            : agent.kind === "worker"
+              ? "On top of these, each run carries the work order it holds. The commands and paths come from the project file. "
+              : !instructions && "Nothing is on file for this role. "}
+          This role has no soul file: the text is part of the service. Engine
+          and model come from the team file: {agent.engine} ·{" "}
           {agent.model ?? "default model"}.
         </p>
       </div>
@@ -364,8 +374,7 @@ function SoulPanel({
     <div class="agent-soul">
       <span class="swatch-label">WHAT THE MANAGER SEES</span>
       <p class="agent-soul-description">{soul.description}</p>
-      <span class="swatch-label">SOUL · READ FROM ITS FILE AT STARTUP</span>
-      <pre class="agent-soul-text">{soul.soul}</pre>
+      {instructions}
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -390,7 +399,7 @@ function SoulPanel({
         <div class="modal-actions">
           <p class="form-note">
             Takes effect on the next consultation and stays in the logbook.
-            The soul itself changes in its file, with a restart.
+            The soul above changes in its file, with a restart.
           </p>
           <button
             class="primary-button"
