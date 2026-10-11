@@ -337,6 +337,50 @@ describe("what the studio reads from the state", () => {
   });
 });
 
+describe("an approval from a reviewer that could not read the repository", () => {
+  const approval = { verdict: "approved", summary: "Matches the order.", findings: [] };
+
+  async function reviewedOrder(sandbox: "ok" | "warn") {
+    shop.stop();
+    const codex = createMockDeveloper();
+    const developer = codex.run.bind(codex);
+    codex.run = (request) => (request.access === "read" ? new FakeEngine(() => ({ structured: approval })).run(request) : developer(request));
+    shop = await createShop({
+      policy: examplePolicy(),
+      dataDir: await mkdtemp(path.join(tmpdir(), "skynot-api-review-")),
+      team: { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" }, code_reviewer: { engine: "codex", model: "another" } }, advisors: {}, library: {} },
+      engines: { claude: createMockManager(), codex },
+      vcs,
+      workspace: new FakeWorkspace(),
+      readiness: async () => [{ check: "codex sandbox", level: sandbox, detail: "" }],
+    });
+    await shop.readiness.refresh();
+    api = createApi(shop, { allowedHosts: [HOST] });
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+    await shop.log.record([{ type: "delivery.checks_changed", payload: { orderId: id, state: "passing" } }]);
+    return (await getState()).orders.find((order) => order.id === id)!;
+  }
+
+  it("is recorded and published as made from the diff alone, and does not make the order ready to merge", async () => {
+    const order = await reviewedOrder("warn");
+
+    expect(order.review).toMatchObject({ verdict: "approved", diffOnly: true });
+    expect(order.ready).toBe(false);
+    expect(vcs.comments.at(-1)?.text).toContain("Judged from the diff alone");
+    expect((await getState()).activity.map((entry) => entry.text)).toContain("review round 1, from the diff alone: approved. Matches the order.");
+  });
+
+  it("makes the order ready when the reviewer could read the repository", async () => {
+    const order = await reviewedOrder("ok");
+
+    expect(order.review).toMatchObject({ verdict: "approved", diffOnly: false });
+    expect(order.ready).toBe(true);
+    expect(vcs.comments.at(-1)?.text).not.toContain("diff alone");
+  });
+});
+
 describe("console preferences", () => {
   const set = (key: string, value: unknown) => post("/api/commands/set-preference", { key, value });
 

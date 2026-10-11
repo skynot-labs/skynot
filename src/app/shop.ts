@@ -28,7 +28,7 @@ import { OrderService, OrdersProjection, type WorkOrder } from "../orders";
 import { BriefingChanges, BriefingService, withSignedChanges, type BriefingStore, type Project } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import type { Exec } from "../kernel/process";
-import type { Finding } from "./readiness";
+import { CODEX_SANDBOX, type Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { createBriefingDesk } from "./briefing-desk";
@@ -139,6 +139,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
+  let findings: readonly Finding[] = [];
+  const sandboxBroken = () => findings.some((finding) => finding.check === CODEX_SANDBOX && finding.level !== "ok");
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, (projectId) => control.pausedFor(projectId) !== null);
   const vcs = config.vcs ?? new GhVcs(config.exec);
   const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces"), ...(config.exec && { execute: config.exec }) });
@@ -176,7 +178,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
       }),
       reviewer: reviewerRole
-        ? new PullRequestReview({ log, vcs, reviewer: createCodeReviewer(scheduler, { engine: reviewerRole.engine, ...withModel(reviewerRole), ...reading }) })
+        ? new PullRequestReview({ log, vcs, reviewer: createCodeReviewer(scheduler, { engine: reviewerRole.engine, ...withModel(reviewerRole), ...reading, diffOnly: () => reviewerRole.engine === "codex" && sandboxBroken() }) })
         : undefined,
       workers: [DEFAULT_WORKER, ...Object.keys(team.workers ?? {})],
     });
@@ -242,7 +244,6 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
 
   await flow.recover();
 
-  let findings: readonly Finding[] = [];
   const readiness = {
     findings: () => findings,
     async refresh() {

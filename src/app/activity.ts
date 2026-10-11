@@ -36,7 +36,7 @@ export interface OrderLinks {
   readonly answers: readonly string[];
   readonly answered: readonly AnsweredQuestion[];
   readonly reviews: number;
-  readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[] } | null;
+  readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[]; readonly diffOnly: boolean } | null;
   readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
@@ -156,7 +156,7 @@ export class ActivityProjection implements Projection {
       case "delivery.worker_assigned":
         return delivery(`assigned to ${payload.worker}`);
       case "delivery.review_completed":
-        return delivery(`review round ${payload.round}: ${payload.verdict === "approved" ? "approved" : "changes requested"}. ${payload.summary}`);
+        return delivery(`review round ${payload.round}${payload.diffOnly ? ", from the diff alone" : ""}: ${payload.verdict === "approved" ? "approved" : "changes requested"}. ${payload.summary}`);
       case "delivery.review_failed":
         return delivery(`the review failed: ${payload.reason}`);
       case "delivery.checks_changed":
@@ -266,7 +266,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, {
           ...current,
           reviews: current.reviews + 1,
-          review: { verdict: payload.verdict as "approved" | "changes_requested", summary: payload.summary as string, findings: payload.findings as string[] },
+          review: { verdict: payload.verdict as "approved" | "changes_requested", summary: payload.summary as string, findings: payload.findings as string[], diffOnly: payload.diffOnly === true },
         });
         break;
       case "delivery.checks_changed":
