@@ -1,4 +1,5 @@
 import { pageHref, type PublicPage } from "../links";
+import identity from "../site.json";
 import {
   Arrow,
   Eyebrow,
@@ -47,8 +48,8 @@ export function ProjectPage({ page }: { page: PublicPage }) {
       </div>
       <section class="gh-section" id="how">
         <SectionTitle
-          label="FROM CONTEXT TO DELIVERY"
-          title="An idea needs a process."
+          label="HOW IT WORKS"
+          title="From an idea to a pull request."
         >
           The Manager coordinates. The agents build. The decisions stay with
           you.
@@ -65,8 +66,8 @@ export function ProjectPage({ page }: { page: PublicPage }) {
       </section>
       <section class="gh-section">
         <SectionTitle
-          label="THE FOUNDATIONS"
-          title="Autonomy with clear rules."
+          label="THE RULES"
+          title="Three things the service enforces."
         />
         <Principles />
       </section>
@@ -100,13 +101,11 @@ export function ProjectPage({ page }: { page: PublicPage }) {
         <div>
           <Eyebrow>MADE AT SKYNOT LABS</Eyebrow>
           <h2>
-            One lab.
-            <br />
-            <em>Many possibilities.</em>
+            <em>{identity.organizationTagline}</em>
           </h2>
         </div>
         <a class="gh-button" href={pageHref(page, "organization")}>
-          Meet the lab <Arrow />
+          About the lab <Arrow />
         </a>
       </section>
     </>

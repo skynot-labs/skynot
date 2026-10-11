@@ -290,6 +290,11 @@ code {
   margin-top: 16px;
   font-size: 14px;
 }
+.gh-section-title p a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .gh-workflow {
   display: grid;
   grid-template-columns: repeat(5, 1fr);

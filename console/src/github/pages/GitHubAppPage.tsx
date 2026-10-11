@@ -54,8 +54,8 @@ export function GitHubAppPage({ page }: { page: PublicPage }) {
       </section>
       <section class="gh-section" id="setup">
         <SectionTitle
-          label="ONE CONNECTION, THREE STEPS"
-          title="Installing is the start."
+          label="SETUP"
+          title="Three steps to connect it."
         >
           The App identifies the service on GitHub. The Skynot service keeps
           running on your machine or your infrastructure.
@@ -89,8 +89,8 @@ export function GitHubAppPage({ page }: { page: PublicPage }) {
       </section>
       <section class="gh-section">
         <SectionTitle
-          label="PERMISSIONS WITH A PURPOSE"
-          title="Access for the work it does."
+          label="PERMISSIONS"
+          title="What it can touch, and why."
         >
           This is what the service needs today. Projects is optional and only
           reaches a board owned by an organization.
