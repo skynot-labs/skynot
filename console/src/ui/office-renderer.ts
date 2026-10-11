@@ -16,7 +16,7 @@ import {
   type StudioPreferences,
 } from "../studio/model";
 import type { AgentStatus, Avatar } from "../contracts";
-import { idlePose, type Floor, type Haunt } from "../studio/idle-life";
+import type { Haunt, Rect } from "../studio/idle-life";
 import {
   drawWindowLandscape,
   drawStudioDecor,
@@ -47,28 +47,28 @@ export type SceneState = {
   openOrders: number;
   settings?: StudioPreferences;
 };
-type BubbleTone = "ask" | "alert" | "done" | "busy" | "wait";
-const BUBBLE_FILL: Record<BubbleTone, string> = {
+export type BubbleTone = "ask" | "alert" | "done" | "busy" | "wait";
+export const BUBBLE_FILL: Record<BubbleTone, string> = {
   ask: "#f3c299",
   alert: "#eba9ad",
   done: "#b4debf",
   busy: "#d2c3ed",
   wait: "#c9c6d4",
 };
-const BUBBLE_STEP_MS = 300;
-const WALK_STEP_MS = 200;
-// Canvas pixels from the top of a standing avatar's sprite to its soles, at the office scale.
-const AVATAR_FEET = 86;
+export const BUBBLE_STEP_MS = 300;
 const DECISION_TABLE = { u: 8.7, v: 7.85, width: 3.5, depth: 2.15 };
 const COFFEE_COUNTER = { u: 0.65, v: 9.6, width: 2.2, depth: 0.55 };
-const HAUNTS: Haunt[] = [
-  { u: 3.3, v: 9.9, doing: "coffee" },
-  { u: 0.5, v: 3.2, doing: "looking outside" },
-  { u: 0.5, v: 7.0, doing: "looking outside" },
-  { u: 9.5, v: 0.7, doing: "reading the wall" },
-  { u: 5.0, v: 5.0, doing: "stretching" },
-  { u: 7.3, v: 9.6, doing: "thinking" },
-];
+/** One cut of the scene on its own transparent canvas, placed at (x, y) of the office canvas. */
+export type Piece = {
+  kind: "base" | "prop" | "labels" | "front" | "board";
+  depth: number;
+  canvas: HTMLCanvasElement;
+  x: number;
+  y: number;
+  footprint?: Rect;
+  haunt?: Haunt;
+};
+type Solid = { footprint?: Rect; haunt?: Haunt };
 type Point = [number, number];
 type BoardTools = {
   p: (u: number, v: number, z?: number) => Point;
@@ -100,8 +100,27 @@ class Office {
   hover: string | null = null;
   private readonly ctx: CanvasRenderingContext2D | null;
   private hits: Hit[] = [];
-  constructor(canvas: HTMLCanvasElement) {
+  private cut: ((kind: Piece["kind"], depth?: number, solid?: Solid) => void) | null = null;
+  constructor(private readonly canvas: HTMLCanvasElement) {
     this.ctx = canvas.getContext("2d");
+  }
+  /**
+   * The scenery without anyone in it, cut into pieces a stage can stack and move things between: the room, every
+   * piece of furniture with its depth, the seat labels, the steps and the board. Needs a real canvas.
+   */
+  pieces(state: SceneState): Piece[] {
+    const pieces: Piece[] = [];
+    this.cut = (kind, depth = 0, solid = {}) => {
+      const cropped = cropPainted(this.canvas);
+      if (cropped) pieces.push({ kind, depth, ...cropped, ...solid });
+      this.ctx?.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    };
+    try {
+      this.draw(state);
+    } finally {
+      this.cut = null;
+    }
+    return pieces;
   }
   draw(state: SceneState, time = 0): void {
     const ctx = this.ctx;
@@ -421,10 +440,12 @@ class Office {
             ) + "55",
       );
     }
-    const objects: Array<{ depth: number; fn: () => void }> = [],
+    const live = this.cut !== null;
+    this.cut?.("base");
+    const objects: Array<{ depth: number; fn: () => void; solid: Solid }> = [],
       labels: Array<() => void> = [];
-    const add = (depth: number, fn: () => void) => {
-      objects.push({ depth, fn });
+    const add = (depth: number, fn: () => void, solid: Solid = {}) => {
+      objects.push({ depth, fn, solid });
     };
     const partition = (
       u: number,
@@ -433,6 +454,7 @@ class Office {
       d: number,
       height = 42,
     ) => {
+      const footprint = { u, v, width: w, depth: d };
       add(u + v + (w + d) / 2, () => {
         block(u, v, w, d, 18, "#e2d9c6");
         block(u, v, w, d, 4, "#e7e1d2", height);
@@ -450,7 +472,7 @@ class Office {
           ],
           "#b0d0cc44",
         );
-      });
+      }, { footprint });
     };
     for (const item of layout.partitions)
       partition(item.u, item.v, item.width, item.depth, item.height);
@@ -494,26 +516,15 @@ class Office {
         block(0.9, 9.67, 0.33, 0.32, 25, "#647581", 44);
         block(1.55, 9.68, 0.19, 0.2, 10, "#b79172", 44);
         block(1.88, 9.68, 0.17, 0.17, 8, "#f0e0c6", 44);
-      });
+      }, { footprint: COFFEE_COUNTER, haunt: { u: 3.3, v: 9.9, doing: "coffee" } });
     drawStudioDecor({ ctx, p, poly, line, block, add }, theme);
     const seats = assignStudioSeats(state.agents, layout);
-    const floor: Floor = {
-      width: officeLayout.room.width,
-      depth: officeLayout.room.depth,
-      blocked: [
-        ...seats.map((seat) => ({ u: seat.u, v: seat.v, width: 1.94, depth: 1.5 })),
-        ...layout.partitions,
-        DECISION_TABLE,
-        COFFEE_COUNTER,
-      ],
-    };
     const tag = (
       member: SceneAgent,
       x: number,
       top: number,
       bottom: number,
       labelTop: number,
-      doing: string | null,
     ) => {
       const bounds = avatarBounds(member.avatar);
       this.hits.push({ id: member.id, kind: "agent", x, y: (top + bottom) / 2, r: 44 });
@@ -570,13 +581,6 @@ class Office {
             ry: 16,
           });
         });
-      else if (doing)
-        labels.push(() => {
-          const width = doing.length * 6 + 12;
-          ctx.fillStyle = "#f4f1e6d9";
-          ctx.fillRect(x + 3 - width / 2, top - 24, width, 15);
-          text(doing, x + 3, top - 13, "10px monospace", "#5a6170", "center");
-        });
       labels.push(() => {
         const name = member.name.slice(0, 17),
           width = Math.max(60, name.length * 7 + 16);
@@ -594,23 +598,8 @@ class Office {
     };
     for (const { u, v, agent: member, zone } of seats) {
       const active = member?.status === "working";
-      const pose =
-        member?.status === "idle" && !state.paused
-          ? idlePose(
-              member.id,
-              { u: u + 0.9, v: v + 1.75 },
-              floor,
-              [
-                ...HAUNTS,
-                ...seats
-                  .filter((seat) => seat.agent && seat.agent.id !== member.id)
-                  .map((seat) => ({ u: seat.u + 2.3, v: seat.v + 0.9, doing: `with ${seat.agent!.name.slice(0, 12)}` })),
-              ],
-              time,
-            )
-          : null;
-      add(u + v + 1, () => {
-        const [x, y] = p(u + 0.9, v + 1.1);
+      const [x, y] = p(u + 0.9, v + 1.1);
+      add(u + v + 0.98, () => {
         line([x, y - 17], [x, y + 9], "#484957", 3);
         line([x - 14, y + 7], [x + 14, y + 7], "#484957", 3);
         poly(
@@ -622,16 +611,10 @@ class Office {
           ],
           zone === "manager" ? "#617e70" : "#677488",
         );
-        if (member && !pose)
-          avatar(
-            ctx,
-            member.avatar,
-            x - 25,
-            y - 122,
-            3.2,
-            true,
-            active ? Math.floor(time / 500) % 2 : 0,
-          );
+        if (member && !live)
+          avatar(ctx, member.avatar, x - 25, y - 122, 3.2, true, active ? Math.floor(time / 500) % 2 : 0);
+      });
+      add(u + v + 1, () => {
         for (const [du, dv] of [
           [0.1, 0.1],
           [1.7, 0.1],
@@ -648,7 +631,7 @@ class Office {
           zone === "manager" ? color(palette.wood, -12) : palette.wood,
           43,
         );
-        monitor(u + 0.5, v + 0.25, active, true);
+        monitor(u + 0.5, v + 0.25, active && !live, true);
         block(u + 0.45, v + 0.72, 0.69, 0.15, 2, "#e5d6c4", 49);
         for (let k = 0; k < 5; k++)
           line(
@@ -666,27 +649,15 @@ class Office {
           zone === "design" ? "#b797c9" : "#9eb8a8",
           49,
         );
-        if (member && !pose) {
+        if (member && !live) {
           const top = y - 122 + avatarBounds(member.avatar).top * 3.2;
-          tag(member, x, top, y - 31, y + 15, null);
+          tag(member, x, top, y - 31, y + 15);
         } else if (!member) {
           labels.push(() =>
             text("OPEN SEAT", x, y + 30, "10px monospace", "#615969", "center"),
           );
         }
-      });
-      if (member && pose)
-        add(pose.u + pose.v - 0.4, () => {
-          const [x, y] = p(pose.u, pose.v);
-          const stride = pose.walking ? 1 + (Math.floor(time / WALK_STEP_MS) % 2) : 0;
-          ctx.fillStyle = "#00000024";
-          ctx.beginPath();
-          ctx.ellipse(x, y, 17, 7, 0, 0, Math.PI * 2);
-          ctx.fill();
-          const lift = AVATAR_FEET + (stride === 1 ? 2 : 0);
-          avatar(ctx, member.avatar, x - 25, y - lift, 3.2, false, stride);
-          tag(member, x, y - lift + avatarBounds(member.avatar).top * 3.2, y + 2, y + 9, pose.doing);
-        });
+      }, { footprint: { u, v, width: 1.94, depth: 1.5 } });
     }
     // A shared decision table belongs to the director, not to a worker run.
     add(19.0, () => {
@@ -711,7 +682,7 @@ class Office {
       block(11.25, 8.4, 0.2, 0.2, 8, "#c2e1c7", 47);
       const [x, y] = p(10.3, 8.5, 140);
       this.hits.unshift({ id: "decisions", kind: "zone", x, y: y + 12, r: 70 });
-      labels.push(() => {
+      if (!live) labels.push(() => {
         const lit = state.pending > 0;
         ctx.fillStyle = lit ? "#ecd0a7" : "#dae3d3";
         ctx.fillRect(x - 76, y - 17, 152, 42);
@@ -733,14 +704,17 @@ class Office {
         );
         text("OPEN INBOX →", x, y + 17, "9px monospace", "#5e675a", "center");
       });
-    });
-    objects.sort((a, b) => a.depth - b.depth).forEach((object) => object.fn());
+    }, { footprint: DECISION_TABLE });
+    for (const object of objects.sort((a, b) => a.depth - b.depth)) {
+      object.fn();
+      this.cut?.("prop", object.depth, object.solid);
+    }
     labels.forEach((drawLabel) => drawLabel());
+    this.cut?.("labels");
     const unseated =
       state.agents.length - seats.filter((seat) => seat.agent).length;
     block(5.25, rd + 0.08, 2.8, 0.35, 9, "#898293", -18);
     block(5.45, rd + 0.48, 2.4, 0.3, 6, "#716b83", -27);
-    this.drawBoard(state.openOrders, rd, { p, block, poly, text });
     const [tx, ty] = p(6.5, rd + 1.1, -29);
     text(
       "YOUR VISION. THEIR WORK.",
@@ -750,7 +724,10 @@ class Office {
       "#898397",
       "center",
     );
-    if (unseated > 0) {
+    this.cut?.("front");
+    this.drawBoard(live ? null : state.openOrders, rd, { p, block, poly, text });
+    this.cut?.("board");
+    if (unseated > 0 && !live) {
       ctx.fillStyle = "#31363fe8";
       ctx.fillRect(tx - 84, ty + 32, 168, 23);
       text(
@@ -765,7 +742,7 @@ class Office {
   }
   // A way into the work orders, not a live board: it only says how many are open.
   private drawBoard(
-    openOrders: number,
+    openOrders: number | null,
     rd: number,
     { p, block, poly, text }: BoardTools,
   ): void {
@@ -789,7 +766,7 @@ class Office {
     const [x, y] = p(u + 0.97, v + 0.09, 24);
     this.hits.push({ id: "board", kind: "zone", x, y, r: 52, ry: 34 });
     const [lx, ly] = p(u + 0.97, v + 0.09, -30);
-    text(`BOARD · ${openOrders} OPEN →`, lx, ly, "bold 11px monospace", lit ? "#ffffff" : "#a9a3b7", "center");
+    if (openOrders !== null) text(`BOARD · ${openOrders} OPEN →`, lx, ly, "bold 11px monospace", lit ? "#ffffff" : "#a9a3b7", "center");
   }
   hit(x: number, y: number): Hit | undefined {
     return this.hits
@@ -800,5 +777,34 @@ class Office {
           Math.abs(x - h.x) < h.r && Math.abs(y - h.y) < (h.ry ?? h.r * 1.3),
       );
   }
+}
+const PROBE_SCALE = 4;
+let probe: HTMLCanvasElement | null = null;
+/** Finds what was painted by reading a quarter-size copy, so cutting forty pieces does not read forty full canvases. */
+function cropPainted(source: HTMLCanvasElement): Pick<Piece, "canvas" | "x" | "y"> | null {
+  probe ??= document.createElement("canvas");
+  probe.width = Math.ceil(source.width / PROBE_SCALE);
+  probe.height = Math.ceil(source.height / PROBE_SCALE);
+  const reader = probe.getContext("2d", { willReadFrequently: true })!;
+  reader.clearRect(0, 0, probe.width, probe.height);
+  reader.drawImage(source, 0, 0, probe.width, probe.height);
+  const alpha = reader.getImageData(0, 0, probe.width, probe.height).data;
+  let left = probe.width, top = probe.height, right = -1, bottom = -1;
+  for (let row = 0; row < probe.height; row++)
+    for (let column = 0; column < probe.width; column++)
+      if (alpha[(row * probe.width + column) * 4 + 3]) {
+        left = Math.min(left, column);
+        right = Math.max(right, column);
+        top = Math.min(top, row);
+        bottom = Math.max(bottom, row);
+      }
+  if (right < 0) return null;
+  const x = Math.max(0, (left - 1) * PROBE_SCALE);
+  const y = Math.max(0, (top - 1) * PROBE_SCALE);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.min(source.width, (right + 2) * PROBE_SCALE) - x;
+  canvas.height = Math.min(source.height, (bottom + 2) * PROBE_SCALE) - y;
+  canvas.getContext("2d")!.drawImage(source, -x, -y);
+  return { canvas, x, y };
 }
 export { Office, drawAvatar };

@@ -59,6 +59,19 @@
 .studio-canvas-room {
   position: relative;
 }
+.studio-canvas-room.live #officeCanvas {
+  visibility: hidden;
+}
+.office-stage {
+  position: absolute;
+  inset: 0;
+}
+.office-stage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-y;
+}
 .studio-activity-button {
   position: absolute;
   left: 18px;
@@ -699,7 +712,8 @@ button.inbox-heading:hover h2 {
   .studio-canvas-room {
     aspect-ratio: 1120 / 850;
   }
-  .studio-canvas-room #officeCanvas {
+  .studio-canvas-room #officeCanvas,
+  .office-stage canvas {
     width: 128.571429%;
   }
   .studio-live-label {
