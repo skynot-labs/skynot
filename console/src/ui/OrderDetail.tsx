@@ -309,6 +309,13 @@ function Verdict({
         </p>
       )}
       {reviewing && !review && <p>Not reviewed yet</p>}
+      {review?.diffOnly && (
+        <p class="order-notice">
+          Judged from the diff alone: the reviewer could not read the
+          repository or run the tests where the shop runs, so this does not
+          count as reviewed. Setup, in Context, says how to fix it.
+        </p>
+      )}
       {review?.verdict === "approved" && (
         <p>
           Approved by the reviewer. <RichLine text={review.summary} />

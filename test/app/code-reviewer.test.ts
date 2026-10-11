@@ -38,6 +38,16 @@ describe("code reviewer", () => {
     expect(runs.list()[0]).toMatchObject({ role: "code_reviewer", orderId: "WO-0001" });
   });
 
+  it("marks its verdict as made from the diff alone where it is told it cannot read the repository", async () => {
+    const approval = { verdict: "approved", summary: "Looks right.", findings: [] };
+    const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date("2026-10-10T12:00:00.000Z")));
+    const reviewerWhere = (diffOnly: boolean) =>
+      createCodeReviewer(new RunScheduler({ codex: new FakeEngine(() => ({ structured: approval })) }, log, 1), { engine: "codex", cwd: async () => "/tmp/base", timeoutMs: 1000, diffOnly: () => diffOnly });
+
+    expect(await reviewerWhere(true).review({ item, diff: "diff" })).toEqual({ ok: true, value: { ...approval, diffOnly: true } });
+    expect(await reviewerWhere(false).review({ item, diff: "diff" })).toEqual({ ok: true, value: approval });
+  });
+
   it("refuses a verdict that asks for changes without saying which", async () => {
     const { reviewer } = await reviewerWith(new FakeEngine(() => ({ structured: { verdict: "changes_requested", summary: "Not good.", findings: [] } })));
 

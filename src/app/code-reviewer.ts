@@ -9,6 +9,8 @@ export interface CodeReviewerOptions {
   model?: string;
   maxUsd?: number;
   projectId?: string;
+  // True where the engine cannot read the repository or run commands, so it sees only what the prompt carries.
+  diffOnly?: () => boolean;
 }
 
 export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewerOptions): CodeReviewer {
@@ -41,7 +43,7 @@ export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewe
       if (!outcome.ok) return err(outcome.error.message);
 
       const parsed = ReviewSchema.safeParse(outcome.value.structured ?? parseJson(outcome.value.text));
-      return parsed.success ? ok(parsed.data) : err(`the reviewer's answer was not usable: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
+      return parsed.success ? ok({ ...parsed.data, ...(options.diffOnly?.() && { diffOnly: true }) }) : err(`the reviewer's answer was not usable: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
     },
   };
 }

@@ -124,8 +124,8 @@ function presence(shop: Shop, projectId: string) {
   };
 }
 
-// "Reviewed" means approved by the independent reviewer, and the pull request's checks are not red or running.
+// "Reviewed" means approved by an independent reviewer that could read the repository, and the pull request's checks are not red or running.
 function isReady(links: ReturnType<Shop["activity"]["linksFor"]>, reviewing: boolean): boolean {
   const checksOk = links.checks === "none" || links.checks === "passing";
-  return links.pullRequestUrl !== null && checksOk && (!reviewing || links.review?.verdict === "approved");
+  return links.pullRequestUrl !== null && checksOk && (!reviewing || (links.review?.verdict === "approved" && !links.review.diffOnly));
 }

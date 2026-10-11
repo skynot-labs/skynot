@@ -29,11 +29,17 @@ export function reviewPrompt(item: WorkItem, diff: string): string {
   return [`## Work order ${item.id}: ${item.title}`, item.objective, "## Acceptance criteria", criteria, "## Out of scope", outOfScope, "## Diff of the pull request", shown].join("\n");
 }
 
-export const reviewComment = (review: Review, round: number): string =>
+// A reviewer that could not read the repository or run anything judged the diff alone, and its approval is worth that much.
+export type ReviewResult = Review & { readonly diffOnly?: boolean };
+
+export const DIFF_ONLY_NOTE = "Judged from the diff alone: the reviewer could not read the repository or run the tests where the shop runs.";
+
+export const reviewComment = (review: ReviewResult, round: number): string =>
   [
     `**Independent review, round ${round}: ${review.verdict === "approved" ? "approved" : "changes requested"}**`,
     "",
     review.summary,
+    ...(review.diffOnly ? ["", `_${DIFF_ONLY_NOTE}_`] : []),
     ...(review.findings.length ? ["", ...review.findings.map((finding) => `- ${finding}`)] : []),
   ].join("\n");
 

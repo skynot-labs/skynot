@@ -112,17 +112,19 @@ function checkEngines({ engines, usage, exec }: Pick<ReadinessInput, "engines" |
   });
 }
 
+export const CODEX_SANDBOX = "codex sandbox";
+
 // `codex sandbox` runs a command inside the same sandbox `codex exec` uses, without spending any quota.
 async function codexSandbox(exec: Exec, writes: boolean, roles: string[]): Promise<Finding> {
   const result = await exec("codex", ["sandbox", "--", "true"], { timeoutMs: 20_000 }).catch(() => null);
-  if (result?.code === 0) return ok("codex sandbox", "commands run inside it");
+  if (result?.code === 0) return ok(CODEX_SANDBOX, "commands run inside it");
 
   const cause = (result?.stderr ?? "").includes("namespace") ? "the container does not allow user namespaces" : "it could not start";
   const fix =
     "start the devcontainer with `--security-opt seccomp=unconfined` (runArgs, or security_opt in docker-compose.yml) and rebuild; or run the shop outside a container";
   return writes
-    ? fail("codex sandbox", `${cause}; ${roles.join(", ")} would fail on every run`, fix)
-    : warn("codex sandbox", `${cause}: codex can only read what the prompt contains, so the reviewer sees the diff but cannot read the repository or run tests`, fix);
+    ? fail(CODEX_SANDBOX, `${cause}; ${roles.join(", ")} would fail on every run`, fix)
+    : warn(CODEX_SANDBOX, `${cause}: codex can only read what the prompt contains, so the reviewer sees the diff but cannot read the repository or run tests`, fix);
 }
 
 async function checkGithub(exec: Exec, repo: string, baseBranch: string): Promise<Finding[]> {

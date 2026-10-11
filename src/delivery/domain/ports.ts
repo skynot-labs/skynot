@@ -1,5 +1,5 @@
 import type { Result } from "../../kernel";
-import type { Review } from "./review";
+import type { ReviewResult } from "./review";
 import type { FileChange, WorkItem } from "./work-item";
 
 export interface IssueRef {
@@ -73,7 +73,7 @@ export interface WorkerRunner {
 }
 
 export interface CodeReviewer {
-  review(input: { item: WorkItem; diff: string; signal?: AbortSignal }): Promise<Result<Review, string>>;
+  review(input: { item: WorkItem; diff: string; signal?: AbortSignal }): Promise<Result<ReviewResult, string>>;
 }
 
 export interface RepoRules {
