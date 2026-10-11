@@ -75,6 +75,16 @@ describe("roster", () => {
     expect(team.roster.pending()).toEqual([]);
   });
 
+  it("refuses to discard a change twice, or to sign one that was discarded", async () => {
+    const team = await openTeam();
+    const id = await propose(team, "hire", "designer");
+    await team.service.discard(id);
+
+    expect(await team.service.discard(id)).toMatchObject({ ok: false, error: { kind: "invalid", message: `${id} is already discarded` } });
+    expect(await team.service.sign(id)).toMatchObject({ ok: false, error: { kind: "invalid" } });
+    expect(names(team.roster)).toEqual(["architect", "reviewer"]);
+  });
+
   it.each([
     ["hiring someone who is already on the team", "hire", "architect"],
     ["hiring someone who is not in the library", "hire", "oracle"],

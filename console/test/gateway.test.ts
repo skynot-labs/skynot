@@ -209,6 +209,17 @@ describe("mapState", () => {
     expect(agent(state, "backend_dev")).toMatchObject({ status: "queued", runId: run("run-2"), orderId: "wo-2", queuePosition: 3 });
   });
 
+  it("shows a role with one run live and another in line as working on the live one", () => {
+    const state = shopState({
+      presence: {
+        working: [{ runId: run("run-1"), role: "developer", engine: "codex", orderId: "wo-1", since: "2026-10-01T12:00:00.000Z" }],
+        waiting: [{ runId: run("run-2"), role: "developer", orderId: "wo-2", position: 1 }],
+      },
+    });
+
+    expect(agent(state, "developer")).toMatchObject({ status: "working", runId: run("run-1"), orderId: "wo-1", queuePosition: null });
+  });
+
   it("leaves an agent with no run idle", () => {
     const state = shopState({
       presence: { working: [{ runId: run("run-1"), role: "developer", engine: "codex", orderId: "wo-1", since: null }], waiting: [] },
@@ -394,5 +405,93 @@ describe("HttpGateway", () => {
     answerWith({ status: 502, body: "<html>Bad Gateway</html>" });
 
     await expect(new HttpGateway().send({ name: "recheck", payload: {} })).rejects.toThrow("502");
+  });
+
+  describe("watching the shop's events", () => {
+    class FakeEventSource {
+      static opened: FakeEventSource[] = [];
+      onopen: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onmessage: ((event: { data: unknown }) => void) | null = null;
+      closed = false;
+      constructor(readonly url: string) {
+        FakeEventSource.opened.push(this);
+      }
+      close() {
+        this.closed = true;
+      }
+      emit(data: unknown) {
+        this.onmessage?.({ data });
+      }
+    }
+
+    async function watching() {
+      FakeEventSource.opened = [];
+      vi.stubGlobal("EventSource", FakeEventSource);
+      answerWith({ status: 200, body: shopState() });
+      const gateway = new HttpGateway();
+      await gateway.read();
+      const changes: number[] = [];
+      const connection: boolean[] = [];
+      const unwatch = gateway.watch(
+        () => changes.push(changes.length + 1),
+        (connected) => connection.push(connected),
+      );
+      return { source: FakeEventSource.opened[0]!, changes, connection, unwatch };
+    }
+    const settled = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+    it("listens from the last event it has read, and reads again every time the stream opens", async () => {
+      const { source, changes, connection } = await watching();
+
+      expect(source.url).toBe("/api/events?after=42");
+      source.onopen?.();
+      source.onerror?.();
+      source.onopen?.();
+
+      expect(connection).toEqual([true, false, true]);
+      expect(changes).toHaveLength(2);
+    });
+
+    it("reads once for a burst of new events, and not at all for ones it has already seen", async () => {
+      const { source, changes } = await watching();
+
+      source.emit(JSON.stringify({ sequence: 41 }));
+      source.emit(JSON.stringify({ sequence: 42 }));
+      await settled();
+      expect(changes).toHaveLength(0);
+
+      source.emit(JSON.stringify({ sequence: 43 }));
+      source.emit(JSON.stringify({ sequence: 44 }));
+      await settled();
+      expect(changes).toHaveLength(1);
+
+      source.emit(JSON.stringify({ sequence: 44 }));
+      await settled();
+      expect(changes).toHaveLength(1);
+    });
+
+    it("ignores what is not an event", async () => {
+      const { source, changes } = await watching();
+
+      source.emit("not json");
+      source.emit(JSON.stringify({ sequence: "50" }));
+      source.emit(JSON.stringify({ sequence: 50.5 }));
+      source.emit(50);
+      await settled();
+
+      expect(changes).toHaveLength(0);
+    });
+
+    it("stops listening, and drops a read that was about to happen", async () => {
+      const { source, changes, unwatch } = await watching();
+
+      source.emit(JSON.stringify({ sequence: 43 }));
+      unwatch();
+      await settled();
+
+      expect(source.closed).toBe(true);
+      expect(changes).toHaveLength(0);
+    });
   });
 });
