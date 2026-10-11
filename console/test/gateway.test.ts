@@ -10,7 +10,12 @@ const run = (id: string) => id as RunId;
 function order(id: string, overrides: Partial<Order> = {}): Order {
   return {
     id: id as Order["id"],
+    plan: id as Order["plan"],
     title: `Order ${id}`,
+    summary: "You get it shipped.",
+    context: null,
+    approach: [],
+    likelyFiles: [],
     objective: "Ship it",
     risk: "low",
     criteria: [],

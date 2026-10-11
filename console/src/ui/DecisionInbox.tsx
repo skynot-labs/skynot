@@ -11,6 +11,8 @@ import type {
   TeamChange,
 } from "../contracts";
 import { Icon } from "./Icon";
+import { RichLine } from "./RichText";
+import { plansToSign } from "../application/plans";
 import { ago, dayTime } from "./format";
 import "./decisions.css";
 
@@ -227,6 +229,7 @@ function Proposal({
   eyebrow,
   title,
   signing,
+  signLabel = "Sign",
   discarding,
   send,
   busy,
@@ -235,7 +238,8 @@ function Proposal({
   eyebrow: string;
   title: string;
   signing: Command;
-  discarding: Command;
+  signLabel?: string;
+  discarding?: Command;
   send: Send;
   busy: boolean;
   children: ComponentChildren;
@@ -252,16 +256,18 @@ function Proposal({
           disabled={busy}
           onClick={() => void send(signing)}
         >
-          Sign
+          {signLabel}
         </button>
-        <button
-          type="button"
-          class="secondary-button"
-          disabled={busy}
-          onClick={() => void send(discarding)}
-        >
-          Discard
-        </button>
+        {discarding && (
+          <button
+            type="button"
+            class="secondary-button"
+            disabled={busy}
+            onClick={() => void send(discarding)}
+          >
+            Discard
+          </button>
+        )}
       </div>
     </article>
   );
@@ -418,30 +424,49 @@ export function DecisionInbox({
         aria-labelledby={`${tabId}-signatures`}
         hidden={tab !== "signatures"}
       >
-        {proposals.map((order) => (
-          <Proposal
-            key={order.id}
-            eyebrow={`WORK ORDER · ${order.id}`}
-            title={order.title}
-            signing={{ name: "sign-order", payload: { orderId: order.id } }}
-            discarding={{
-              name: "discard-order",
-              payload: { orderId: order.id },
-            }}
-            send={send}
-            busy={busy}
-          >
-            <p>{order.objective}</p>
-            <button
-              type="button"
-              class="proposal-link"
-              onClick={() => onOrder(order)}
+        {plansToSign(project.orders).map((plan) => {
+          const first = plan[0]!;
+          return (
+            <Proposal
+              key={first.plan}
+              eyebrow={
+                plan.length > 1
+                  ? `PLAN · ${plan.length} WORK ORDERS`
+                  : `WORK ORDER · ${first.id}`
+              }
+              title={plan.length > 1 ? "In this sequence" : first.title}
+              signing={{ name: "sign-plan", payload: { plan: first.plan } }}
+              signLabel={plan.length > 1 ? "Sign the plan" : "Sign"}
+              {...(plan.length === 1 && {
+                discarding: {
+                  name: "discard-order",
+                  payload: { orderId: first.id },
+                },
+              })}
+              send={send}
+              busy={busy}
             >
-              Open detail
-              <Icon name="arrow" />
-            </button>
-          </Proposal>
-        ))}
+              <ol class="proposal-plan">
+                {plan.map((order) => (
+                  <li key={order.id}>
+                    {plan.length > 1 && <strong>{order.title}</strong>}
+                    <p>
+                      <RichLine text={order.summary} />
+                    </p>
+                    <button
+                      type="button"
+                      class="proposal-link"
+                      onClick={() => onOrder(order)}
+                    >
+                      {plan.length > 1 ? `${order.id} · open the brief` : "Open detail"}
+                      <Icon name="arrow" />
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </Proposal>
+          );
+        })}
         {project.teamChanges.map((change) => (
           <Proposal
             key={change.id}

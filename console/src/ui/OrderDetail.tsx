@@ -80,7 +80,7 @@ export function OrderDetail({
       </div>
       <h3 class="order-detail-title">{order.title}</h3>
       <p class="order-objective">
-        <RichLine text={order.objective} />
+        <RichLine text={order.summary} />
       </p>
 
       {order.question && (
@@ -242,6 +242,35 @@ export function OrderDetail({
         </p>
       )}
 
+      <section class="order-section">
+        <h4>THE BRIEF · WHAT THE TEAM BUILDS FROM</h4>
+        <p>
+          <RichLine text={order.objective} />
+        </p>
+        {order.context && (
+          <p class="muted">
+            <RichLine text={order.context} />
+          </p>
+        )}
+      </section>
+      {order.approach.length > 0 && (
+        <section class="order-section">
+          <h4>APPROACH</h4>
+          <ol>
+            {order.approach.map((step) => (
+              <li key={step}>
+                <RichLine text={step} />
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      {order.likelyFiles.length > 0 && (
+        <section class="order-section">
+          <h4>LIKELY FILES</h4>
+          <p class="mono order-files">{order.likelyFiles.join(" · ")}</p>
+        </section>
+      )}
       <section class="order-section">
         <h4>ACCEPTANCE CRITERIA</h4>
         <ul>
