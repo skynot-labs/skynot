@@ -138,3 +138,71 @@
     grid-template-columns: 1fr;
   }
 }
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  background: transparent;
+  border-radius: 6px;
+  font: 8px var(--mono);
+  letter-spacing: 1.3px;
+  color: var(--muted);
+}
+.sidebar-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+.sidebar-toggle:hover {
+  color: var(--text);
+  background: #ffffff0b;
+}
+@media (min-width: 761px) {
+  .skynot-shell.sidebar-collapsed {
+    grid-template-columns: 62px 1fr;
+  }
+  .skynot-shell.sidebar-collapsed .sidebar {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+  .sidebar-collapsed .sidebar-toggle > span,
+  .sidebar-collapsed .project-nav-heading > span,
+  .sidebar-collapsed .project-switch > span:not(.project-initial),
+  .sidebar-collapsed .nav-item > span,
+  .sidebar-collapsed .brand-guide-link > span,
+  .sidebar-collapsed .manager-nav > span,
+  .sidebar-collapsed .side-footer {
+    display: none;
+  }
+  .skynot-shell.sidebar-collapsed .sidebar-toggle,
+  .skynot-shell.sidebar-collapsed .project-nav-heading,
+  .skynot-shell.sidebar-collapsed .project-switch,
+  .skynot-shell.sidebar-collapsed .nav-item,
+  .skynot-shell.sidebar-collapsed .brand-guide-link,
+  .skynot-shell.sidebar-collapsed .manager-nav {
+    position: relative;
+    justify-content: center;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .sidebar-collapsed .project-switch > .nav-counter,
+  .sidebar-collapsed .nav-item > .nav-counter,
+  .sidebar-collapsed .manager-nav > b {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    margin: 0;
+    background: var(--sk-color-canvas);
+  }
+  .skynot-shell.sidebar-collapsed .nav-divider {
+    margin-left: 6px;
+    margin-right: 6px;
+  }
+}
+@media (max-width: 760px) {
+  .sidebar-toggle {
+    display: none;
+  }
+}

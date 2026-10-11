@@ -31,6 +31,7 @@ const paths: Record<string, string> = {
   tokens: "m12 2 9 5v10l-9 5-9-5V7l9-5Zm-9 5 9 5 9-5M12 12v10",
   clock: "M12 6v6l4 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
   help: "M9 9a3 3 0 1 1 5 2c-2 1-2 1-2 3m0 3h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z",
+  sidebar: "M3 4h18v16H3V4Zm6 0v16",
   star: "m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z",
 };
 export function Icon({ name }: { name: string }) {

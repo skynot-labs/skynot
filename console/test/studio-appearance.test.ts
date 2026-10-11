@@ -33,6 +33,7 @@ const member = (id: string, kind: Agent["kind"]): Agent => ({
   runs: 0,
   spentUsd: 0,
   usage: null,
+  soul: null,
   avatar: {
     skin: "#ecc3a0",
     hair: "#3a293e",
