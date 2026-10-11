@@ -21,6 +21,10 @@ services:
         required: false
       - path: local.env
         required: false
+    # Docker's default seccomp profile blocks the user namespaces the codex sandbox needs, so its reviewer could not
+    # read the repository or run tests. The container is the throwaway boundary; this relaxes it one notch.
+    security_opt:
+      - seccomp=unconfined
     command: sleep infinity
 
 volumes:
