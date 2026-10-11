@@ -251,6 +251,12 @@ test.describe("the static pages", () => {
     });
   }
 
+  test("a page in a folder is reached without its trailing slash too", async ({ page }) => {
+    await page.goto("/github/app");
+    await expect(page).toHaveURL(/\/github\/app\/$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(pages[3]!.heading);
+  });
+
   test("the console opens on the first project and links to the design page and the GitHub kit", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("alpha");
