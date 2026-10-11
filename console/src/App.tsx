@@ -114,6 +114,11 @@ export function App() {
   const [noticeId, setNoticeId] = useState<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const [, setMinute] = useState(0);
+  useEffect(() => {
+    const tick = setInterval(() => setMinute((value) => value + 1), 60_000);
+    return () => clearInterval(tick);
+  }, []);
   const project = snapshot?.project;
   const preferences = snapshot?.preferences;
   const appearance = useMemo(

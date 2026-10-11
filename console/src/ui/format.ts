@@ -19,6 +19,14 @@ export const dayTime = (iso: string) =>
     minute: "2-digit",
     hour12: false,
   });
+// How long ago, so an old entry is told from a fresh one at a glance; the exact moment goes in the title.
+export function ago(iso: string, now = Date.now()): string {
+  const minutes = Math.floor((now - new Date(iso).getTime()) / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 60 * 24) return `${Math.floor(minutes / 60)} h ago`;
+  return `${Math.floor(minutes / (60 * 24))} d ago`;
+}
 const compact = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
