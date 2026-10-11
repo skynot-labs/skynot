@@ -403,9 +403,11 @@ describe("order flow", () => {
       await shop.orderService.sign(proposed.value.id);
       for (let attempt = 0; attempt < 100 && shop.engine.requests.length === 0; attempt++) await new Promise((resolve) => setTimeout(resolve, 5));
 
+      expect(shop.flow.working(proposed.value.id)).toBe(true);
       expect(await shop.flow.reassign(proposed.value.id, "careful")).toMatchObject({ ok: false, error: { message: expect.stringContaining("stop it first") } });
       open();
       await shop.flow.idle();
+      expect(shop.flow.working(proposed.value.id)).toBe(false);
     });
   });
 

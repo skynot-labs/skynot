@@ -24,6 +24,7 @@ function order(id: string, overrides: Partial<Order> = {}): Order {
     signedAt: "2026-10-01T10:05:00.000Z",
     deliveredAt: null,
     spentUsd: 0,
+    working: false,
     issue: null,
     issueUrl: null,
     pullRequestUrl: null,

@@ -3,6 +3,7 @@ import { useState } from "preact/hooks";
 import type { MinutesBucket, Order, Project, Send } from "../contracts";
 import { Icon } from "./Icon";
 import { orderStatus, usd } from "./format";
+import { orderActions } from "./order-actions";
 import "./views.css";
 
 type OrderAction =
@@ -63,13 +64,14 @@ export function OrderDetail({
     order.blocked !== null &&
     order.protectedPaths.length === 0 &&
     (order.status === "signed" || order.status === "on_bench");
+  const can = orderActions(order, simulated);
 
   return (
     <>
       <div class="order-detail-top">
         <span class="mono">{order.id}</span>
-        <span class={`status-chip ${order.status}`}>
-          {orderStatus[order.status]}
+        <span class={`status-chip ${order.blocked ? "blocked" : order.status}`}>
+          {order.blocked ? "Blocked" : orderStatus[order.status]}
         </span>
         {order.ticket !== null && (
           <span class="mono">From ticket #{order.ticket}</span>
@@ -103,7 +105,6 @@ export function OrderDetail({
                   "primary",
                 )}
               {retryable && action("retry-order", "Retry", "primary")}
-              {order.status === "on_bench" && action("discard-order", "Discard")}
               {blockedOnPaths && order.status === "in_review" && (
                 <span>After approving, send the follow-up again.</span>
               )}
@@ -159,9 +160,12 @@ export function OrderDetail({
         </div>
       )}
 
-      {order.status === "in_review" && (
-        <Verdict order={order} reviewing={project.reviewing} action={action} />
-      )}
+      {order.status === "in_review" &&
+        (project.reviewing ||
+          order.ready ||
+          (order.checks !== null && order.checks !== "none")) && (
+          <Verdict order={order} reviewing={project.reviewing} action={action} />
+        )}
 
       {order.status === "in_review" && (
         <section class="order-section">
@@ -186,7 +190,8 @@ export function OrderDetail({
             <select
               id="orderWorker"
               value={order.worker ?? "developer"}
-              disabled={busy}
+              disabled={busy || !can.reassign}
+              title={order.working ? "Stop the work to change the worker." : undefined}
               onChange={(event) =>
                 void send({
                   name: "reassign-order",
@@ -262,22 +267,12 @@ export function OrderDetail({
         <pre>{order.card}</pre>
       </details>
 
-      {(order.status === "awaiting_signature" ||
-        order.status === "signed" ||
-        (order.status === "on_bench" && !order.blocked) ||
-        (order.status === "in_review" && simulated)) && (
+      {(can.discard || can.stop || can.merge) && (
         <div class="modal-actions">
-          {(order.status === "awaiting_signature" ||
-            order.status === "signed") &&
-            action("discard-order", "Discard")}
-          {order.status === "awaiting_signature" &&
-            action("sign-order", "Sign work order", "primary")}
-          {order.status === "on_bench" &&
-            !order.blocked &&
-            action("stop-order", "Stop", "danger")}
-          {order.status === "in_review" &&
-            simulated &&
-            action("merge-pull-request", "Merge (simulated)")}
+          {can.discard && action("discard-order", "Discard")}
+          {can.sign && action("sign-order", "Sign work order", "primary")}
+          {can.stop && action("stop-order", "Stop", "danger")}
+          {can.merge && action("merge-pull-request", "Merge (simulated)")}
         </div>
       )}
     </>

@@ -36,6 +36,7 @@ export function readState(shop: Shop, projectId?: string) {
       signedAt: order.signedAt,
       deliveredAt: order.deliveredAt,
       spentUsd: shop.runs.spentOnOrder(order.id),
+      working: shop.flow.working(order.id),
       ...shop.activity.linksFor(order.id),
       blocked: blockedReason(shop, order),
       ready: isReady(shop.activity.linksFor(order.id), reviewing),
