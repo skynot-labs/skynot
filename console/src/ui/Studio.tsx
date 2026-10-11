@@ -2,6 +2,7 @@ import { useEffect, useRef } from "preact/hooks";
 import type { Agent, Order, Project, Send, Snapshot } from "../contracts";
 import type { Appearance } from "../application/appearance";
 import {
+  agentBubble,
   studioAgentAppearance,
   studioScene,
 } from "../studio/presentation";
@@ -35,6 +36,7 @@ export function StudioHero({
   onManager,
   onOrder,
   onTeam,
+  onOrders,
   onContext,
   dock,
   onDock,
@@ -49,6 +51,7 @@ export function StudioHero({
   onManager: () => void;
   onOrder: (order: Order) => void;
   onTeam: () => void;
+  onOrders: () => void;
   onContext: () => void;
   dock: DockCard;
   onDock: (card: DockCard) => void;
@@ -84,21 +87,37 @@ export function StudioHero({
       (event.clientY - rect.top) / ratio,
     );
   }
+  function openDesk(tab: "questions" | "signatures") {
+    onDock("decisions");
+    inbox.current?.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+      block: "nearest",
+    });
+    const entry = inbox.current?.querySelector<HTMLButtonElement>(
+      `#director-${project.id}-${tab}`,
+    );
+    entry?.click();
+    entry?.focus();
+  }
   function openZone(zone: StudioZone) {
     if (zone === "manager") onManager();
-    else if (zone === "decisions") {
-      onDock("decisions");
-      inbox.current?.scrollIntoView({
-        behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-          ? "instant"
-          : "smooth",
-        block: "nearest",
-      });
-      const questions =
-        inbox.current?.querySelector<HTMLButtonElement>('[role="tab"]');
-      questions?.click();
-      questions?.focus();
-    } else onTeam();
+    else if (zone === "decisions") openDesk("questions");
+    else onTeam();
+  }
+  function openAgent(agent: Agent) {
+    if (agent.kind === "manager") onManager();
+    else onAgent(agent);
+  }
+  function openBubble(agent: Agent) {
+    const target = agentBubble(project, agent)?.open;
+    const order =
+      target?.kind === "order" &&
+      project.orders.find((candidate) => candidate.id === target.id);
+    if (order) onOrder(order);
+    else if (target?.kind === "desk") openDesk(target.tab);
+    else openAgent(agent);
   }
   return (
     <section
@@ -123,14 +142,14 @@ export function StudioHero({
             }}
             onClick={(event) => {
               const target = hit(event);
-              if (target?.kind === "zone") openZone(target.id as StudioZone);
-              else {
-                const agent = project.agents.find(
-                  (member) => member.id === target?.id,
-                );
-                if (agent?.kind === "manager") onManager();
-                else if (agent) onAgent(agent);
-              }
+              if (target?.id === "board") return onOrders();
+              if (target?.kind === "zone")
+                return openZone(target.id as StudioZone);
+              const agent = project.agents.find(
+                (member) => member.id === target?.id.replace("bubble:", ""),
+              );
+              if (agent && target?.kind === "bubble") openBubble(agent);
+              else if (agent) openAgent(agent);
             }}
           />
         </div>
