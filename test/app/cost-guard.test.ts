@@ -39,6 +39,14 @@ describe("cost guard", () => {
     await vi.waitFor(() => expect(control.paused()?.reason).toBe("the daily cost cap of $1.00 was reached ($1.10 spent)"));
   });
 
+  it("pauses when the spending lands exactly on the cap", async () => {
+    const { control, spend } = await openGuard(1);
+
+    await spend(1);
+
+    await vi.waitFor(() => expect(control.paused()?.reason).toBe("the daily cost cap of $1.00 was reached ($1.00 spent)"));
+  });
+
   it("counts runs that failed after spending", async () => {
     const { control, fail } = await openGuard(5);
 
