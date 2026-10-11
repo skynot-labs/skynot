@@ -121,4 +121,5 @@ sides:
 ssh -L 4747:127.0.0.1:4747 you@the-machine
 ```
 
-Then open http://127.0.0.1:4747 on your own machine.
+Then open http://127.0.0.1:4747 on your own machine. [running-on-a-server.md](running-on-a-server.md) covers
+keeping a shop running on a server: logging the tools in without a browser, and a service that restarts it.
