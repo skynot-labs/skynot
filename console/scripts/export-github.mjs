@@ -177,7 +177,7 @@ const doc = async (name, links) => {
 await output(
   resolve(kit, "app/SETUP.md"),
   await doc("github-app.md", {
-    "../README.md": `${blob}README.md`,
+    "configuration.md": `${blob}docs/configuration.md`,
     "../console/public/github-kit/app/LISTING.md": "LISTING.md",
   }),
 );

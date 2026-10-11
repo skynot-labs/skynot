@@ -1,6 +1,6 @@
 # Running the shop as a GitHub App
 
-The shop reaches GitHub either as whoever `gh` is logged in as, or as a GitHub App. As an App it opens issues, pushes branches and opens pull requests under the App's name, so the director can review and approve what it opens. The variables that switch it on and the permissions it needs are in the [README](../README.md#run-it-for-real). This guide covers what the README does not: how to register the App and what the service does with it.
+The shop reaches GitHub either as whoever `gh` is logged in as, or as a GitHub App. As an App it opens issues, pushes branches and opens pull requests under the App's name, so the director can review and approve what it opens. The variables that switch it on are in [configuration.md](configuration.md#environment-variables). This guide covers how to register the App and what the service does with it.
 
 The App is only an identity. Installing it starts no agent: the Node service runs separately, and an order runs only after the director signs it.
 
@@ -22,7 +22,7 @@ Pushing a change to a workflow file needs GitHub's separate **Workflows** permis
 3. Set `SKYNOT_GITHUB_APP_ID` and `SKYNOT_GITHUB_APP_KEY` (the path to the key) for the service. Set both or neither: with only one the service refuses to start.
 4. Run `npm run check`. Its first line names the identity in use (`GitHub: acting as GitHub App <id>`), followed by what that identity can read and push in each project's repository.
 
-There is no installation setting. The service lists the App's installations and uses the one of the account each `gh` or `git` command is about: the repository's owner, the board's owner, or the origin of the clone it runs in. A command about an account the App is not installed in fails with a message that names the accounts it is installed in.
+There is no installation setting. The service lists the App's installations and uses the one of the account each `gh` or `git` command is about: the repository's owner, the board's owner, or the origin of the clone it runs in. A command about an account the App is not installed in fails with a message that names the accounts it is installed in. A board in another account than the repository gets a note with the issue's address instead of the issue itself, because no single installation sees both.
 
 ## What the service holds
 
