@@ -282,6 +282,18 @@ describe("what the studio reads from the state", () => {
     expect(state.activity.filter((entry) => entry.kind === "run").map((entry) => [entry.role, entry.text])).toContainEqual(["developer", "developer run finished, $0.31"]);
   });
 
+  it("says who took each step of an order, and names nobody for what the service does on its own", async () => {
+    const id = await fileAnOrder();
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+    const steps = (await getState()).activity.filter((entry) => entry.orderId === id).map((entry) => [entry.text.split(/[:,]/)[0], entry.by]);
+
+    expect(steps).toContainEqual(["proposed", "manager"]);
+    expect(steps).toContainEqual(["signed by the director", "director"]);
+    expect(steps).toContainEqual(["developer run finished", "developer"]);
+    expect(steps).toContainEqual(["work started", null]);
+  });
+
   it("carries no cost for a role whose engine reported none, in its runs, its totals and the logbook", async () => {
     shop.stop();
     const silentCodex = new FakeEngine(async () => ({ text: "Criterion 1: covered by the new test. Criterion 2: the negative case is tested." }));

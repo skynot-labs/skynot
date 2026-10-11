@@ -600,7 +600,15 @@ export function App() {
                   busy={busy}
                 />
               )}{" "}
-              {tab === "activity" && <ActivityView project={project} />}{" "}
+              {tab === "activity" && (
+                <ActivityView
+                  project={project}
+                  appearance={appearance}
+                  settings={studioSettings}
+                  onAgent={openAgent}
+                  onOrder={openOrder}
+                />
+              )}{" "}
               {tab === "context" && (
                 <ContextView
                   project={project}

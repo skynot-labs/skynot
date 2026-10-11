@@ -4,7 +4,7 @@ import type { Activity, Agent, Order, Project, Run } from "../src/contracts";
 
 const order = (id: string, overrides: Partial<Order> = {}) =>
   ({ id, title: `Order ${id}`, status: "on_bench", working: false, worker: null, blocked: null, question: null, pullRequest: null, issue: null, ...overrides }) as Order;
-const entry = (sequence: number, overrides: Partial<Activity>) => ({ sequence, role: null, orderId: null, text: `event ${sequence}`, ...overrides }) as Activity;
+const entry = (sequence: number, overrides: Partial<Activity>) => ({ sequence, role: null, by: null, orderId: null, text: `event ${sequence}`, ...overrides }) as Activity;
 const agent = (id: string, kind: Agent["kind"], overrides: Partial<Agent> = {}) => ({ id, kind, orderId: null, ...overrides }) as Agent;
 const project = (overrides: Partial<Project>) => ({ orders: [], activity: [], runs: [], ...overrides }) as unknown as Project;
 
@@ -31,10 +31,11 @@ describe("what an agent's desk shows", () => {
       entry(3, { role: "developer", orderId: "WO-0001" }),
       entry(2, { orderId: "WO-0002" }),
       entry(1, { role: "architect" }),
+      entry(0, { by: "developer", orderId: "WO-0002" }),
     ];
     const orders = [order("WO-0001", { status: "delivered" }), order("WO-0002", { worker: "careful" })];
 
-    expect(agentWork(project({ orders, activity }), developer).trace.map((item) => item.sequence)).toEqual([4, 3]);
+    expect(agentWork(project({ orders, activity }), developer).trace.map((item) => item.sequence)).toEqual([4, 3, 0]);
     expect(agentWork(project({ orders, activity }), agent("architect", "advisor")).trace.map((item) => item.sequence)).toEqual([1]);
   });
 

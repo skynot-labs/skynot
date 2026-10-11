@@ -24,7 +24,7 @@ export function agentWork(project: Project, agent: Agent): AgentWork {
     open,
     retry: idle.find((order) => order.blocked !== null && order.status !== "in_review") ?? null,
     runs: project.runs.filter((run) => run.role === agent.id),
-    trace: project.activity.filter((entry) => entry.role === agent.id || (entry.role === null && entry.orderId !== null && heldIds.has(entry.orderId))),
+    trace: project.activity.filter((entry) => entry.role === agent.id || entry.by === agent.id || (entry.role === null && entry.orderId !== null && heldIds.has(entry.orderId))),
     reach: reachOf(idle),
   };
 }
