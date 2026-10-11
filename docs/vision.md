@@ -27,7 +27,7 @@ console (web)  ──API / event log──▶  orchestrator  ──▶ role runs
  work orders, logbook, decisions     memory, GitHub       per worker, read-only for advisors
 ```
 
-- **Console** is a thin client: chat with the Manager, work orders, logbook, pending decisions. It only talks to the orchestrator's API and event log, so Telegram (roadmap) and a visual office (later) can be added without touching the core.
+- **Console** is a thin client: the studio where the team is seen working, chat with the Manager, work orders, logbook, pending decisions. It only talks to the orchestrator's API and event log, so Telegram (roadmap) can be added without touching the core.
 - **Orchestrator and roles run together**, in one deployable service. Roles are memory folders plus the engine that runs them, not separate deployments.
 - **Hosting:** everything on the local KVM VM behind Tailscale *(proposed)*. A remote host for the console only, if ever needed, is a later and independent decision.
 

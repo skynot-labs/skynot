@@ -14,7 +14,7 @@ Hexagonal, light DDD, event-driven. Details in `docs/vision.md`.
 - The domain imports no adapter and no other context's internals. A test enforces it; keep it green.
 - Contexts talk through ports they define themselves. `src/app` is the composition layer: it wires adapters between contexts and may import only a context's public `index`.
 - Agents act only through typed operations that the service validates against `policy.yaml`. The LLM proposes, the code validates.
-- State changes are domain events appended to a JSONL log. Clients (console, later Telegram and a game-style office) only send commands and read projections.
+- State changes are domain events appended to a JSONL log. Clients (the console and its studio view, later Telegram) only send commands and read projections.
 
 ## Working here
 
