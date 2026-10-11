@@ -9,11 +9,13 @@ export interface TeamChoices {
 }
 
 const MAX_BRIEFING = 1500;
+// The prompt asks for 600. A model cannot count characters, and a slightly long answer is not worth a second run.
+const MAX_MESSAGE = 1200;
 
 export function createAnswerSchema(orderSpec: z.ZodType, advisors: readonly string[] = [], choices: TeamChoices = { hire: [], dismiss: [], refocus: [] }) {
   return z
     .object({
-      message: z.string().trim().min(1).max(600),
+      message: z.string().trim().min(1).max(MAX_MESSAGE),
       question: z.string().trim().min(3).max(300).nullable(),
       options: z.array(z.string().trim().min(1).max(40)).max(3),
       order: orderSpec.nullable(),

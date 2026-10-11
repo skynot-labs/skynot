@@ -54,6 +54,11 @@ describe("answer schema", () => {
     expect(schema.safeParse({ ...reply, order: validSpec() }).success).toBe(true);
   });
 
+  it("lets a reply run past the 600 characters it is asked for, and stops it at twice that", () => {
+    expect(schema.safeParse({ ...reply, message: "x".repeat(700) }).success).toBe(true);
+    expect(schema.safeParse({ ...reply, message: "x".repeat(1201) }).success).toBe(false);
+  });
+
   it("rejects an order together with a question", () => {
     expect(schema.safeParse({ ...reply, question: "Which one?", order: validSpec() }).success).toBe(false);
   });
