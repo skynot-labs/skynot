@@ -1,4 +1,4 @@
-export { CriterionSchema, WorkOrderSpecSchema, describeIssues, type Criterion, type WorkOrderSpec } from "./work-order-spec";
+export { CriterionSchema, MAX_PLAN, WorkOrderSpecSchema, describeIssues, type Criterion, type WorkOrderSpec } from "./work-order-spec";
 export {
   abandon,
   asOrderEvent,

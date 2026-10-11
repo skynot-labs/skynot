@@ -16,6 +16,8 @@ export interface WorkOrder {
   readonly id: OrderId;
   readonly projectId: string;
   readonly ticket: number | null;
+  // The first order of the plan this one was proposed in; an order proposed alone is its own plan.
+  readonly plan: OrderId;
   readonly status: OrderStatus;
   readonly spec: WorkOrderSpec;
   readonly pullRequest: number | null;
@@ -26,7 +28,7 @@ export interface WorkOrder {
 }
 
 export type OrderEvent =
-  | { type: "orders.proposed"; payload: { orderId: OrderId; spec: WorkOrderSpec; projectId?: string; ticket?: number } }
+  | { type: "orders.proposed"; payload: { orderId: OrderId; spec: WorkOrderSpec; projectId?: string; ticket?: number; plan?: OrderId } }
   | { type: "orders.signed"; payload: { orderId: OrderId } }
   | { type: "orders.discarded"; payload: { orderId: OrderId } }
   | { type: "orders.work_started"; payload: { orderId: OrderId } }
@@ -50,8 +52,9 @@ export function evolve(order: WorkOrder | null, event: OrderEvent, at: string, f
       id: event.payload.orderId,
       projectId: event.payload.projectId ?? firstProject,
       ticket: event.payload.ticket ?? null,
+      plan: event.payload.plan ?? event.payload.orderId,
       status: "awaiting_signature",
-      spec: event.payload.spec,
+      spec: withBrief(event.payload.spec),
       pullRequest: null,
       minutes: null,
       proposedAt: at,
@@ -77,7 +80,10 @@ export function evolve(order: WorkOrder | null, event: OrderEvent, at: string, f
   }
 }
 
-export function propose(id: OrderId, spec: WorkOrderSpec, scope: { projectId?: string; ticket?: number } = {}): OrderEvent {
+// Orders filed before the brief had two layers carry neither a summary nor an approach.
+const withBrief = (spec: WorkOrderSpec): WorkOrderSpec => ({ ...spec, summary: spec.summary ?? spec.objective, approach: spec.approach ?? [] });
+
+export function propose(id: OrderId, spec: WorkOrderSpec, scope: { projectId?: string; ticket?: number; plan?: OrderId } = {}): OrderEvent {
   return { type: "orders.proposed", payload: { orderId: id, spec, ...scope } };
 }
 

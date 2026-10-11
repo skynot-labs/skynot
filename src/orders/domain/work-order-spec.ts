@@ -8,14 +8,22 @@ export const CriterionSchema = z.object({
   }),
 });
 
+export const MAX_PLAN = 5;
+
+// Two layers: `summary` is what the director reads, in plain words; everything else is the brief the team works from.
 export const WorkOrderSpecSchema = z.object({
   title: z.string().trim().min(3).max(60),
+  summary: z.string().trim().min(10).max(300),
   objective: z.string().trim().min(10).max(600),
+  context: z.string().trim().min(10).max(600).optional(),
+  approach: z.array(z.string().trim().min(3).max(200)).max(8).default([]),
   acceptanceCriteria: z.array(CriterionSchema).min(1).max(8),
   outOfScope: z.array(z.string().trim().min(3).max(200)).max(8),
   risk: z.enum(["low", "medium", "high"]),
   likelyFiles: z.array(z.string().trim().min(1).max(200)).max(12),
   dependsOn: z.array(z.string().regex(/^WO-\d{4}$/)).max(5).optional(),
+  // Positions, from 1, of earlier orders of the same plan that must be merged first; they become `dependsOn` once the orders have ids.
+  needs: z.array(z.number().int().min(1).max(MAX_PLAN - 1)).max(MAX_PLAN - 1).optional(),
 });
 
 export type Criterion = z.infer<typeof CriterionSchema>;

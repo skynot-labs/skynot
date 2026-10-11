@@ -384,8 +384,8 @@ describe("changing a project through the Manager", () => {
     const manager = new FakeEngine((request) => {
       prompts.push(request.prompt);
       const answer = first
-        ? { message: "Noted.", question: null, options: [], order: null, consult: [], team: null, briefing: { text: "Marta reads only Spanish (es-MX).", reason: "the director said so" } }
-        : { message: "Fine.", question: null, options: [], order: null, consult: [], team: null, briefing: null };
+        ? { message: "Noted.", question: null, options: [], orders: [], consult: [], team: null, briefing: { text: "Marta reads only Spanish (es-MX).", reason: "the director said so" } }
+        : { message: "Fine.", question: null, options: [], orders: [], consult: [], team: null, briefing: null };
       first = false;
       return { structured: answer };
     });
@@ -482,9 +482,9 @@ describe("pausing one project", () => {
     let turns = 0;
     const claude = new FakeEngine(async (request) => {
       if (!request.schema) return { text: "architect: one module" };
-      if (++turns > 1) return { structured: { message: "Filed.", question: null, options: [], order: validSpec(), consult: [], team: null } };
+      if (++turns > 1) return { structured: { message: "Filed.", question: null, options: [], orders: [validSpec()], consult: [], team: null } };
       await pauseBlog();
-      return { structured: { message: "Checking.", question: null, options: [], order: null, team: null, consult: [{ role: "architect", question: "Where?" }] } };
+      return { structured: { message: "Checking.", question: null, options: [], orders: [], team: null, consult: [{ role: "architect", question: "Where?" }] } };
     });
     const codex = new FakeEngine(async (request) => {
       if (request.schema) return { structured: { verdict: "approved", summary: "Fine.", findings: [] } };

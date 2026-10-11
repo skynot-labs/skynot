@@ -328,8 +328,8 @@ describe("activity", () => {
         if (!request.schema) return { text: `${request.system?.includes("architect") ? "architect" : "reviewer"}: keep it in one module` };
         answers.push(request.prompt);
         return answers.length === 1
-          ? { structured: { message: "Checking.", question: null, options: [], order: null, team: null, consult: [{ role: "architect", question: "Where?" }, { role: "reviewer", question: "Clear?" }] } }
-          : { structured: { message: "Both agree.", question: null, options: [], order: validSpec(), consult: [], team: null } };
+          ? { structured: { message: "Checking.", question: null, options: [], orders: [], team: null, consult: [{ role: "architect", question: "Where?" }, { role: "reviewer", question: "Clear?" }] } }
+          : { structured: { message: "Both agree.", question: null, options: [], orders: [validSpec()], consult: [], team: null } };
       });
       const { shop } = await openShop(new FakeVcs(), team, { claude: engine, codex: createMockDeveloper() });
 
@@ -357,7 +357,7 @@ describe("activity", () => {
       advisors: { architect: { engine: "claude", description: "design", soul: "You are the architect." } },
       library,
     };
-    const say = (extra: object) => ({ structured: { message: "Noted.", question: null, options: [], order: null, consult: [], team: null, ...extra } });
+    const say = (extra: object) => ({ structured: { message: "Noted.", question: null, options: [], orders: [], consult: [], team: null, ...extra } });
 
     it("changes nothing until the director signs, then the new advisor can be consulted", async () => {
       const prompts: string[] = [];

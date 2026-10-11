@@ -25,8 +25,13 @@ export function readState(shop: Shop, projectId?: string) {
     cursor: shop.cursor.value,
     orders: shop.orders.listFor(project.id).map((order) => ({
       id: order.id,
+      plan: order.plan,
       title: order.spec.title,
+      summary: order.spec.summary,
       objective: order.spec.objective,
+      context: order.spec.context ?? null,
+      approach: order.spec.approach,
+      likelyFiles: order.spec.likelyFiles,
       risk: order.spec.risk,
       criteria: order.spec.acceptanceCriteria,
       outOfScope: order.spec.outOfScope,

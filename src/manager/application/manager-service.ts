@@ -85,9 +85,10 @@ export class ManagerService {
   private schemas() {
     const onTeam = this.bench.roster().map((advisor) => advisor.name);
     const choices = { hire: this.teamDesk.hireable().map((role) => role.name), dismiss: onTeam, refocus: onTeam };
+    const openPlans = [...new Set(this.deps.desk.overview().filter((order) => order.status === "awaiting_signature").map((order) => order.plan))];
     return {
-      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices),
-      final: createAnswerSchema(this.deps.desk.specSchema, [], choices),
+      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices, openPlans),
+      final: createAnswerSchema(this.deps.desk.specSchema, [], choices, openPlans),
     };
   }
 
@@ -170,11 +171,11 @@ export class ManagerService {
   }
 
   private async act(answer: ManagerAnswer, ticket?: number): Promise<void> {
-    if (answer.order !== null) {
-      const proposed = await this.deps.desk.propose(answer.order, ticket ? { ticket } : undefined);
+    if (answer.orders.length > 0) {
+      const proposed = await this.deps.desk.propose(answer.orders, { ...(ticket && { ticket }), ...(answer.replaces && { replaces: answer.replaces }) });
       return proposed.ok
         ? this.reply(`${answer.message}\n\n${proposed.value.card}`, { orderId: proposed.value.id })
-        : this.reply(`I could not file that order: ${proposed.error}`);
+        : this.reply(`I could not file that ${answer.orders.length > 1 ? "plan" : "order"}: ${proposed.error}`);
     }
     if (answer.question !== null) {
       const decisionId = newId("dec");

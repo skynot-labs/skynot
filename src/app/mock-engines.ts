@@ -11,17 +11,17 @@ export function createMockManager(): FakeEngine {
     const idea = firstIdea(request.prompt, message);
 
     if (message.startsWith("Answer to ")) {
-      return { structured: { message: "That settles it. Filing the order.", question: null, options: [], order: mockOrder(idea), consult: [], team: null } };
+      return { structured: { message: "That settles it. Filing the order.", question: null, options: [], orders: [mockOrder(idea)], consult: [], team: null } };
     }
     if (message.toLowerCase().startsWith("/ping")) {
-      return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], order: null, consult: [], team: null } };
+      return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], orders: [], consult: [], team: null } };
     }
     return {
       structured: {
         message: "One thing before I write it up.",
         question: `Keep "${shorten(idea, 40)}" small, or cover the edge cases too?`,
         options: ["Keep it small", "Cover edge cases"],
-        order: null,
+        orders: [],
         consult: [],
         team: null,
       },
@@ -45,6 +45,8 @@ function mockOrder(idea: string) {
   const title = shorten(idea, 60);
   return {
     title,
+    summary: `You get what you asked for: ${shorten(idea, 200)}.`,
+    approach: ["Add the behavior behind the existing entry point", "Cover it with a test"],
     objective: `Deliver what the director asked for: ${shorten(idea, 200)}.`,
     acceptanceCriteria: [
       { statement: "The requested behavior works end to end", verification: { kind: "test", detail: "a new test covers the happy path" } },

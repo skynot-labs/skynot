@@ -26,6 +26,10 @@ export class OrdersProjection implements Projection {
     return this.list().filter((order) => order.projectId === projectId);
   }
 
+  planOf(id: string): WorkOrder[] {
+    return this.list().filter((order) => order.plan === id);
+  }
+
   nextId(): OrderId {
     const highest = this.list().at(-1);
     return formatOrderId(highest ? orderNumber(highest.id) + 1 : 1);

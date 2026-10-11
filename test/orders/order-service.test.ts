@@ -108,6 +108,91 @@ describe("order service", () => {
   });
 });
 
+describe("a plan of several orders", () => {
+  const plan = (...titles: string[]) => titles.map((title) => validSpec({ title }));
+  const expectPlan = (result: { ok: boolean } & Record<string, unknown>): WorkOrder[] => {
+    if (!result.ok) throw new Error(`expected ok, got ${JSON.stringify(result.error)}`);
+    return result.value as WorkOrder[];
+  };
+
+  it("files its orders together, in sequence, each knowing the plan it belongs to", async () => {
+    const { service } = await createShop();
+    await service.propose(validSpec());
+
+    const filed = expectPlan(await service.proposePlan(plan("Store the items", "Export them", "Document the export")));
+
+    expect(filed.map((order) => [order.id, order.plan, order.status])).toEqual([
+      ["WO-0002", "WO-0002", "awaiting_signature"],
+      ["WO-0003", "WO-0002", "awaiting_signature"],
+      ["WO-0004", "WO-0002", "awaiting_signature"],
+    ]);
+  });
+
+  it("turns the positions an order needs into the ids of those orders", async () => {
+    const { service } = await createShop();
+    const [first] = expectPlan(await service.proposePlan([validSpec()]));
+
+    const filed = expectPlan(await service.proposePlan([validSpec(), validSpec({ needs: [1], dependsOn: [first!.id] }), validSpec({ needs: [1, 2] })]));
+
+    expect(filed.map((order) => order.spec.dependsOn)).toEqual([undefined, ["WO-0001", "WO-0002"], ["WO-0002", "WO-0003"]]);
+    expect(filed.every((order) => !("needs" in order.spec))).toBe(true);
+  });
+
+  it("files nothing when one order is invalid, needs a later one, or the plan is empty or too long", async () => {
+    const { service, orders } = await createShop();
+
+    expect(await service.proposePlan([validSpec(), { ...validSpec(), acceptanceCriteria: [] }])).toMatchObject({ ok: false, error: { kind: "invalid_spec", message: expect.stringContaining("order 2: acceptanceCriteria") } });
+    expect(await service.proposePlan([validSpec({ needs: [2] }), validSpec()])).toMatchObject({ ok: false, error: { message: expect.stringContaining("order 1: needs can only name earlier orders") } });
+    expect(await service.proposePlan([])).toMatchObject({ ok: false, error: { kind: "invalid_spec" } });
+    expect(await service.proposePlan(plan("1st", "2nd", "3rd", "4th", "5th", "6th"))).toMatchObject({ ok: false, error: { kind: "invalid_spec" } });
+    expect(orders.list()).toEqual([]);
+  });
+
+  it("is signed once, and a second signature finds nothing left to sign", async () => {
+    const { service, orders } = await createShop();
+    const [first] = expectPlan(await service.proposePlan(plan("Store the items", "Export them")));
+    await service.discard("WO-0002");
+
+    const signed = expectPlan(await service.signPlan(first!.id));
+
+    expect(signed.map((order) => [order.id, order.status])).toEqual([["WO-0001", "signed"]]);
+    expect(orders.get("WO-0002")?.status).toBe("discarded");
+    expect(await service.signPlan(first!.id)).toMatchObject({ ok: false, error: { kind: "invalid_transition" } });
+    expect(await service.signPlan("WO-0099")).toMatchObject({ ok: false, error: { kind: "not_found" } });
+  });
+
+  it("is replaced as a whole while unsigned: the old orders are withdrawn and the new ones filed", async () => {
+    const { service, orders } = await createShop();
+    await service.proposePlan(plan("Store the items", "Export them"));
+
+    const revised = expectPlan(await service.proposePlan(plan("Store and export the items"), { replaces: "WO-0001" }));
+
+    expect(revised.map((order) => [order.id, order.plan])).toEqual([["WO-0003", "WO-0003"]]);
+    expect(orders.list().map((order) => order.status)).toEqual(["discarded", "discarded", "awaiting_signature"]);
+  });
+
+  it("cannot be replaced once signed, nor by a plan that depends on what it withdraws, and nothing changes", async () => {
+    const { service, orders } = await createShop();
+    await service.proposePlan(plan("Store the items", "Export them"));
+    await service.proposePlan(plan("Another idea"));
+
+    expect(await service.proposePlan([validSpec({ dependsOn: ["WO-0001"] })], { replaces: "WO-0001" })).toMatchObject({ ok: false, error: { message: expect.stringContaining("no such order") } });
+    await service.signPlan("WO-0001");
+    expect(await service.proposePlan(plan("Changed my mind"), { replaces: "WO-0001" })).toMatchObject({ ok: false, error: { kind: "invalid_transition", message: expect.stringContaining("already signed") } });
+    expect(await service.proposePlan(plan("Changed my mind"), { replaces: "WO-0042" })).toMatchObject({ ok: false, error: { message: expect.stringContaining("no plan WO-0042") } });
+    expect(orders.list().map((order) => order.status)).toEqual(["signed", "signed", "awaiting_signature"]);
+  });
+
+  it("reads an order filed before plans and summaries existed as its own plan, summarized by its objective", async () => {
+    const { log, orders } = await createShop();
+    const { summary: _summary, approach: _approach, ...old } = validSpec();
+
+    await log.record([{ type: "orders.proposed", payload: { orderId: "WO-0001", spec: old } }]);
+
+    expect(orders.get("WO-0001")).toMatchObject({ plan: "WO-0001", spec: { summary: old.objective, approach: [] } });
+  });
+});
+
 describe("orders rebuilt from the log", () => {
   let dir: string;
 
