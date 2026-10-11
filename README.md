@@ -35,7 +35,9 @@ The steps in full are in [docs/getting-started.md](docs/getting-started.md), and
 decides in [docs/configuration.md](docs/configuration.md). To keep a shop running on a machine you reach over SSH,
 see [docs/running-on-a-server.md](docs/running-on-a-server.md).
 
-The console binds to `127.0.0.1` and has no login. Do not expose it. To work with broad permissions
+As started here the office answers on `127.0.0.1` only and has no login: do not expose it. To use the public
+studio or another device, give it an address and a session as in
+[docs/connecting-a-studio.md](docs/connecting-a-studio.md). To work with broad permissions
 without risking your machine, use the [devcontainer](.devcontainer/README.md).
 
 ## Development

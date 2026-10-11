@@ -110,16 +110,20 @@ rather than delete it.
 
 ## Where it runs today
 
-One machine runs everything: the service, the engines and the clones. The console binds to `127.0.0.1`, has no
-login, and answers only when it is addressed as `127.0.0.1` or `localhost` on its own port. Do not put it behind
-a public address or a reverse proxy.
+One machine runs everything: the service, the engines and the clones. As started above, the office answers
+only on that machine, as `127.0.0.1` or `localhost` on its own port, and asks for no login.
 
-To use a shop that runs on another machine, forward the port over SSH, keeping the same port number on both
-sides:
+To use it from elsewhere there are two ways:
 
-```bash
-ssh -L 4747:127.0.0.1:4747 you@the-machine
-```
+- **Give the office an address and pair a studio with it.** The office then asks every request for a session,
+  and you can use the public studio or your phone. [connecting-a-studio.md](connecting-a-studio.md) has the
+  steps.
+- **Forward the port over SSH**, keeping the same number on both sides, and open http://127.0.0.1:4747 on your
+  own machine:
+  ```bash
+  ssh -L 4747:127.0.0.1:4747 you@the-machine
+  ```
 
-Then open http://127.0.0.1:4747 on your own machine. [running-on-a-server.md](running-on-a-server.md) covers
-keeping a shop running on a server: logging the tools in without a browser, and a service that restarts it.
+Do not put an office that asks for no session behind a public address or a reverse proxy.
+[running-on-a-server.md](running-on-a-server.md) covers keeping a shop running on a server: logging the tools in
+without a browser, and a service that restarts it.
