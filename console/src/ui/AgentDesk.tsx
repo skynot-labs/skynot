@@ -314,6 +314,9 @@ function Compose({
       <div class="chat-compose">
         <textarea
           id="agentCompose"
+          data-gramm="false"
+          data-gramm_editor="false"
+          data-enable-grammarly="false"
           rows={2}
           maxLength={3900}
           value={text}
