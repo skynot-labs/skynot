@@ -14,6 +14,8 @@ import { YamlProjectRegistry } from "../projects";
 import { checkShopReadiness } from "./readiness";
 import { githubExec } from "./github";
 import { createShop } from "./shop";
+import { shareOnTailnet } from "./tailnet";
+import { exec } from "../kernel/process";
 
 const mock = process.env.SKYNOT_MOCK === "1";
 const port = Number(process.env.PORT ?? 4747);
@@ -48,7 +50,7 @@ const shop = await createShop({
   }),
 });
 
-const access = await readOfficeAccess(process.env, dataDir);
+const access = await readOfficeAccess({ ...process.env, ...(await sharedAddress()) }, dataDir);
 const api = createApi(shop, {
   allowedHosts: [`127.0.0.1:${port}`, `localhost:${port}`],
   ...(access && { access }),
@@ -66,6 +68,15 @@ const api = createApi(shop, {
     },
   }),
 });
+
+// `npm run start:shared` asks Tailscale for the address instead of the director setting SKYNOT_OFFICE_URL by hand.
+async function sharedAddress(): Promise<{ SKYNOT_OFFICE_URL?: string }> {
+  if (process.env.SKYNOT_SHARE !== "tailscale" || process.env.SKYNOT_OFFICE_URL) return {};
+  const shared = await shareOnTailnet(exec, port);
+  if (shared.ok) return { SKYNOT_OFFICE_URL: shared.value };
+  console.error(shared.error);
+  process.exit(1);
+}
 
 const app = new Hono();
 app.route("/", api);

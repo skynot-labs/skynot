@@ -116,8 +116,8 @@ only on that machine, as `127.0.0.1` or `localhost` on its own port, and asks fo
 To use it from elsewhere there are two ways:
 
 - **Give the office an address and pair a studio with it.** The office then asks every request for a session,
-  and you can use the public studio or your phone. [connecting-a-studio.md](connecting-a-studio.md) has the
-  steps.
+  and you can use the public studio or your phone. With Tailscale it is one command, `npm run start:shared`;
+  [connecting-a-studio.md](connecting-a-studio.md) has the steps.
 - **Forward the port over SSH**, keeping the same number on both sides, and open http://127.0.0.1:4747 on your
   own machine:
   ```bash
