@@ -1,4 +1,4 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve, dirname } from "node:path";
@@ -29,11 +29,6 @@ for (const [path, [width, height]] of Object.entries(sizes)) {
     .toFile(resolve(root, `${path}.png`));
   fingerprints[path] = createHash("sha256").update(svg).digest("hex");
 }
-await mkdir(resolve(root, "organization/profile"), { recursive: true });
-await writeFile(
-  resolve(root, "organization/profile/avatar.png"),
-  await readFile(resolve(root, "organization/avatar.png")),
-);
 await writeFile(
   resolve(root, "raster-fingerprints.json"),
   JSON.stringify(fingerprints, null, 2) + "\n",
