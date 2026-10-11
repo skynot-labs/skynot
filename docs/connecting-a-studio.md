@@ -30,19 +30,23 @@ over plain HTTP, and a session sent that way could be read on the way.
 
 The office is reachable only from your own devices and never from the internet.
 
-1. Install Tailscale on the office's machine and on the device you will browse from, in the same tailnet.
-2. On the office's machine, share the console's port:
+1. Install Tailscale on the office's machine and on the device you will browse from, and join both to the same
+   tailnet. On the office's machine, let your user share ports:
    ```bash
-   tailscale serve --bg 4747
+   sudo tailscale up --operator=$USER
    ```
-   The first time, Tailscale answers with a link to enable Serve and HTTPS certificates for your tailnet. Open
-   it, accept, and run the command again. It prints the address, such as
-   `https://my-machine.my-tailnet.ts.net`.
-3. Start the office with that address:
+2. Start the office shared:
    ```bash
-   SKYNOT_OFFICE_URL=https://my-machine.my-tailnet.ts.net npm run start
+   npm run start:shared     # or npm run dev:shared for the simulated shop
    ```
-4. Open the pairing link it prints, on a device of the tailnet.
+   It asks Tailscale to share the console's port, takes the address Tailscale gives it, and prints the pairing
+   link. When something is missing it stops and says what to run. The first time, that is a link from Tailscale
+   to enable Serve and HTTPS certificates for your tailnet: open it, accept, and start again.
+3. Open the pairing link, on a device of the tailnet.
+
+The same by hand: `tailscale serve --bg 4747` prints the address, and
+`SKYNOT_OFFICE_URL=https://my-machine.my-tailnet.ts.net npm run start` starts the office with it. The port stays
+shared after the office stops; `tailscale serve reset` ends it.
 
 Chrome asks once whether the studio may "access other devices on your local network", because a tailnet counts
 as one; allow it. Safari asks nothing.

@@ -59,15 +59,12 @@ the office an HTTPS address only your own devices can reach, which is what a stu
    ```bash
    sudo tailscale up --operator=vscode --hostname=skynot-dev
    ```
-2. Share the console's port. The first time, Tailscale answers with a link to enable Serve and HTTPS for your
-   tailnet; accept it and run the command again. It prints the address:
+2. Start the office shared, and open the pairing link it prints from a device of the tailnet:
    ```bash
-   tailscale serve --bg 4747
+   npm run dev:shared       # simulated engines; npm run start:shared for the real shop
    ```
-3. Start the office with that address, and open the pairing link it prints from a device of the tailnet:
-   ```bash
-   SKYNOT_OFFICE_URL=https://skynot-dev.<your-tailnet>.ts.net npm run dev
-   ```
+   The first time, it stops with a link from Tailscale to enable Serve and HTTPS for your tailnet. Accept it and
+   start again.
 
 The container has no network interface for Tailscale, so programs inside it cannot open connections into your
 tailnet. Sharing goes the other way only.
