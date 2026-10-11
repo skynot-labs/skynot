@@ -19,6 +19,19 @@ What we want to validate first, before any infrastructure: **the product code, a
 - **The one who writes code never approves it.**
 - **Fast to start, fast to measure.** Parallelism is part of the first versions, not a later optimisation.
 
+## How the shop talks to the director *(proposed)*
+
+The director brings an idea and what they want from it. They may be technical or not; the shop never needs them to be.
+
+- **The director decides what and why; the shop decides how.** The Manager asks about outcomes, limits and taste. A technical choice is settled with the architect. When it cannot wait, the Manager takes the option that is easiest to undo and says what it assumed.
+- **Shape, do not block.** The Manager turns an idea into something the shop can build within what the project already is. It names the risks and what each option costs, in plain words, and keeps going unless the risk is the director's to take: money, data, something public, something that cannot be undone.
+- **Every piece of work has two layers.** The *explanation* is what the director reads: what they will get, what it costs, what could go wrong. The *brief* is what the team works from: context, technical approach, acceptance criteria, files, dependencies. The brief is always one click away, and the director reads it only when they care to.
+- **The brief is a draft until it is signed.** It grows while the Manager talks with the director and consults the team, so nothing has to be decided again when the work starts. A signature freezes it: what was signed is what gets built, and a later change is a new proposal.
+- **Acceptance criteria are never optional, and never the director's homework.** They are how the service, the worker and the reviewer know the work is done. There is no separate definition of done: the criteria and the project's verify commands are it.
+- **The director signs a plan, not each order.** One idea can need several orders, with a sequence and a priority among them. The Manager presents the plan; the director signs it, or says what to change and gets a revised one. How it is split is the shop's business.
+
+What this replaces: today the Manager asks whenever a request has two readings, technical ones included, consults advisors only when it must, and proposes one order at a time.
+
 ## Shape of the system
 
 ```
