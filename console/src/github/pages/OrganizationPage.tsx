@@ -1,6 +1,6 @@
 import { pageHref, publicUrls, assetRoot, type PublicPage } from "../links";
 import identity from "../site.json";
-import { Arrow, Eyebrow, SectionTitle, Principles } from "../components";
+import { Arrow, Eyebrow, SectionTitle } from "../components";
 
 export function OrganizationPage({ page }: { page: PublicPage }) {
   const root = assetRoot(page);
@@ -8,46 +8,46 @@ export function OrganizationPage({ page }: { page: PublicPage }) {
     <>
       <section class="gh-identity-hero">
         <div>
-          <Eyebrow>THE ORGANIZATION</Eyebrow>
+          <Eyebrow>THE LAB</Eyebrow>
           <h1>
             skynot
             <span class="gh-labs">
               / labs<span class="gh-period">.</span>
             </span>
           </h1>
-          <p>
-            {identity.organizationDescription} This is where Skynot, its tools
-            and its identity take shape.
-          </p>
+          <p>{identity.organizationAbout}</p>
           <div class="gh-actions">
             <a class="gh-button" href={publicUrls.organization}>
               Profile on GitHub <Arrow />
             </a>
-            <a class="gh-text-link" href="#building">
-              What we are building <Arrow />
+            <a class="gh-text-link" href="#here">
+              What is here <Arrow />
             </a>
           </div>
         </div>
         <div class="gh-knot-art">
           <img
             src={`${root}brand/skynot-mark-trace.svg`}
-            alt="The Skynot knot: one continuous stroke"
+            alt="The Skynot mark: one continuous stroke"
           />
-          <span>ONE LINE. MANY CONNECTIONS.</span>
+          <span>{identity.organizationTagline.toUpperCase()}</span>
         </div>
       </section>
       <section class="gh-section">
         <SectionTitle
-          label="HOW WE WORK"
-          title="Tools that follow your judgment."
-        />
-        <Principles />
+          label="WHERE THIS STANDS"
+          title="I don't have this figured out."
+        >
+          {identity.organizationStatus} I'm{" "}
+          <a href={identity.author.github}>{identity.author.name}</a>, and I
+          write about what I learn, in Spanish, at{" "}
+          <a href={identity.author.blog}>notdefined.dev</a>.
+        </SectionTitle>
       </section>
-      <section class="gh-section" id="building">
-        <SectionTitle
-          label="WHAT WE ARE BUILDING"
-          title="One project so far."
-        />
+      <section class="gh-section" id="here">
+        <SectionTitle label="WHAT IS HERE" title="One project so far.">
+          More will come. I don't know what yet.
+        </SectionTitle>
         <div class="gh-principles">
           <article>
             <span class="gh-index">01</span>
@@ -61,8 +61,8 @@ export function OrganizationPage({ page }: { page: PublicPage }) {
             <span class="gh-index">02</span>
             <h3>{identity.app}</h3>
             <p>
-              The GitHub App a Skynot service acts as when it opens issues,
-              branches and pull requests.
+              The GitHub App Skynot uses to open issues, branches and pull
+              requests.
             </p>
             <a class="gh-text-link" href={pageHref(page, "app")}>
               The GitHub App <Arrow />

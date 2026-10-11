@@ -7,7 +7,15 @@
   "release": "development",
   "tagline": "Your judgment. A team of agents.",
   "description": "A dev shop of AI agents.",
-  "organizationDescription": "A human-directed software lab.",
+  "organizationDescription": "Adrian Castillo's lab for learning AI by building.",
+  "organizationTagline": "Not Skynet.",
+  "organizationAbout": "Skynot Labs is where I, Adrian Castillo, learn how to work with AI by building things with it. I moved that work out of my personal account on purpose: it is safer for that account, and it forces me to build things clean enough to stand on their own.",
+  "organizationStatus": "I'm finding out how to use AI, what to build with it and how to build it, and so far that has been fun.",
+  "author": {
+    "name": "Adrian Castillo",
+    "github": "https://github.com/rodacato",
+    "blog": "https://notdefined.dev"
+  },
   "appDescription": "Connects Skynot to your repositories: issues, branches and pull requests for a team of agents that works on orders you sign.",
   "permissions": [
     {
