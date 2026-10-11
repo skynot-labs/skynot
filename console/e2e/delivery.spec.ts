@@ -270,3 +270,29 @@ test.describe("the static pages", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(pages[1]!.heading);
   });
 });
+
+test("a question the chat has moved past stays pinned above it until it is answered", async ({ page }) => {
+  // The simulated Manager asks about the conversation's first idea, whatever the latest message says.
+  const question = /small, or cover the edge cases too\?$/;
+  await openProject(page, PROJECT);
+  const chat = await tellTheManager(page, "Add a dark theme");
+  await expect(chat.locator(".chat-question").getByText(question)).toBeVisible(TURN);
+  const pinned = chat.getByRole("group", { name: "Open questions" });
+  await expect(pinned).toBeHidden();
+
+  await chat.getByLabel("Message to the Manager").fill("/ping");
+  await chat.getByRole("button", { name: "Send" }).click();
+  await expect(chat.getByText("Nothing on the bench but the paperwork.")).toBeVisible(TURN);
+  await expect(pinned.getByRole("button")).toHaveText(question);
+
+  await pinned.getByRole("button").click();
+  await chat.getByRole("button", { name: "Keep it small" }).click(TURN);
+  await expect(chat.getByText("That settles it. Filing the order.").last()).toBeVisible(TURN);
+  await expect(pinned).toBeHidden();
+  await closeDialog(page);
+
+  await openView(page, "Decisions");
+  await deskTab(page, "To sign").click();
+  await desk(page).getByRole("article").filter({ hasText: "WORK ORDER ·" }).getByRole("button", { name: "Discard" }).click();
+  await expect(desk(page).getByRole("heading", { name: "Nothing to sign." })).toBeVisible();
+});

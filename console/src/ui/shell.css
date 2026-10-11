@@ -57,6 +57,27 @@
   padding: 9px 12px;
   font-size: 10px;
 }
+.chat-pinned {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 13px;
+}
+.chat-pinned button {
+  padding: 9px 11px;
+  font-size: 11px;
+  text-align: left;
+  color: var(--sk-attention);
+  background: none;
+  border: 1px solid var(--sk-color-border);
+  cursor: pointer;
+}
+.chat-pinned button span {
+  display: block;
+  margin-bottom: 4px;
+  font: 7px var(--sk-font-mono);
+  letter-spacing: 0.7px;
+  color: var(--sk-color-muted);
+}
 .chat-working {
   display: flex;
   align-items: center;
