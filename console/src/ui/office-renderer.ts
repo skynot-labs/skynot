@@ -254,11 +254,12 @@ class Office {
       active: boolean,
       upgraded = false,
     ) => {
-      block(u + 0.27, v + 0.15, 0.28, 0.13, 2, "#667886", 47);
-      block(u + 0.38, v + 0.17, 0.08, 0.07, 13, "#697986", 49);
       const y = 64,
         h = upgraded ? 32 : 28,
         w = upgraded ? 0.9 : 0.75;
+      // The foot and the neck stand under the middle of the screen and reach into it, or the screen reads as floating.
+      block(u + w / 2 - 0.15, v - 0.03, 0.3, 0.16, 2, "#667886", 47);
+      block(u + w / 2 - 0.045, v + 0.01, 0.09, 0.07, y - 45, "#697986", 49);
       poly(
         [p(u, v, y + h), p(u + w, v, y + h), p(u + w, v, y), p(u, v, y)],
         "#283647",
