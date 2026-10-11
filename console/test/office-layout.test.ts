@@ -289,6 +289,7 @@ function paintedScene(agents: SceneAgent[], layout: LayoutId) {
     accent: "#ffffff",
     paused: false,
     pending: 0,
+    openOrders: 0,
     agents,
     settings: { ...defaultStudioPreferences, layout },
   });
@@ -298,6 +299,7 @@ const sceneAgents = (size: number): SceneAgent[] =>
   team(size).map((agent) => ({
     ...agent,
     name: agent.id,
+    bubble: null,
     status: "idle",
     avatar: resolveAvatar({
       skin: "#c98f6b",

@@ -511,6 +511,7 @@ export function App() {
                 onManager={openManager}
                 onOrder={openOrder}
                 onTeam={() => setTab("agents")}
+                onOrders={() => setTab("orders")}
                 onContext={() => setTab("context")}
                 dock={dock}
                 onDock={setDock}

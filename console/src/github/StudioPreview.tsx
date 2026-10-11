@@ -39,11 +39,13 @@ export function StudioPreview() {
       accent: tokens.color.mint,
       paused: false,
       pending: 0,
+      openOrders: 0,
       settings: look,
       agents: team.map((agent, i) => ({
         ...agent,
         id: `illustration-${i}`,
         status: "idle" as const,
+        bubble: null,
         avatar: ambientAvatar(defaultAvatar(i), look),
       })),
     });

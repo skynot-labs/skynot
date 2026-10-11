@@ -33,6 +33,7 @@ export type SceneAgent = {
   name: string;
   avatar: Avatar;
   status: AgentStatus;
+  bubble: { tone: BubbleTone; text: string } | null;
   role: string;
   kind: "manager" | "worker" | "advisor";
 };
@@ -42,15 +43,32 @@ export type SceneState = {
   paused: boolean;
   agents: SceneAgent[];
   pending: number;
+  openOrders: number;
   settings?: StudioPreferences;
 };
+type BubbleTone = "ask" | "alert" | "done" | "busy" | "wait";
+const BUBBLE_FILL: Record<BubbleTone, string> = {
+  ask: "#f3c299",
+  alert: "#eba9ad",
+  done: "#b4debf",
+  busy: "#d2c3ed",
+  wait: "#c9c6d4",
+};
+const BUBBLE_STEP_MS = 300;
 type Point = [number, number];
+type BoardTools = {
+  p: (u: number, v: number, z?: number) => Point;
+  block: (u: number, v: number, w: number, d: number, h: number, fill: string, z?: number) => void;
+  poly: (points: Point[], fill: string, stroke?: string) => void;
+  text: (value: string, x: number, y: number, font: string, fill: string, align?: CanvasTextAlign) => void;
+};
 type Hit = {
   id: string;
-  kind: "agent" | "zone";
+  kind: "agent" | "zone" | "bubble";
   x: number;
   y: number;
   r: number;
+  ry?: number;
 };
 
 const color = (hex: string, amount: number) =>
@@ -544,19 +562,49 @@ class Office {
               y - 27 - top,
             );
           }
-          if (active || member.status === "waiting-director") {
-            const waiting = member.status === "waiting-director";
-            ctx.fillStyle = waiting ? "#f3c299" : "#b4debf";
-            ctx.fillRect(x - 11, top - 21, 28, 15);
-            text(
-              waiting ? "?" : "···",
-              x + 3,
-              top - 10,
-              "bold 12px monospace",
-              "#334638",
-              "center",
-            );
-          }
+          const bubble = member.bubble;
+          if (bubble)
+            labels.push(() => {
+              const step = Math.floor(time / BUBBLE_STEP_MS);
+              const busy = bubble.tone === "busy";
+              const label = busy ? "·".repeat(1 + (step % 3)) : bubble.text;
+              const width = busy ? 34 : label.length * 7 + 16;
+              const calls = bubble.tone !== "busy" && bubble.tone !== "wait";
+              const left = x + 3 - width / 2;
+              const bubbleTop = top - 31 - (calls && step % 2 ? 3 : 0);
+              const id = `bubble:${member.id}`;
+              ctx.fillStyle = BUBBLE_FILL[bubble.tone];
+              ctx.fillRect(left, bubbleTop, width, 19);
+              poly(
+                [
+                  [x - 3, bubbleTop + 19],
+                  [x + 9, bubbleTop + 19],
+                  [x + 3, bubbleTop + 26],
+                ],
+                ctx.fillStyle,
+              );
+              if (this.hover === id) {
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(left - 1, bubbleTop - 1, width + 2, 21);
+              }
+              text(
+                label,
+                busy ? left + 9 : x + 3,
+                bubbleTop + 14,
+                "bold 11px monospace",
+                "#2f3340",
+                busy ? "left" : "center",
+              );
+              this.hits.push({
+                id,
+                kind: "bubble",
+                x: x + 3,
+                y: bubbleTop + 11,
+                r: Math.max(width / 2 + 4, 18),
+                ry: 16,
+              });
+            });
           labels.push(() => {
             const name = member.name.slice(0, 17),
               width = Math.max(60, name.length * 7 + 16);
@@ -639,6 +687,7 @@ class Office {
     }
     block(5.25, rd + 0.08, 2.8, 0.35, 9, "#898293", -18);
     block(5.45, rd + 0.48, 2.4, 0.3, 6, "#716b83", -27);
+    this.drawBoard(state.openOrders, rd, { p, block, poly, text });
     const [tx, ty] = p(6.5, rd + 1.1, -29);
     text(
       "YOUR VISION. THEIR WORK.",
@@ -661,11 +710,42 @@ class Office {
       );
     }
   }
+  // A way into the work orders, not a live board: it only says how many are open.
+  private drawBoard(
+    openOrders: number,
+    rd: number,
+    { p, block, poly, text }: BoardTools,
+  ): void {
+    const u = 1.6;
+    const v = rd + 0.55;
+    for (const leg of [u + 0.1, u + 1.75]) block(leg, v, 0.07, 0.07, 22, "#6d6a78", -18);
+    block(u, v - 0.02, 1.95, 0.1, 44, "#8f8a9b", 2);
+    const corner = (du: number, dz: number): Point => p(u + du, v + 0.09, dz);
+    const lit = this.hover === "board";
+    poly([corner(0.08, 42), corner(1.87, 42), corner(1.87, 6), corner(0.08, 6)], lit ? "#ffffff" : "#eceee6");
+    const notes = ["#b797c9", "#9eb8a8", "#f3c299", "#93b7d5"];
+    for (let column = 0; column < 4; column++)
+      for (let row = 0; row < 2; row++) {
+        const du = 0.2 + column * 0.43;
+        const dz = 34 - row * 14;
+        poly(
+          [corner(du, dz), corner(du + 0.28, dz), corner(du + 0.28, dz - 9), corner(du, dz - 9)],
+          notes[(column + row) % notes.length]!,
+        );
+      }
+    const [x, y] = p(u + 0.97, v + 0.09, 24);
+    this.hits.push({ id: "board", kind: "zone", x, y, r: 52, ry: 34 });
+    const [lx, ly] = p(u + 0.97, v + 0.09, -30);
+    text(`BOARD · ${openOrders} OPEN →`, lx, ly, "bold 11px monospace", lit ? "#ffffff" : "#a9a3b7", "center");
+  }
   hit(x: number, y: number): Hit | undefined {
     return this.hits
       .slice()
       .reverse()
-      .find((h) => Math.abs(x - h.x) < h.r && Math.abs(y - h.y) < h.r * 1.3);
+      .find(
+        (h) =>
+          Math.abs(x - h.x) < h.r && Math.abs(y - h.y) < (h.ry ?? h.r * 1.3),
+      );
   }
 }
 export { Office, drawAvatar };
