@@ -67,6 +67,12 @@ const api = createApi(shop, {
 const app = new Hono();
 app.route("/", api);
 if (existsSync(consoleDir)) {
+  // A page in a folder loads its files relative to itself, so without the trailing slash it would get the console's instead.
+  app.get("/*", (context, next) => {
+    const { path } = context.req;
+    const isFolderPage = /^(\/[a-z0-9-]+)+$/.test(path) && existsSync(`${consoleDir}${path}/index.html`);
+    return isFolderPage ? Promise.resolve(context.redirect(`${path}/`, 308)) : next();
+  });
   app.use("/*", serveStatic({ root: consoleDir }));
   app.get("*", serveStatic({ path: `${consoleDir}/index.html` }));
 }
