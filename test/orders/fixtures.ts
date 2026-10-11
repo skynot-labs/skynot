@@ -3,6 +3,8 @@ import type { WorkOrderSpec } from "../../src/orders";
 export function validSpec(overrides: Partial<WorkOrderSpec> = {}): WorkOrderSpec {
   return {
     title: "Export the inventory to CSV",
+    summary: "A button on the items page downloads the whole inventory as a spreadsheet file.",
+    approach: [],
     objective: "The director can download the whole inventory as a CSV file from the items page.",
     acceptanceCriteria: [
       {

@@ -148,6 +148,13 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     });
 
   orderCommand("sign-order", (id) => shop.orderService.sign(id));
+  api.post("/api/commands/sign-plan", async (context) => {
+    const body = z.object({ plan: orderId }).safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: "invalid request" }, 400);
+
+    const result = await shop.orderService.signPlan(body.data.plan);
+    return result.ok ? context.json({ plan: body.data.plan, signed: result.value.map((order) => order.id) }) : context.json({ error: result.error.message }, STATUS_FOR[result.error.kind]);
+  });
   orderCommand("retry-order", (id) => shop.flow.retry(id));
   orderCommand("apply-review", (id) => {
     const review = shop.activity.linksFor(id).review;

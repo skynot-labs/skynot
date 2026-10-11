@@ -9,11 +9,13 @@ export interface OrderOverview {
   readonly id: string;
   readonly title: string;
   readonly status: string;
+  readonly plan: string;
 }
 
 export interface OrderDesk {
   readonly specSchema: z.ZodType;
-  propose(spec: unknown, link?: { ticket?: number }): Promise<Result<{ id: string; card: string }, string>>;
+  // The orders are proposed together, as one plan the director signs once; `replaces` withdraws an unsigned plan in the same step.
+  propose(specs: readonly unknown[], link?: { ticket?: number; replaces?: string }): Promise<Result<{ id: string; card: string }, string>>;
   overview(): OrderOverview[];
 }
 

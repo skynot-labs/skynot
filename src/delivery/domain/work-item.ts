@@ -2,6 +2,8 @@ export interface WorkItem {
   readonly id: string;
   readonly title: string;
   readonly objective: string;
+  readonly context?: string;
+  readonly approach?: readonly string[];
   readonly criteria: ReadonlyArray<{ statement: string; verification: { kind: string; detail: string } }>;
   readonly outOfScope: readonly string[];
   readonly risk: string;
@@ -33,6 +35,8 @@ export function issueBody(item: WorkItem): string {
     "## Objective",
     item.objective,
     "",
+    ...(item.context ? ["## Context", item.context, ""] : []),
+    ...(item.approach?.length ? ["## Approach", ...item.approach.map((step, index) => `${index + 1}. ${step}`), ""] : []),
     "## Acceptance criteria",
     criteria,
     "",
@@ -103,6 +107,8 @@ export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, 
   const parts = [
     `You are a developer in a small shop. Implement work order ${item.id} (issue #${issue}) in this repository.`,
     `Objective:\n${item.objective}`,
+    ...(item.context ? [`Context:\n${item.context}`] : []),
+    ...(item.approach?.length ? [`Approach agreed before the order was signed. Follow it unless the code proves it wrong, and say so in your report if you depart from it:\n${item.approach.map((step, index) => `${index + 1}. ${step}`).join("\n")}`] : []),
     `Acceptance criteria. Each one needs evidence:\n${criteria}`,
     `Out of scope:\n${outOfScope}`,
     `Likely files: ${item.likelyFiles.join(", ") || "not identified"}`,

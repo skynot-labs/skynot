@@ -8,6 +8,8 @@ export interface ChatMessage {
   readonly at: string;
   readonly orderId: string | null;
   readonly decisionId: DecisionId | null;
+  // The advisors asked before this reply was written.
+  readonly consulted: readonly string[];
 }
 
 export interface Decision {
@@ -23,6 +25,7 @@ export interface Decision {
 export class ChatProjection implements Projection {
   private readonly chat: ChatMessage[] = [];
   private readonly decisionsById = new Map<DecisionId, Decision>();
+  private asked: string[] = [];
 
   constructor(private readonly scope?: ProjectScope) {}
 
@@ -32,13 +35,17 @@ export class ChatProjection implements Projection {
 
     switch (event.type) {
       case "manager.message_received":
-        this.chat.push({ id: event.payload.messageId, author: "director", text: event.payload.text, at: stored.occurredAt, orderId: null, decisionId: null });
+        this.chat.push({ id: event.payload.messageId, author: "director", text: event.payload.text, at: stored.occurredAt, orderId: null, decisionId: null, consulted: [] });
         break;
       case "manager.ticket_received":
-        this.chat.push({ id: event.payload.messageId, author: "ticket", text: `#${event.payload.ticket} ${event.payload.title}`, at: stored.occurredAt, orderId: null, decisionId: null });
+        this.chat.push({ id: event.payload.messageId, author: "ticket", text: `#${event.payload.ticket} ${event.payload.title}`, at: stored.occurredAt, orderId: null, decisionId: null, consulted: [] });
+        break;
+      case "manager.consulted":
+        this.asked.push(event.payload.role);
         break;
       case "manager.replied":
-        this.chat.push({ id: event.payload.messageId, author: "manager", text: event.payload.text, at: stored.occurredAt, orderId: event.payload.orderId, decisionId: event.payload.decisionId });
+        this.chat.push({ id: event.payload.messageId, author: "manager", text: event.payload.text, at: stored.occurredAt, orderId: event.payload.orderId, decisionId: event.payload.decisionId, consulted: this.asked });
+        this.asked = [];
         break;
       case "manager.decision_asked":
         this.decisionsById.set(event.payload.decisionId, {

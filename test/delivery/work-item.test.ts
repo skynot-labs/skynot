@@ -14,6 +14,22 @@ const item: WorkItem = {
   card: "WO-0042  Export the inventory to CSV\nstatus   ? needs your signature",
 };
 
+describe("the brief agreed before the signature", () => {
+  const briefed: WorkItem = { ...item, context: "The inventory lives in one JSON file.", approach: ["Add an exporter next to the reader", "Wire it to the items page"] };
+
+  it("reaches the issue and the worker, the approach as numbered steps", () => {
+    expect(issueBody(briefed)).toContain("## Context\nThe inventory lives in one JSON file.\n\n## Approach\n1. Add an exporter next to the reader\n2. Wire it to the items page\n\n## Acceptance criteria");
+    const prompt = workerPrompt(briefed, 7, { protectedPaths: [], verifyCommands: ["npm test"] });
+    expect(prompt).toContain("Context:\nThe inventory lives in one JSON file.");
+    expect(prompt).toContain("1. Add an exporter next to the reader\n2. Wire it to the items page");
+  });
+
+  it("adds no empty section to an order that has neither", () => {
+    expect(issueBody(item)).not.toMatch(/## Context|## Approach/);
+    expect(workerPrompt(item, 7, { protectedPaths: [], verifyCommands: [] })).not.toMatch(/Context:|Approach agreed/);
+  });
+});
+
 describe("the worker's question", () => {
   it.each([
     ["I read the code.\nQUESTION: Which date format?", "Which date format?"],

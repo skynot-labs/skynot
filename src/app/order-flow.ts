@@ -309,6 +309,8 @@ export function toWorkItem(order: WorkOrder, answers: readonly string[] = []): W
     id: order.id,
     title: spec.title,
     objective: spec.objective,
+    ...(spec.context && { context: spec.context }),
+    ...(spec.approach.length > 0 && { approach: spec.approach }),
     criteria: spec.acceptanceCriteria,
     outOfScope: spec.outOfScope,
     risk: spec.risk,

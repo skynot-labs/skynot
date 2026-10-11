@@ -25,7 +25,7 @@ function scriptedRunner(script: Script) {
 }
 
 const say = (message: string, extra: Record<string, unknown> = {}) =>
-  ok({ message, question: null, options: [], order: null, consult: [], team: null, ...extra });
+  ok({ message, question: null, options: [], orders: [], consult: [], team: null, ...extra });
 
 function tickingClock(): Clock {
   let seconds = 0;
@@ -46,12 +46,12 @@ async function createManager(script: Script, advisors?: AdvisorBench, team?: Tea
 
 describe("answer schema", () => {
   const schema = createAnswerSchema(WorkOrderSpecSchema);
-  const reply = { message: "Done.", question: null, options: [], order: null, consult: [], team: null };
+  const reply = { message: "Done.", question: null, options: [], orders: [], consult: [], team: null };
 
   it("accepts a plain reply, a question with options, and an order", () => {
     expect(schema.safeParse(reply).success).toBe(true);
     expect(schema.safeParse({ ...reply, question: "Include archived?", options: ["Yes", "No"] }).success).toBe(true);
-    expect(schema.safeParse({ ...reply, order: validSpec() }).success).toBe(true);
+    expect(schema.safeParse({ ...reply, orders: [validSpec()] }).success).toBe(true);
   });
 
   it("lets a reply run past the 600 characters it is asked for, and stops it at twice that", () => {
@@ -60,7 +60,7 @@ describe("answer schema", () => {
   });
 
   it("rejects an order together with a question", () => {
-    expect(schema.safeParse({ ...reply, question: "Which one?", order: validSpec() }).success).toBe(false);
+    expect(schema.safeParse({ ...reply, question: "Which one?", orders: [validSpec()] }).success).toBe(false);
   });
 
   it("rejects options without a question and more than three options", () => {
@@ -69,7 +69,7 @@ describe("answer schema", () => {
   });
 
   it("rejects an order whose spec is invalid", () => {
-    expect(schema.safeParse({ ...reply, order: { ...validSpec(), acceptanceCriteria: [] } }).success).toBe(false);
+    expect(schema.safeParse({ ...reply, orders: [{ ...validSpec(), acceptanceCriteria: [] }] }).success).toBe(false);
   });
 });
 
@@ -86,7 +86,7 @@ describe("manager", () => {
   });
 
   it("turns an idea into a work order and shows its card in the reply", async () => {
-    const { manager, chat, orders } = await createManager([say("Filed.", { order: validSpec() })]);
+    const { manager, chat, orders } = await createManager([say("Filed.", { orders: [validSpec()] })]);
 
     await manager.handleMessage("Export the inventory to CSV");
 
@@ -113,7 +113,7 @@ describe("manager", () => {
   it("closes the question when answered and gives the answer to the Manager on the next turn", async () => {
     const { manager, chat, prompts } = await createManager([
       say("One thing first.", { question: "Include archived items?", options: ["Yes", "Only active"] }),
-      say("Filed.", { order: validSpec() }),
+      say("Filed.", { orders: [validSpec()] }),
     ]);
     await manager.handleMessage("Export items to CSV");
     const [decision] = chat.openDecisions();
@@ -173,15 +173,15 @@ describe("manager", () => {
 
   it("sends the rejection reasons back to the model and accepts the corrected answer", async () => {
     const { manager, chat, prompts, orders } = await createManager([
-      say("Filed.", { order: { ...validSpec(), acceptanceCriteria: [] } }),
-      say("Filed.", { order: validSpec() }),
+      say("Filed.", { orders: [{ ...validSpec(), acceptanceCriteria: [] }] }),
+      say("Filed.", { orders: [validSpec()] }),
     ]);
 
     await manager.handleMessage("Export items to CSV");
 
     expect(prompts).toHaveLength(2);
     expect(prompts[1]).toContain("Your previous answer was rejected");
-    expect(prompts[1]).toContain("order.acceptanceCriteria");
+    expect(prompts[1]).toContain("orders.0.acceptanceCriteria");
     expect(orders.list()).toHaveLength(1);
     expect(chat.messages().at(-1)?.orderId).toBe("WO-0001");
   });
@@ -233,7 +233,7 @@ describe("manager", () => {
 });
 
 describe("manager runner", () => {
-  const request = { message: "Hi.", question: null, options: [], order: null };
+  const request = { message: "Hi.", question: null, options: [], orders: [] };
 
   async function ask(engine: FakeEngine) {
     const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date()));
@@ -304,11 +304,15 @@ describe("manager runner", () => {
 describe("system prompt", () => {
   it("states every length limit of a work order, so the model is not rejected for what it could not know", () => {
     const spec = z.toJSONSchema(WorkOrderSpecSchema) as { properties: Record<string, any> };
-    const { title, objective, acceptanceCriteria, outOfScope, likelyFiles } = spec.properties;
+    const { title, summary, objective, context, approach, acceptanceCriteria, outOfScope, likelyFiles } = spec.properties;
     const criterion = acceptanceCriteria.items.properties;
     const limits = [
       title.maxLength,
+      summary.maxLength,
       objective.maxLength,
+      context.maxLength,
+      approach.maxItems,
+      approach.items.maxLength,
       acceptanceCriteria.maxItems,
       criterion.statement.maxLength,
       criterion.verification.properties.detail.maxLength,
@@ -318,6 +322,74 @@ describe("system prompt", () => {
     ];
 
     expect(limits.every((limit) => typeof limit === "number" && SYSTEM_PROMPT.includes(String(limit)))).toBe(true);
+  });
+});
+
+describe("plans", () => {
+  const order = (title: string, extra: object = {}) => ({ ...validSpec(), title, ...extra });
+
+  it("files several orders as one plan, the second waiting for the first, and shows every card in one reply", async () => {
+    const { manager, chat, orders } = await createManager([say("Two steps: store, then export.", { orders: [order("Store the items"), order("Export them", { needs: [1] })] })]);
+
+    await manager.handleMessage("I want to export my inventory");
+
+    expect(orders.list().map((filed) => [filed.id, filed.plan, filed.spec.dependsOn])).toEqual([["WO-0001", "WO-0001", undefined], ["WO-0002", "WO-0001", ["WO-0001"]]]);
+    const reply = chat.messages().at(-1)!;
+    expect(reply.orderId).toBe("WO-0001");
+    expect(reply.text).toContain("WO-0001  Store the items");
+    expect(reply.text).toContain("WO-0002  Export them");
+  });
+
+  it("replaces a plan the director asked to change, and tells the Manager which plans are still drafts", async () => {
+    const { manager, orders, prompts } = await createManager([
+      say("Two steps.", { orders: [order("Store the items"), order("Export them")] }),
+      say("One step, as you asked.", { orders: [order("Store and export")], replaces: "WO-0001" }),
+    ]);
+
+    await manager.handleMessage("I want to export my inventory");
+    await manager.handleMessage("Make it one piece of work");
+
+    expect(prompts[1]).toContain("## Plans awaiting signature (drafts you may replace)\n- WO-0001: WO-0001, WO-0002");
+    expect(orders.list().map((filed) => [filed.id, filed.status])).toEqual([["WO-0001", "discarded"], ["WO-0002", "discarded"], ["WO-0003", "awaiting_signature"]]);
+  });
+
+  it("is told why when it tries to replace a plan that is not a draft, and files nothing until it answers right", async () => {
+    const { manager, orders, prompts, orderService } = await createManager([
+      say("One step.", { orders: [order("Store the items")] }),
+      say("Changed.", { orders: [order("Store them better")], replaces: "WO-0001" }),
+      say("A new plan then.", { orders: [order("Store them better")] }),
+    ]);
+    await manager.handleMessage("Store my items");
+    await orderService.signPlan("WO-0001");
+
+    await manager.handleMessage("Do it better");
+
+    expect(prompts[2]).toContain('replaces: cannot replace "WO-0001"; no plan is awaiting signature');
+    expect(orders.list().map((filed) => [filed.id, filed.status])).toEqual([["WO-0001", "signed"], ["WO-0002", "awaiting_signature"]]);
+  });
+
+  it("refuses more than five orders, and a replacement that proposes nothing", () => {
+    const schema = createAnswerSchema(WorkOrderSpecSchema, [], undefined, ["WO-0001"]);
+    const reply = { message: "x", question: null, options: [], orders: [], consult: [], team: null };
+
+    expect(schema.safeParse({ ...reply, orders: Array.from({ length: 6 }, () => validSpec()) }).success).toBe(false);
+    expect(schema.safeParse({ ...reply, replaces: "WO-0001" }).success).toBe(false);
+    expect(schema.safeParse({ ...reply, orders: [validSpec()], replaces: "WO-0001" }).success).toBe(true);
+  });
+});
+
+describe("who was asked", () => {
+  it("keeps with each reply the advisors consulted for it, and with no other", async () => {
+    const bench: AdvisorBench = {
+      roster: () => [{ name: "architect", description: "code" }],
+      consult: async (requests: readonly AdvisorRequest[]): Promise<AdvisorReply[]> => requests.map((request) => ({ role: request.role, result: ok("Put it in src/items.") })),
+    };
+    const { manager, chat } = await createManager([say("Checking.", { consult: [{ role: "architect", question: "Where?" }] }), say("It goes in the items module."), say("Hello.")], bench);
+
+    await manager.handleMessage("Where does the export go?");
+    await manager.handleMessage("Hi");
+
+    expect(chat.messages().filter((message) => message.author === "manager").map((message) => message.consulted)).toEqual([["architect"], []]);
   });
 });
 
@@ -452,11 +524,11 @@ describe("consulting advisors", () => {
 
   it("rejects a consultation that also asks or proposes, and the same advisor twice", () => {
     const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"]);
-    const base = { message: "x", question: null, options: [], order: null, team: null, consult: [{ role: "architect", question: "Thoughts?" }] };
+    const base = { message: "x", question: null, options: [], orders: [], team: null, consult: [{ role: "architect", question: "Thoughts?" }] };
 
     expect(schema.safeParse(base).success).toBe(true);
     expect(schema.safeParse({ ...base, question: "Which one?" }).success).toBe(false);
-    expect(schema.safeParse({ ...base, order: validSpec() }).success).toBe(false);
+    expect(schema.safeParse({ ...base, orders: [validSpec()] }).success).toBe(false);
     expect(schema.safeParse({ ...base, consult: [...base.consult, ...base.consult] }).success).toBe(false);
     expect(schema.safeParse({ ...base, consult: Array(4).fill({ role: "architect", question: "Thoughts?" }) }).success).toBe(false);
   });
@@ -522,11 +594,11 @@ describe("proposing team changes", () => {
 
   it("does not let a team proposal travel with an order, a question or a consultation", () => {
     const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"], { hire: ["designer"], dismiss: ["architect"] });
-    const base = { message: "x", question: null, options: [], order: null, consult: [], team: { action: "hire", role: "designer", reason: "wording heavy" } };
+    const base = { message: "x", question: null, options: [], orders: [], consult: [], team: { action: "hire", role: "designer", reason: "wording heavy" } };
 
     expect(schema.safeParse(base).success).toBe(true);
     expect(schema.safeParse({ ...base, question: "Which?" }).success).toBe(false);
-    expect(schema.safeParse({ ...base, order: validSpec() }).success).toBe(false);
+    expect(schema.safeParse({ ...base, orders: [validSpec()] }).success).toBe(false);
     expect(schema.safeParse({ ...base, consult: [{ role: "architect", question: "Thoughts?" }] }).success).toBe(false);
   });
 
@@ -541,7 +613,7 @@ describe("proposing team changes", () => {
 
 describe("refocus and briefing proposals", () => {
   const schema = createAnswerSchema(WorkOrderSpecSchema, ["architect"], { hire: [], dismiss: ["architect"], refocus: ["architect"] });
-  const base = { message: "ok", question: null, options: [], order: null, consult: [], team: null, briefing: null };
+  const base = { message: "ok", question: null, options: [], orders: [], consult: [], team: null, briefing: null };
 
   it("accepts a refocus with its focus, and refuses one without it or for someone off the team", () => {
     expect(schema.safeParse({ ...base, team: { action: "refocus", role: "architect", reason: "needs it", focus: "performance" } }).success).toBe(true);
