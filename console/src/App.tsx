@@ -26,6 +26,7 @@ import {
   RegisterProject,
 } from "./ui/Dialogs";
 import { OrderDetail } from "./ui/OrderDetail";
+import { AgentDesk } from "./ui/AgentDesk";
 import { usd } from "./ui/format";
 import { StudioCustomizer } from "./ui/StudioCustomizer";
 import {
@@ -35,6 +36,7 @@ import {
   type StudioAppearance,
 } from "./application/studio-appearance";
 import { studioSummary, defaultStudioPreferences } from "./studio/model";
+import { studioAgentAppearance } from "./studio/presentation";
 import { Brand } from "./design/Brand";
 
 type Tab =
@@ -94,6 +96,7 @@ const headings: Record<Exclude<Tab, "studio">, [string, string, string]> = {
   ],
 };
 const projectKey = "skynot.project";
+const sidebarKey = "skynot.sidebar";
 const gateway = new HttpGateway();
 
 export function App() {
@@ -101,6 +104,9 @@ export function App() {
   const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
   const [tab, setTab] = useState<Tab>("studio");
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [collapsed, setCollapsed] = useState(
+    () => remembered(sidebarKey) === "collapsed",
+  );
   const [unsaved, setUnsaved] = useState(nothingUnsaved);
   const [busy, setBusy] = useState(false);
   const [notification, setNotification] = useState("");
@@ -149,9 +155,13 @@ export function App() {
       setBusy(false);
     }
   }
+  function toggleSidebar() {
+    remember(sidebarKey, collapsed ? "expanded" : "collapsed");
+    setCollapsed(!collapsed);
+  }
   function chooseProject(id: string) {
     setProjectId(id);
-    rememberProject(id);
+    remember(projectKey, id);
     setDialog(null);
     setTab("studio");
   }
@@ -198,7 +208,9 @@ export function App() {
   const toReview =
     snapshot?.readiness.filter((f) => f.level === "warn").length ?? 0;
   return (
-    <div class="app-shell skynot-shell">
+    <div
+      class={`app-shell skynot-shell ${collapsed ? "sidebar-collapsed" : ""}`}
+    >
       <header class="topbar">
         <a
           class="brand"
@@ -236,6 +248,15 @@ export function App() {
       </header>
       <aside class="sidebar">
         <div>
+          <button
+            class="sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-expanded={!collapsed}
+            title={collapsed ? "Expand the sidebar" : "Collapse the sidebar"}
+          >
+            <Icon name="sidebar" />
+            <span>COLLAPSE</span>
+          </button>
           <div class="project-nav-heading">
             <span>PROJECTS</span>
             <button
@@ -289,6 +310,7 @@ export function App() {
                 class={`nav-item ${tab === t.id ? "active" : ""}`}
                 onClick={() => setTab(t.id)}
                 aria-current={tab === t.id ? "page" : undefined}
+                title={t.name}
                 key={t.id}
               >
                 <Icon name={t.icon} />
@@ -304,16 +326,17 @@ export function App() {
           </nav>
         </div>
         <div class="sidebar-bottom">
-          <a class="brand-guide-link" href="/github/">
+          <a class="brand-guide-link" href="/github/" title="GitHub kit">
             <Icon name="link" />
             <span>GitHub kit</span>
           </a>
-          <a class="brand-guide-link" href="/design">
+          <a class="brand-guide-link" href="/design" title="Identity and design">
             <Icon name="star" />
             <span>Identity and design</span>
           </a>
           <button
             class="manager-nav"
+            title="Your Manager"
             onClick={() => setDialog({ kind: "manager" })}
           >
             <Icon name="chat" />
@@ -645,37 +668,59 @@ export function App() {
         )}
         {selectedAgent && project && (
           <Modal
-            title="Their role. Their personality."
+            title="At their desk."
             eyebrow={`${project.name.toUpperCase()} · ${selectedAgent.role.toUpperCase()}`}
             onClose={() => setDialog(null)}
             wide
           >
-            <AvatarEditor
+            <AgentDesk
+              key={selectedAgent.id}
+              project={project}
               agent={selectedAgent}
-              avatar={
-                agentAppearance(project.id, selectedAgent, appearance).avatar
-              }
-              alias={
-                appearance[`${project.id}/${selectedAgent.id}`]?.alias ?? ""
-              }
-              settings={studioSettings}
-              followStudioLook={
-                appearance[`${project.id}/${selectedAgent.id}`]
-                  ?.followStudioLook ?? true
-              }
+              {...studioAgentAppearance(
+                project.id,
+                selectedAgent,
+                appearance,
+                studioSettings,
+              )}
+              send={send}
               busy={busy}
-              onSave={(avatar, alias, followStudioLook) => {
-                const look = { avatar, alias: alias.trim(), followStudioLook };
-                void savePreference(
-                  avatarPreference(project.id, selectedAgent.id, look),
-                  {
-                    appearance: {
-                      [`${project.id}/${selectedAgent.id}`]: look,
-                    },
-                  },
-                  "Avatar saved for this agent and project.",
-                );
-              }}
+              onOrder={openOrder}
+              onManager={() => setDialog({ kind: "manager" })}
+              look={
+                <AvatarEditor
+                  agent={selectedAgent}
+                  avatar={
+                    agentAppearance(project.id, selectedAgent, appearance)
+                      .avatar
+                  }
+                  alias={
+                    appearance[`${project.id}/${selectedAgent.id}`]?.alias ?? ""
+                  }
+                  settings={studioSettings}
+                  followStudioLook={
+                    appearance[`${project.id}/${selectedAgent.id}`]
+                      ?.followStudioLook ?? true
+                  }
+                  busy={busy}
+                  onSave={(avatar, alias, followStudioLook) => {
+                    const look = {
+                      avatar,
+                      alias: alias.trim(),
+                      followStudioLook,
+                    };
+                    void savePreference(
+                      avatarPreference(project.id, selectedAgent.id, look),
+                      {
+                        appearance: {
+                          [`${project.id}/${selectedAgent.id}`]: look,
+                        },
+                      },
+                      "Avatar saved for this agent and project.",
+                    );
+                  }}
+                />
+              }
             />
           </Modal>
         )}
@@ -706,16 +751,20 @@ export function App() {
 }
 
 function rememberedProject(): string | undefined {
+  return remembered(projectKey) ?? undefined;
+}
+
+function remembered(key: string): string | null {
   try {
-    return localStorage.getItem(projectKey) ?? undefined;
+    return localStorage.getItem(key);
   } catch {
-    return undefined;
+    return null;
   }
 }
 
-function rememberProject(id: string): void {
+function remember(key: string, value: string): void {
   try {
-    localStorage.setItem(projectKey, id);
+    localStorage.setItem(key, value);
   } catch {
     // the choice only lasts until the page reloads
   }

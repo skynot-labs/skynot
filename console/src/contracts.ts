@@ -17,6 +17,7 @@ export type MinutesBucket = NonNullable<Order["minutes"]>;
 export type TokenUsage = NonNullable<ShopState["costs"]["tokens"]>;
 export type Run = ShopState["runs"][number];
 export type Answered = ShopState["answered"][number];
+export type Soul = ShopState["souls"][number];
 export type PauseState = NonNullable<ShopState["paused"]>;
 
 export type AgentStatus = "working" | "queued" | "idle" | "waiting-director" | "error";
@@ -34,6 +35,7 @@ export type Agent = {
   runs: number;
   spentUsd: number | null;
   usage: TokenUsage | null;
+  soul: Soul | null;
   avatar: Avatar;
 };
 
@@ -88,6 +90,7 @@ export type Command =
   | { name: "record-minutes"; payload: { orderId: string; bucket: MinutesBucket } }
   | { name: "stop-run"; payload: { runId: string } }
   | { name: "sign-team-change" | "discard-team-change" | "sign-briefing-change" | "discard-briefing-change"; payload: { changeId: string } }
+  | { name: "set-focus"; payload: { project: string; role: string; focus: string } }
   | { name: "pause-shop" | "resume-shop" | "recheck"; payload: Record<string, never> }
   | { name: "pause-project" | "resume-project"; payload: { project: string } }
   | { name: "describe-project"; payload: { project: string; name?: string | null; description?: string | null } }

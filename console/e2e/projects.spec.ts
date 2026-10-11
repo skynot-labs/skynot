@@ -241,6 +241,7 @@ test.describe.serial("the director's projects", () => {
     await expect(projectEntry(page, "beta")).toContainText("Kyoto · Year-round");
 
     await roster(page).getByRole("button", { name: "developer" }).click();
+    await dialog(page).getByRole("tab", { name: "Look" }).click();
     await dialog(page).getByLabel("DISPLAY ALIAS").fill("Ada Lovelace");
     await dialog(page).getByRole("button", { name: "Save avatar" }).click();
     await expect(toast(page, "Avatar saved for this agent and project.")).toBeVisible();

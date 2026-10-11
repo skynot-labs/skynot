@@ -33,6 +33,7 @@ const agent: Agent = {
   runs: 0,
   spentUsd: 0,
   usage: null,
+  soul: null,
   avatar: plain,
 };
 
