@@ -54,7 +54,16 @@ type Dialog =
   | { kind: "agent"; id: string }
   | { kind: "order"; id: string }
   | { kind: "manager" | "studio" | "register" }
+  | Panel
   | null;
+// The panels have an address: the fragment says which one is open, so a reload or a shared link opens it again.
+type Panel = { kind: "activity" | "board" };
+const panelOf = (dialog: Dialog): Panel | null =>
+  dialog?.kind === "activity" || dialog?.kind === "board" ? dialog : null;
+const panelInAddress = (): Panel | null => {
+  const named = location.hash.slice(1);
+  return named === "activity" || named === "board" ? { kind: named } : null;
+};
 type Unsaved = { appearance: Appearance; studio: StudioAppearance };
 const nothingUnsaved: Unsaved = { appearance: {}, studio: {} };
 const tabs: Array<{ id: Tab; name: string; icon: string }> = [
@@ -113,7 +122,23 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
   const [projectId, setProjectId] = useState(rememberedProject);
   const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
   const [tab, setTab] = useState<Tab>("studio");
-  const [dialog, setDialog] = useState<Dialog>(null);
+  const [dialog, setDialog] = useState<Dialog>(panelInAddress);
+  const [behind, setBehind] = useState<Panel | null>(null);
+  const panel = panelOf(dialog) ?? behind;
+  useEffect(() => {
+    const shown = panelInAddress()?.kind ?? null;
+    if (shown === (panel?.kind ?? null)) return;
+    if (panel) history.pushState(null, "", `#${panel.kind}`);
+    else history.replaceState(null, "", location.pathname + location.search);
+  }, [panel?.kind]);
+  useEffect(() => {
+    const follow = () => {
+      setBehind(null);
+      setDialog(panelInAddress());
+    };
+    addEventListener("popstate", follow);
+    return () => removeEventListener("popstate", follow);
+  }, []);
   const [dockChoice, setDock] = useState<DockCard | null>(null);
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
@@ -178,6 +203,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
   function chooseProject(id: string) {
     setProjectId(id);
     remember(projectKey, id);
+    setBehind(null);
     setDialog(null);
     setTab("studio");
   }
@@ -194,7 +220,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
       appearance: { ...current.appearance, ...look.appearance },
       studio: { ...current.studio, ...look.studio },
     }));
-    setDialog(null);
+    closeOver();
     if (await send(command)) notify(saved);
     else setUnsaved(nothingUnsaved);
   }
@@ -206,10 +232,17 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
     dialog?.kind === "order"
       ? project?.orders.find((o) => o.id === dialog.id)
       : null;
-  const openAgent = (agent: Agent) =>
-    setDialog({ kind: "agent", id: agent.id });
-  const openOrder = (order: Order) =>
-    setDialog({ kind: "order", id: order.id });
+  // An agent or an order opened from a panel covers it, and closing gives the panel back.
+  const openOver = (next: Dialog) => {
+    setBehind(panelOf(dialog) ?? behind);
+    setDialog(next);
+  };
+  const closeOver = () => {
+    setDialog(behind);
+    setBehind(null);
+  };
+  const openAgent = (agent: Agent) => openOver({ kind: "agent", id: agent.id });
+  const openOrder = (order: Order) => openOver({ kind: "order", id: order.id });
   const active =
     project?.agents.filter((a) => a.status === "working").length ?? 0;
   const queued =
@@ -521,8 +554,8 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
                 onManager={openManager}
                 onOrder={openOrder}
                 onTeam={() => setTab("agents")}
-                onOrders={() => setTab("orders")}
-                onActivity={() => setTab("activity")}
+                onOrders={() => setDialog({ kind: "board" })}
+                onActivity={() => setDialog({ kind: "activity" })}
                 onContext={() => setTab("context")}
                 dock={dock}
                 onDock={setDock}
@@ -735,7 +768,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             title="Let's talk about the next idea."
             eyebrow={`MANAGER · ${project.name.toUpperCase()}`}
             onClose={() => setDialog(null)}
-            wide
+            size="wide"
           >
             <ManagerChat
               project={project}
@@ -750,7 +783,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             title="A place for this project."
             eyebrow={`${project.name.toUpperCase()} · STUDIO STYLE`}
             onClose={() => setDialog(null)}
-            wide
+            size="wide"
           >
             <StudioCustomizer
               project={project}
@@ -779,12 +812,38 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             />
           </Modal>
         )}
+        {dialog?.kind === "board" && project && (
+          <Modal
+            title="Work orders."
+            eyebrow={`${project.name.toUpperCase()} · THE BOARD`}
+            onClose={() => setDialog(null)}
+            size="full"
+          >
+            <OrdersView project={project} onOrder={openOrder} />
+          </Modal>
+        )}
+        {dialog?.kind === "activity" && project && (
+          <Modal
+            title="What happened."
+            eyebrow={`${project.name.toUpperCase()} · ACTIVITY`}
+            onClose={() => setDialog(null)}
+            size="full"
+          >
+            <ActivityView
+              project={project}
+              appearance={appearance}
+              settings={studioSettings}
+              onAgent={openAgent}
+              onOrder={openOrder}
+            />
+          </Modal>
+        )}
         {selectedAgent && project && (
           <Modal
             title="At their desk."
             eyebrow={`${project.name.toUpperCase()} · ${selectedAgent.role.toUpperCase()}`}
-            onClose={() => setDialog(null)}
-            wide
+            onClose={closeOver}
+            size="wide"
           >
             <AgentDesk
               key={selectedAgent.id}
@@ -841,8 +900,8 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
           <Modal
             title="An order with intent."
             eyebrow={`${project.name.toUpperCase()} · ${selectedOrder.id}`}
-            onClose={() => setDialog(null)}
-            wide
+            onClose={closeOver}
+            size="wide"
           >
             <OrderDetail
               project={project}
