@@ -171,12 +171,15 @@ export function drawPixelAvatar(
     px(12, 15, 1, 1, "#f7e9d6");
   }
   px(4, 20, 8, 2, shade(pants, -12));
-  px(4, 21, 3, seated ? 4 : 5, pants);
-  px(9, 21, 3, seated ? 4 : 5, shade(pants, -12));
-  px(3, seated ? 24 : 25, 4, 2, shoes);
-  px(9, seated ? 24 : 25, 4, 2, shoes);
-  px(3, seated ? 25 : 26, 4, 1, shade(shoes, 26));
-  px(9, seated ? 25 : 26, 4, 1, shade(shoes, 26));
+  // Standing, frames 1 and 2 are the two halves of a stride: one foot off the floor at a time.
+  const lift = (leg: 1 | 2) => (!seated && frame === leg ? 1 : 0);
+  const sole = seated ? 25 : 26;
+  px(4, 21, 3, sole - 21 - lift(1), pants);
+  px(9, 21, 3, sole - 21 - lift(2), shade(pants, -12));
+  px(3, sole - 1 - lift(1), 4, 2, shoes);
+  px(9, sole - 1 - lift(2), 4, 2, shoes);
+  px(3, sole - lift(1), 4, 1, shade(shoes, 26));
+  px(9, sole - lift(2), 4, 1, shade(shoes, 26));
   px(4, 3, 8, 7, skin);
   px(3, 5, 1, 3, skin);
   px(12, 5, 1, 3, shade(skin, -18));

@@ -16,6 +16,7 @@ import {
   type StudioPreferences,
 } from "../studio/model";
 import type { AgentStatus, Avatar } from "../contracts";
+import { idlePose, type Floor, type Haunt } from "../studio/idle-life";
 import {
   drawWindowLandscape,
   drawStudioDecor,
@@ -55,6 +56,19 @@ const BUBBLE_FILL: Record<BubbleTone, string> = {
   wait: "#c9c6d4",
 };
 const BUBBLE_STEP_MS = 300;
+const WALK_STEP_MS = 200;
+// Canvas pixels from the top of a standing avatar's sprite to its soles, at the office scale.
+const AVATAR_FEET = 86;
+const DECISION_TABLE = { u: 8.7, v: 7.85, width: 3.5, depth: 2.15 };
+const COFFEE_COUNTER = { u: 0.65, v: 9.6, width: 2.2, depth: 0.55 };
+const HAUNTS: Haunt[] = [
+  { u: 3.3, v: 9.9, doing: "coffee" },
+  { u: 0.5, v: 3.2, doing: "looking outside" },
+  { u: 0.5, v: 7.0, doing: "looking outside" },
+  { u: 9.5, v: 0.7, doing: "reading the wall" },
+  { u: 5.0, v: 5.0, doing: "stretching" },
+  { u: 7.3, v: 9.6, doing: "thinking" },
+];
 type Point = [number, number];
 type BoardTools = {
   p: (u: number, v: number, z?: number) => Point;
@@ -483,8 +497,118 @@ class Office {
       });
     drawStudioDecor({ ctx, p, poly, line, block, add }, theme);
     const seats = assignStudioSeats(state.agents, layout);
+    const floor: Floor = {
+      width: officeLayout.room.width,
+      depth: officeLayout.room.depth,
+      blocked: [
+        ...seats.map((seat) => ({ u: seat.u, v: seat.v, width: 1.94, depth: 1.5 })),
+        ...layout.partitions,
+        DECISION_TABLE,
+        COFFEE_COUNTER,
+      ],
+    };
+    const tag = (
+      member: SceneAgent,
+      x: number,
+      top: number,
+      bottom: number,
+      labelTop: number,
+      doing: string | null,
+    ) => {
+      const bounds = avatarBounds(member.avatar);
+      this.hits.push({ id: member.id, kind: "agent", x, y: (top + bottom) / 2, r: 44 });
+      if (this.hover === member.id) {
+        ctx.strokeStyle = "#d7efd9";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          x - 25 + bounds.left * 3.2 - 5,
+          top - 4,
+          (bounds.right - bounds.left) * 3.2 + 10,
+          bottom + 4 - top,
+        );
+      }
+      const bubble = member.bubble;
+      if (bubble)
+        labels.push(() => {
+          const step = Math.floor(time / BUBBLE_STEP_MS);
+          const busy = bubble.tone === "busy";
+          const label = busy ? "·".repeat(1 + (step % 3)) : bubble.text;
+          const width = busy ? 34 : label.length * 7 + 16;
+          const calls = bubble.tone !== "busy" && bubble.tone !== "wait";
+          const left = x + 3 - width / 2;
+          const bubbleTop = top - 31 - (calls && step % 2 ? 3 : 0);
+          const id = `bubble:${member.id}`;
+          ctx.fillStyle = BUBBLE_FILL[bubble.tone];
+          ctx.fillRect(left, bubbleTop, width, 19);
+          poly(
+            [
+              [x - 3, bubbleTop + 19],
+              [x + 9, bubbleTop + 19],
+              [x + 3, bubbleTop + 26],
+            ],
+            ctx.fillStyle,
+          );
+          if (this.hover === id) {
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(left - 1, bubbleTop - 1, width + 2, 21);
+          }
+          text(
+            label,
+            busy ? left + 9 : x + 3,
+            bubbleTop + 14,
+            "bold 11px monospace",
+            "#2f3340",
+            busy ? "left" : "center",
+          );
+          this.hits.push({
+            id,
+            kind: "bubble",
+            x: x + 3,
+            y: bubbleTop + 11,
+            r: Math.max(width / 2 + 4, 18),
+            ry: 16,
+          });
+        });
+      else if (doing)
+        labels.push(() => {
+          const width = doing.length * 6 + 12;
+          ctx.fillStyle = "#f4f1e6d9";
+          ctx.fillRect(x + 3 - width / 2, top - 24, width, 15);
+          text(doing, x + 3, top - 13, "10px monospace", "#5a6170", "center");
+        });
+      labels.push(() => {
+        const name = member.name.slice(0, 17),
+          width = Math.max(60, name.length * 7 + 16);
+        ctx.fillStyle = "#31363fe8";
+        ctx.fillRect(x - width / 2, labelTop, width, 23);
+        text(
+          name,
+          x,
+          labelTop + 16,
+          "12px monospace",
+          member.status === "working" ? "#d2c3ed" : "#d7e6d8",
+          "center",
+        );
+      });
+    };
     for (const { u, v, agent: member, zone } of seats) {
       const active = member?.status === "working";
+      const pose =
+        member?.status === "idle" && !state.paused
+          ? idlePose(
+              member.id,
+              { u: u + 0.9, v: v + 1.75 },
+              floor,
+              [
+                ...HAUNTS,
+                ...seats
+                  .filter((seat) => seat.agent && seat.agent.id !== member.id)
+                  .map((seat) => ({ u: seat.u + 2.3, v: seat.v + 0.9, doing: `with ${seat.agent!.name.slice(0, 12)}` })),
+              ],
+              time,
+            )
+          : null;
       add(u + v + 1, () => {
         const [x, y] = p(u + 0.9, v + 1.1);
         line([x, y - 17], [x, y + 9], "#484957", 3);
@@ -498,7 +622,7 @@ class Office {
           ],
           zone === "manager" ? "#617e70" : "#677488",
         );
-        if (member)
+        if (member && !pose)
           avatar(
             ctx,
             member.avatar,
@@ -542,89 +666,27 @@ class Office {
           zone === "design" ? "#b797c9" : "#9eb8a8",
           49,
         );
-        if (member) {
-          const bounds = avatarBounds(member.avatar);
-          const top = y - 122 + bounds.top * 3.2;
-          this.hits.push({
-            id: member.id,
-            kind: "agent",
-            x,
-            y: (top + y - 35) / 2,
-            r: 44,
-          });
-          if (this.hover === member.id) {
-            ctx.strokeStyle = "#d7efd9";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(
-              x - 25 + bounds.left * 3.2 - 5,
-              top - 4,
-              (bounds.right - bounds.left) * 3.2 + 10,
-              y - 27 - top,
-            );
-          }
-          const bubble = member.bubble;
-          if (bubble)
-            labels.push(() => {
-              const step = Math.floor(time / BUBBLE_STEP_MS);
-              const busy = bubble.tone === "busy";
-              const label = busy ? "·".repeat(1 + (step % 3)) : bubble.text;
-              const width = busy ? 34 : label.length * 7 + 16;
-              const calls = bubble.tone !== "busy" && bubble.tone !== "wait";
-              const left = x + 3 - width / 2;
-              const bubbleTop = top - 31 - (calls && step % 2 ? 3 : 0);
-              const id = `bubble:${member.id}`;
-              ctx.fillStyle = BUBBLE_FILL[bubble.tone];
-              ctx.fillRect(left, bubbleTop, width, 19);
-              poly(
-                [
-                  [x - 3, bubbleTop + 19],
-                  [x + 9, bubbleTop + 19],
-                  [x + 3, bubbleTop + 26],
-                ],
-                ctx.fillStyle,
-              );
-              if (this.hover === id) {
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 2;
-                ctx.strokeRect(left - 1, bubbleTop - 1, width + 2, 21);
-              }
-              text(
-                label,
-                busy ? left + 9 : x + 3,
-                bubbleTop + 14,
-                "bold 11px monospace",
-                "#2f3340",
-                busy ? "left" : "center",
-              );
-              this.hits.push({
-                id,
-                kind: "bubble",
-                x: x + 3,
-                y: bubbleTop + 11,
-                r: Math.max(width / 2 + 4, 18),
-                ry: 16,
-              });
-            });
-          labels.push(() => {
-            const name = member.name.slice(0, 17),
-              width = Math.max(60, name.length * 7 + 16);
-            ctx.fillStyle = "#31363fe8";
-            ctx.fillRect(x - width / 2, y + 15, width, 23);
-            text(
-              name,
-              x,
-              y + 31,
-              "12px monospace",
-              active ? "#d2c3ed" : "#d7e6d8",
-              "center",
-            );
-          });
-        } else {
+        if (member && !pose) {
+          const top = y - 122 + avatarBounds(member.avatar).top * 3.2;
+          tag(member, x, top, y - 31, y + 15, null);
+        } else if (!member) {
           labels.push(() =>
             text("OPEN SEAT", x, y + 30, "10px monospace", "#615969", "center"),
           );
         }
       });
+      if (member && pose)
+        add(pose.u + pose.v - 0.4, () => {
+          const [x, y] = p(pose.u, pose.v);
+          const stride = pose.walking ? 1 + (Math.floor(time / WALK_STEP_MS) % 2) : 0;
+          ctx.fillStyle = "#00000024";
+          ctx.beginPath();
+          ctx.ellipse(x, y, 17, 7, 0, 0, Math.PI * 2);
+          ctx.fill();
+          const lift = AVATAR_FEET + (stride === 1 ? 2 : 0);
+          avatar(ctx, member.avatar, x - 25, y - lift, 3.2, false, stride);
+          tag(member, x, y - lift + avatarBounds(member.avatar).top * 3.2, y + 2, y + 9, pose.doing);
+        });
     }
     // A shared decision table belongs to the director, not to a worker run.
     add(19.0, () => {
@@ -676,15 +738,6 @@ class Office {
     labels.forEach((drawLabel) => drawLabel());
     const unseated =
       state.agents.length - seats.filter((seat) => seat.agent).length;
-    for (const zone of layout.zones.filter((zone) => zone.id !== "decisions")) {
-      ctx.save();
-      ctx.translate(
-        ...p(zone.u + zone.width * 0.22, zone.v + zone.depth - 0.25, 1),
-      );
-      ctx.transform(1, 0.5, -1, 0.5, 0, 0);
-      text(zone.name.toUpperCase(), 0, 0, "bold 14px monospace", "#4c5a5777");
-      ctx.restore();
-    }
     block(5.25, rd + 0.08, 2.8, 0.35, 9, "#898293", -18);
     block(5.45, rd + 0.48, 2.4, 0.3, 6, "#716b83", -27);
     this.drawBoard(state.openOrders, rd, { p, block, poly, text });

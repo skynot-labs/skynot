@@ -512,6 +512,7 @@ export function App() {
                 onOrder={openOrder}
                 onTeam={() => setTab("agents")}
                 onOrders={() => setTab("orders")}
+                onActivity={() => setTab("activity")}
                 onContext={() => setTab("context")}
                 dock={dock}
                 onDock={setDock}

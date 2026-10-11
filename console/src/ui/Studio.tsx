@@ -26,6 +26,7 @@ import { AvatarCanvas } from "./AvatarCanvas";
 import { ago, agentStatus } from "./format";
 
 export type DockCard = "decisions" | "manager";
+const FRAME_MS = 100;
 
 export function StudioHero({
   project,
@@ -37,6 +38,7 @@ export function StudioHero({
   onOrder,
   onTeam,
   onOrders,
+  onActivity,
   onContext,
   dock,
   onDock,
@@ -52,6 +54,7 @@ export function StudioHero({
   onOrder: (order: Order) => void;
   onTeam: () => void;
   onOrders: () => void;
+  onActivity: () => void;
   onContext: () => void;
   dock: DockCard;
   onDock: (card: DockCard) => void;
@@ -76,7 +79,7 @@ export function StudioHero({
       ? undefined
       : setInterval(() => {
           if (!document.hidden) renderer.draw(scene, performance.now());
-        }, 300);
+        }, FRAME_MS);
     return () => clearInterval(timer);
   }, [project, appearance, settings, paused]);
   function hit(event: MouseEvent) {
@@ -152,6 +155,14 @@ export function StudioHero({
               else if (agent) openAgent(agent);
             }}
           />
+          <button
+            class="studio-activity-button"
+            onClick={onActivity}
+            aria-label="Open the activity log"
+            title="Activity log"
+          >
+            <Icon name="activity" />
+          </button>
         </div>
         <div class="studio-inbox-dock" ref={inbox}>
           <DecisionInbox
