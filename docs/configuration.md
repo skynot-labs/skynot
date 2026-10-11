@@ -72,11 +72,17 @@ you what it needs to know. Nothing starts without your signature. A project that
 | `PORT` | `4747` | console port |
 | `SKYNOT_GITHUB_APP_ID` | none | id of a GitHub App the shop acts as |
 | `SKYNOT_GITHUB_APP_KEY` | none | path to that App's private key, outside the repository |
+| `SKYNOT_OFFICE_URL` | none | the HTTPS address the office is reached at; with it every request needs a session |
+| `SKYNOT_STUDIO` | the public studio | address of the studio whose pages may call the office from a browser |
 
-Set both App variables or neither: with only one the service refuses to start.
+Set both App variables or neither: with only one the service refuses to start. The last two are explained in
+[connecting a studio](connecting-a-studio.md); without them the office answers on its own machine only.
 
 ## What the shop keeps
 
 Everything the shop knows is under `SKYNOT_DATA`: an append-only event log, and a clone of each managed
 repository where the workers work. The console only shows what that log says. Back the folder up; deleting it
 erases every order and conversation, though nothing on GitHub.
+
+An office with an address also keeps `pairing.secret` and `session.key` there. They are passwords: leave them
+out of a backup you share.

@@ -11,8 +11,10 @@ server.
 
 ## What you are setting up
 
-- **No public address.** The console has no login and answers only as `127.0.0.1` or `localhost` on its own
-  port. You reach it through an SSH tunnel. A reverse proxy or a domain in front of it gets a 403, on purpose.
+- **No public address, unless you give it one.** As set up here the office has no login and answers only as
+  `127.0.0.1` or `localhost` on its own port, so you reach it through an SSH tunnel and a domain in front of it
+  gets a 403, on purpose. To reach it without the tunnel, give it an address and pair a studio with it:
+  [connecting a studio](connecting-a-studio.md).
 - **Your logins live on the server.** Whoever can run commands as the shop's user can use your `claude` and
   `codex` subscriptions and your GitHub token. That user should exist for the shop and nothing else.
 - **Your subscription's terms are yours to check.** The shop drives `claude` and `codex` unattended. Whether
@@ -116,6 +118,9 @@ ssh -L 4747:127.0.0.1:4747 <user>@<server>
 
 Then open http://127.0.0.1:4747. The console works only while that SSH session is open; the shop keeps
 working either way.
+
+With an address instead of the tunnel, add `Environment=SKYNOT_OFFICE_URL=https://…` to the service and take
+the pairing link from its log. The steps are in [connecting a studio](connecting-a-studio.md).
 
 ## Living with it
 
