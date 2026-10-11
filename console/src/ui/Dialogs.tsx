@@ -72,6 +72,8 @@ export function ManagerChat({
   const [message, setMessage] = useState("");
   const list = useRef<HTMLDivElement>(null);
   const manager = project.agents.find((agent) => agent.kind === "manager");
+  const latest = project.chat.at(-1)?.decisionId;
+  const buried = project.decisions.filter((decision) => decision.id !== latest);
   useEffect(() => {
     if (list.current) list.current.scrollTop = list.current.scrollHeight;
   }, [project.chat, manager?.status]);
@@ -93,6 +95,24 @@ export function ManagerChat({
         <span>{project.name}</span>
         <span class="muted">One Manager. All the context.</span>
       </div>
+      {buried.length > 0 && (
+        <div class="chat-pinned" role="group" aria-label="Open questions">
+          {buried.map((decision) => (
+            <button
+              type="button"
+              key={decision.id}
+              onClick={() =>
+                document
+                  .getElementById(`chat-${decision.id}`)
+                  ?.scrollIntoView({ block: "center" })
+              }
+            >
+              <span>WAITING FOR YOUR ANSWER</span>
+              {decision.question}
+            </button>
+          ))}
+        </div>
+      )}
       <div class="chat-messages" ref={list}>
         {project.chat.map((entry) => (
           <ChatMessage
@@ -364,7 +384,10 @@ function ChatMessage({
     ? project.decisions.find((candidate) => candidate.id === message.decisionId)
     : undefined;
   return (
-    <article class={`chat-message ${message.author}`}>
+    <article
+      class={`chat-message ${message.author}`}
+      id={decision ? `chat-${decision.id}` : undefined}
+    >
       <span>{authors[message.author]}</span>
       <p>{order ? message.text.split("\n\n")[0] : message.text}</p>
       {order && <pre class="chat-card">{order.card}</pre>}
