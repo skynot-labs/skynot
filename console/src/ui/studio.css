@@ -4,53 +4,10 @@
   border-color: #484854;
   background: #252630;
 }
-.studio-hero-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 24px 25px 20px;
-  border-bottom: 1px solid #ffffff0b;
-  background: #22232cf2;
-}
-.studio-hero-heading h1 {
-  margin: 0;
-  font-size: clamp(23px, 2.25vw, 34px);
-  line-height: 1.18;
-  letter-spacing: -1.1px;
-  font-weight: 550;
-}
-.studio-hero-heading h1 span {
-  color: #b9d5bd;
-}
-.studio-hero-heading p {
-  margin: 7px 0 0;
-  max-width: 64ch;
-  color: #aaa6b5;
-  font-size: 11px;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-.studio-hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
 .studio-live-label {
   font: 8px var(--mono);
   color: #b1bbaa;
   letter-spacing: 0.6px;
-}
-.studio-hero-actions .secondary-button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 11px 13px;
-  font-size: 11px;
 }
 .studio-pause-controls {
   display: flex;
@@ -108,6 +65,127 @@
   min-width: 245px;
   max-width: 340px;
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.studio-inbox-dock .director-inbox {
+  flex: 1;
+  min-height: 0;
+}
+.studio-inbox-dock .director-inbox.collapsed {
+  flex: 0 0 auto;
+}
+.director-inbox.collapsed > :not(.inbox-heading) {
+  display: none;
+}
+.studio-inbox-dock .inbox-intro,
+.studio-inbox-dock .inbox-manager,
+.manager-dock .manager-project,
+.manager-dock .form-note {
+  display: none;
+}
+button.inbox-heading {
+  width: 100%;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+button.inbox-heading:hover h2 {
+  color: #d2e4cb;
+}
+.inbox-heading > div {
+  margin-right: auto;
+}
+.inbox-heading > svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--muted);
+}
+.inbox-heading[aria-expanded="true"] > svg {
+  transform: rotate(180deg);
+}
+.director-inbox.collapsed > .inbox-heading {
+  padding-top: 13px;
+  padding-bottom: 13px;
+}
+.manager-dock-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+}
+.manager-dock .chat-messages {
+  flex: 1;
+  min-height: 0;
+}
+.manager-dock .chat-message {
+  margin: 0 8px 9px 0;
+  padding: 11px;
+  font-size: 11px;
+}
+.manager-dock .chat-message.director {
+  margin: 0 0 9px 8px;
+}
+.manager-dock .empty-state {
+  padding: 22px 8px;
+  font-size: 11px;
+}
+.manager-dock .chat-compose {
+  margin-top: 10px;
+  gap: 8px;
+}
+.manager-dock .chat-compose textarea {
+  min-height: 54px;
+  padding: 9px 10px;
+  font-size: 11px;
+}
+.manager-dock .chat-compose button {
+  padding: 10px 11px;
+}
+@media (min-width: 1201px) {
+  .manager-dock .chat-messages {
+    max-height: none;
+  }
+}
+.topbar-studio {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  margin-right: auto;
+  padding-left: 18px;
+}
+.topbar-studio > div {
+  min-width: 0;
+}
+.topbar-studio p {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #aaa6b5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-studio h1 {
+  font-size: 21px;
+  letter-spacing: -0.6px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-studio h1 span {
+  color: #b9d5bd;
+}
+.topbar-studio .studio-live-label {
+  white-space: nowrap;
+}
+@media (max-width: 1020px) {
+  .studio-pause-controls button > span {
+    display: none;
+  }
 }
 .director-inbox {
   display: flex;
@@ -606,24 +684,8 @@
   .studio-live-label {
     display: none;
   }
-  .studio-hero-heading h1 {
-    font-size: 26px;
-  }
 }
 @media (max-width: 760px) {
-  .studio-hero-heading {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 15px;
-    padding: 20px;
-  }
-  .studio-hero-actions {
-    justify-content: flex-start;
-    width: 100%;
-  }
-  .studio-hero-heading h1 {
-    font-size: 24px;
-  }
   .studio-zone-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -1,5 +1,5 @@
 import type { Browser, Locator, Page } from "@playwright/test";
-import { closeDialog, dialog, expect, openProject, openView, test } from "./support";
+import { closeDialog, closeManagerChat, dialog, expect, openManagerChat, openProject, openView, test } from "./support";
 
 const LEGACY_STUDIOS_KEY = "skynot-studios-v1";
 const PAUSE_REASON = "paused by the director";
@@ -19,12 +19,6 @@ const place = (page: Page, name: string): Locator => page.getByRole("dialog").ge
 const roster = (page: Page): Locator => page.getByRole("region", { name: "Project team" });
 // Panels carry no accessible name, and the view that holds them is a section too: the innermost match is the panel.
 const panel = (page: Page, title: string): Locator => page.locator("section").filter({ has: page.getByText(title, { exact: true }) }).last();
-
-async function openManagerChat(page: Page): Promise<Locator> {
-  await page.getByRole("button", { name: "Open the chat with the Manager" }).click();
-  await expect(dialog(page).getByRole("textbox", { name: "Message to the Manager" })).toBeVisible();
-  return dialog(page);
-}
 
 async function editProfile(page: Page): Promise<{ name: Locator; description: Locator }> {
   await openView(page, "Context");
@@ -111,7 +105,7 @@ test.describe.serial("the director's projects", () => {
     await expect(panel(page, "Project")).toContainText("Where the second shop sells its goods.");
     await openView(page, "The studio");
     await expect(studioHeading(page)).toHaveText("The Beta Storefront studio.");
-    await expect(studio(page, "Beta Storefront")).toContainText("Where the second shop sells its goods.");
+    await expect(breadcrumb(page)).toContainText("Where the second shop sells its goods.");
 
     const cleared = await editProfile(page);
     await cleared.name.clear();
@@ -149,7 +143,7 @@ test.describe.serial("the director's projects", () => {
     await chat.getByRole("button", { name: "Send" }).click();
     await expect(chat.getByRole("article")).toHaveText(/ping is anything on the bench\?/);
     await expect(chat.getByRole("status")).toHaveText("The Manager's turn is waiting in line.");
-    await closeDialog(page);
+    await closeManagerChat(page);
 
     await openView(page, "Agents");
     await expect(managerCard(page)).toContainText("In line · number 1");
@@ -163,7 +157,7 @@ test.describe.serial("the director's projects", () => {
     const stillWaiting = await openManagerChat(page);
     await expect(stillWaiting.getByRole("article")).toHaveCount(1);
     await expect(stillWaiting).not.toContainText("Nothing on the bench");
-    await closeDialog(page);
+    await closeManagerChat(page);
 
     await projectEntry(page, "alpha").click();
     await expect(studio(page, "alpha")).toBeVisible();
@@ -180,7 +174,7 @@ test.describe.serial("the director's projects", () => {
 
     const answered = await openManagerChat(page);
     await expect(answered.getByRole("article").filter({ hasText: "MANAGER" })).toContainText("Nothing on the bench but the paperwork.", MANAGER_TURN);
-    await closeDialog(page);
+    await closeManagerChat(page);
     await openView(page, "Agents");
     await expect(managerCard(page)).toContainText("Available", MANAGER_TURN);
   });

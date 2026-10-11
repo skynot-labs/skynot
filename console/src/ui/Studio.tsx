@@ -19,15 +19,12 @@ import {
   type StudioZone,
 } from "./office-layout";
 import { DecisionInbox } from "./DecisionInbox";
+import { ManagerChat } from "./Dialogs";
 import { Icon } from "./Icon";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { agentStatus, clock } from "./format";
 
-const firstLine = (text: string | null) =>
-  text
-    ?.split("\n")
-    .map((line) => line.replace(/^#+\s*/, "").trim())
-    .find(Boolean);
+export type DockCard = "decisions" | "manager";
 
 export function StudioHero({
   project,
@@ -39,7 +36,8 @@ export function StudioHero({
   onOrder,
   onTeam,
   onContext,
-  onCustomize,
+  dock,
+  onDock,
   send,
   busy,
 }: {
@@ -52,7 +50,8 @@ export function StudioHero({
   onOrder: (order: Order) => void;
   onTeam: () => void;
   onContext: () => void;
-  onCustomize: () => void;
+  dock: DockCard;
+  onDock: (card: DockCard) => void;
   send: Send;
   busy: boolean;
 }) {
@@ -60,17 +59,9 @@ export function StudioHero({
   const office = useRef<Office | null>(null);
   const inbox = useRef<HTMLDivElement>(null);
   const layout = getStudioLayout(settings.layout);
-  const active = project.agents.filter(
-    (agent) => agent.status === "working",
-  ).length;
   const pending = project.needsYou;
-  const toggleShop = () =>
-    void send({ name: paused ? "resume-shop" : "pause-shop", payload: {} });
-  const toggleProject = () =>
-    void send({
-      name: project.paused ? "resume-project" : "pause-project",
-      payload: { project: project.id },
-    });
+  const toggle = (card: DockCard) =>
+    onDock(dock !== card ? card : card === "manager" ? "decisions" : "manager");
   useEffect(() => {
     if (!canvas.current) return;
     const renderer = new Office(canvas.current);
@@ -96,6 +87,7 @@ export function StudioHero({
   function openZone(zone: StudioZone) {
     if (zone === "manager") onManager();
     else if (zone === "decisions") {
+      onDock("decisions");
       inbox.current?.scrollIntoView({
         behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
           ? "instant"
@@ -113,51 +105,6 @@ export function StudioHero({
       class="studio-hero panel"
       aria-label={`${project.name} studio`}
     >
-      <header class="studio-hero-heading">
-        <div>
-          <h1>
-            The <span>{project.name}</span> studio.
-          </h1>
-          <p>
-            {project.description ??
-              firstLine(project.briefing) ??
-              "Your company of agents, working toward one vision."}
-          </p>
-        </div>
-        <div class="studio-hero-actions">
-          <span class="studio-live-label">
-            {active} WORKING · {project.agents.length} AGENTS
-          </span>
-          <button class="secondary-button" onClick={onCustomize}>
-            <Icon name="edit" />
-            Style the studio
-          </button>
-          <button class="secondary-button" onClick={onManager}>
-            <Icon name="chat" />
-            Talk to your Manager
-          </button>
-          <div class="studio-pause-controls" role="group" aria-label="Pause">
-            <button
-              class={project.paused ? "paused" : ""}
-              disabled={busy}
-              onClick={toggleProject}
-              title="While this project is paused nothing new starts in it; what is running finishes. The other projects keep working."
-            >
-              <Icon name={project.paused ? "play" : "pause"} />
-              {project.paused ? "Resume this project" : "Pause this project"}
-            </button>
-            <button
-              class={paused ? "paused" : ""}
-              disabled={busy}
-              onClick={toggleShop}
-              title="While the shop is paused nothing new starts in any project; what is running finishes."
-            >
-              <Icon name={paused ? "play" : "pause"} />
-              {paused ? "Resume the shop" : "Pause the shop"}
-            </button>
-          </div>
-        </div>
-      </header>
       <div class="studio-hero-stage">
         <div class="studio-canvas-room">
           <canvas
@@ -196,6 +143,15 @@ export function StudioHero({
             onManager={onManager}
             onOrder={onOrder}
             onTeam={onTeam}
+            collapsed={dock !== "decisions"}
+            onToggle={() => toggle("decisions")}
+          />
+          <ManagerDock
+            project={project}
+            send={send}
+            busy={busy}
+            open={dock === "manager"}
+            onToggle={() => toggle("manager")}
           />
         </div>
         {(paused || project.paused) && (
@@ -247,6 +203,55 @@ export function StudioHero({
           <Icon name="arrow" />
         </button>
       </footer>
+    </section>
+  );
+}
+
+function ManagerDock({
+  project,
+  send,
+  busy,
+  open,
+  onToggle,
+}: {
+  project: Project;
+  send: Send;
+  busy: boolean;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const body = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(open);
+  const manager = project.agents.find((agent) => agent.kind === "manager");
+  const busyManager =
+    manager?.status === "working" || manager?.status === "queued";
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      const messages = body.current?.querySelector(".chat-messages");
+      if (messages) messages.scrollTop = messages.scrollHeight;
+      body.current?.querySelector("textarea")?.focus();
+    }
+    wasOpen.current = open;
+  }, [open]);
+  return (
+    <section
+      class={`director-inbox manager-dock ${open ? "" : "collapsed"}`}
+      aria-label="Your Manager"
+    >
+      <button class="inbox-heading" onClick={onToggle} aria-expanded={open}>
+        <span class="director-icon">
+          <Icon name="chat" />
+        </span>
+        <div>
+          <span class="eyebrow">ONE MANAGER. ALL THE CONTEXT.</span>
+          <h2>Your Manager</h2>
+        </div>
+        {busyManager && <span class="tiny-led" title="Working on a turn" />}
+        <Icon name="chevron" />
+      </button>
+      <div class="manager-dock-body" ref={body}>
+        <ManagerChat project={project} send={send} busy={busy} />
+      </div>
     </section>
   );
 }
