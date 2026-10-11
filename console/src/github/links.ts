@@ -1,22 +1,21 @@
 import identity from "./site.json";
 
-export type PublicPage = "project" | "organization" | "app" | "guide";
+export type PublicPage = "project" | "organization" | "app";
 const paths: Record<PublicPage, string> = {
   project: "",
   organization: "organization/",
   app: "app/",
-  guide: "guide/",
 };
 export const pages: { id: PublicPage; label: string }[] = [
   { id: "project", label: "Skynot" },
   { id: "organization", label: "Organization" },
   { id: "app", label: "GitHub App" },
-  { id: "guide", label: "Guides and resources" },
 ];
+const repository = `https://github.com/${identity.organization}/${identity.repository}`;
 export const publicUrls = {
   organization: `https://github.com/${identity.organization}`,
-  repository: `https://github.com/${identity.organization}/${identity.repository}`,
-  pages: `https://${identity.organization}.github.io/${identity.repository}/`,
+  repository,
+  setupGuide: `${repository}/blob/main/docs/github-app.md`,
   app: `https://github.com/apps/${identity.app}`,
 };
 // Each page has its own index.html. Relative links survive repository subpaths.

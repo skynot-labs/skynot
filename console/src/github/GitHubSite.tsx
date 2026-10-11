@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "preact/hooks";
 import identity from "./site.json";
 import { Brand } from "../design/Brand";
 import { Arrow } from "./components";
@@ -12,18 +11,9 @@ import {
 import { ProjectPage } from "./pages/ProjectPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
 import { GitHubAppPage } from "./pages/GitHubAppPage";
-import { GuidePage } from "./pages/GuidePage";
 
 export function GitHubSite({ page }: { page: PublicPage }) {
   const root = assetRoot(page);
-  const [notice, setNotice] = useState("");
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(timer.current), []);
-  const copied = (message: string) => {
-    clearTimeout(timer.current);
-    setNotice(message);
-    timer.current = setTimeout(() => setNotice(""), 5000);
-  };
   return (
     <div class={`gh-site gh-page-${page}`}>
       <a class="gh-skip" href="#content">
@@ -49,7 +39,7 @@ export function GitHubSite({ page }: { page: PublicPage }) {
       </header>
       {import.meta.env.DEV && (
         <div class="gh-preview-bar">
-          <span>LOCAL PREVIEW · GITHUB KIT</span>
+          <span>LOCAL PREVIEW · PUBLIC SITE</span>
           <a href="/">
             Back to the studio <span aria-hidden="true">↗</span>
           </a>
@@ -59,11 +49,9 @@ export function GitHubSite({ page }: { page: PublicPage }) {
         {page === "project" ? (
           <ProjectPage page={page} />
         ) : page === "organization" ? (
-          <OrganizationPage page={page} copied={copied} />
-        ) : page === "app" ? (
-          <GitHubAppPage page={page} copied={copied} />
+          <OrganizationPage page={page} />
         ) : (
-          <GuidePage page={page} />
+          <GitHubAppPage page={page} />
         )}
       </main>
       <footer class="gh-footer">
@@ -71,22 +59,19 @@ export function GitHubSite({ page }: { page: PublicPage }) {
         <p>
           Human-directed software.
           <br />
-          <span>A {identity.organization} project · In development</span>
+          <span>
+            A {identity.organizationName} project · In development · MIT
+          </span>
         </p>
         <div>
-          <a href={pageHref(page, "guide")}>Guides and resources</a>
+          <a href={publicUrls.app}>
+            GitHub App <Arrow />
+          </a>
           <a href={publicUrls.repository}>
             Repository on GitHub <Arrow />
           </a>
         </div>
       </footer>
-      <div
-        class={`gh-notice ${notice ? "is-visible" : ""}`}
-        role="status"
-        aria-live="polite"
-      >
-        {notice}
-      </div>
     </div>
   );
 }

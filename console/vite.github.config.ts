@@ -16,7 +16,6 @@ export default defineConfig({
         project: at("./github/index.html"),
         organization: at("./github/organization/index.html"),
         app: at("./github/app/index.html"),
-        guide: at("./github/guide/index.html"),
       },
     },
   },

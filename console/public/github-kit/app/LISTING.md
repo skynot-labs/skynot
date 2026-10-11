@@ -7,7 +7,7 @@ GitHub renders the App's public page from these settings. This is not a Marketpl
 | Owner | skynot-labs |
 | GitHub App name | skynot-shop |
 | Description | Connects Skynot to your repositories: issues, branches and pull requests for a team of agents that works on orders you sign. |
-| Homepage | https://skynot-labs.github.io/skynot/app/ once the site is published; https://github.com/skynot-labs until then |
+| Homepage | https://skynot-labs.github.io/skynot/app/ |
 | Public App URL | https://github.com/apps/skynot-shop |
 | Webhook | Not active |
 | Logo | badge.png · 200 × 200 |

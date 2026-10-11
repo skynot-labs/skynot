@@ -240,7 +240,6 @@ test.describe("the static pages", () => {
     { path: "/github/", heading: /Your judgment\.\s*A team\s*of agents\./ },
     { path: "/github/organization/", heading: /skynot\s*\/ labs\./ },
     { path: "/github/app/", heading: /From the studio\s*to the repository\./ },
-    { path: "/github/guide/", heading: /From identity\s*to GitHub\./ },
   ];
 
   for (const { path, heading } of pages) {

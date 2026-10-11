@@ -1,21 +1,8 @@
-import { pageHref, publicUrls, assetRoot, type PublicPage } from "../links";
+import { publicUrls, assetRoot, type PublicPage } from "../links";
 import identity from "../site.json";
-import tokens from "../../design/tokens.json";
-import {
-  Arrow,
-  Eyebrow,
-  SectionTitle,
-  CopyButton,
-  Download,
-} from "../components";
+import { Arrow, Eyebrow, SectionTitle } from "../components";
 
-export function GitHubAppPage({
-  page,
-  copied,
-}: {
-  page: PublicPage;
-  copied: (message: string) => void;
-}) {
+export function GitHubAppPage({ page }: { page: PublicPage }) {
   const root = assetRoot(page);
   return (
     <>
@@ -38,6 +25,9 @@ export function GitHubAppPage({
             </a>
             <a class="gh-text-link" href={publicUrls.app}>
               Listing on GitHub <Arrow />
+            </a>
+            <a class="gh-text-link" href={publicUrls.setupGuide}>
+              Setup guide <Arrow />
             </a>
           </div>
           <p class="gh-footnote">
@@ -133,49 +123,8 @@ export function GitHubAppPage({
         </div>
         <p class="gh-footnote">
           The reviewing agent posts its verdict as a comment, not as a GitHub
-          approval. Merging the pull request stays the director's decision.
+          approval. Merging the pull request stays your decision.
         </p>
-      </section>
-      <section class="gh-section gh-profile-grid">
-        <div>
-          <SectionTitle
-            label="THE PUBLIC LISTING"
-            title="Copy and brand, ready to upload."
-          >
-            GitHub builds the App's listing from its registration. Here are
-            its description, badge and setup guide.
-          </SectionTitle>
-          <Download root={root} file="app/LISTING.md">
-            Listing and registration fields
-          </Download>
-          <Download root={root} file="app/SETUP.md">
-            GitHub App guide
-          </Download>
-        </div>
-        <div class="gh-field-card">
-          <label>GITHUB APP NAME</label>
-          <div class="gh-inline-copy">
-            <code>{identity.app}</code>
-            <CopyButton text={identity.app} copied={copied} />
-          </div>
-          <label>DESCRIPTION</label>
-          <p>{identity.appDescription}</p>
-          <CopyButton
-            text={identity.appDescription}
-            copied={copied}
-            label="Copy description"
-          />
-          <label>HOMEPAGE · ONCE THE SITE IS PUBLISHED</label>
-          <div class="gh-inline-copy">
-            <code>{publicUrls.pages}app/</code>
-            <CopyButton text={`${publicUrls.pages}app/`} copied={copied} />
-          </div>
-          <label>BADGE BACKGROUND</label>
-          <div class="gh-inline-copy">
-            <code>{tokens.color.lavender}</code>
-            <CopyButton text={tokens.color.lavender} copied={copied} />
-          </div>
-        </div>
       </section>
     </>
   );

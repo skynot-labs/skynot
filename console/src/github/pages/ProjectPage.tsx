@@ -13,7 +13,7 @@ export function ProjectPage({ page }: { page: PublicPage }) {
     <>
       <section class="gh-project-hero">
         <div class="gh-hero-copy">
-          <Eyebrow>A DEV SHOP OF AGENTS · IN DEVELOPMENT</Eyebrow>
+          <Eyebrow>A DEV SHOP OF AI AGENTS · IN DEVELOPMENT</Eyebrow>
           <h1>
             Your judgment.
             <br />
@@ -98,7 +98,7 @@ export function ProjectPage({ page }: { page: PublicPage }) {
       </section>
       <section class="gh-endcard">
         <div>
-          <Eyebrow>MADE AT SKYNOT-LABS</Eyebrow>
+          <Eyebrow>MADE AT SKYNOT LABS</Eyebrow>
           <h2>
             One lab.
             <br />

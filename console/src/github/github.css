@@ -153,16 +153,14 @@ code {
   display: inline-block;
 }
 .gh-hero-copy h1,
-.gh-app-hero h1,
-.gh-guide-hero h1 {
+.gh-app-hero h1 {
   margin: 26px 0;
   font-size: clamp(44px, 4.7vw, 74px);
   letter-spacing: -3px;
 }
 .gh-hero-copy > p:not(.gh-eyebrow),
 .gh-identity-hero > div > p:not(.gh-eyebrow),
-.gh-app-hero > div > p:not(.gh-eyebrow),
-.gh-guide-hero > p:not(.gh-eyebrow) {
+.gh-app-hero > div > p:not(.gh-eyebrow) {
   color: var(--muted);
   max-width: 430px;
   font-size: 15px;
@@ -441,28 +439,6 @@ code {
   color: var(--muted);
   z-index: 1;
 }
-.gh-profile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 70px;
-  align-items: start;
-}
-.gh-download {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  font-size: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
-}
-.gh-download:hover {
-  color: var(--mint);
-}
-.gh-download > span {
-  color: var(--mint);
-}
 .gh-footnote {
   color: var(--muted);
   font: 11px/1.8 var(--sans);
@@ -471,130 +447,11 @@ code {
 .gh-footnote code {
   font-size: 10px;
 }
-.gh-profile-preview,
-.gh-field-card {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  padding: 30px;
-}
 .gh-preview-label {
   display: block;
   font: 8px var(--mono);
   letter-spacing: 1px;
   color: var(--muted);
-}
-.gh-profile-heading {
-  display: flex;
-  gap: 15px;
-  align-items: center;
-  margin: 28px 0;
-}
-.gh-profile-heading img {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
-}
-.gh-profile-heading h3 {
-  font: 19px var(--mono);
-}
-.gh-profile-heading span {
-  font-size: 11px;
-  color: var(--muted);
-}
-.gh-profile-preview h4 {
-  font-size: 21px;
-  line-height: 1.3;
-}
-.gh-profile-preview p {
-  font-size: 12px;
-  line-height: 1.9;
-  color: var(--muted);
-  margin-top: 16px;
-}
-.gh-rule {
-  height: 1px;
-  background: var(--border);
-  margin: 26px 0;
-}
-.gh-repo-preview {
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
-}
-.gh-repo-preview b {
-  color: var(--mint);
-  font: 15px var(--mono);
-}
-.gh-repo-preview span {
-  font-size: 12px;
-  color: var(--muted);
-}
-.gh-repo-preview small {
-  font: 8px var(--mono);
-  color: var(--lavender);
-}
-.gh-asset-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.4fr;
-  gap: 24px;
-}
-.gh-asset-grid article {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 24px;
-}
-.gh-asset-grid img {
-  width: 94px;
-  height: 94px;
-  display: block;
-  margin: 6px auto 28px;
-  border-radius: 20px;
-}
-.gh-asset-grid h3 {
-  font-size: 18px;
-}
-.gh-asset-grid p {
-  color: var(--muted);
-  font-size: 12px;
-  margin: 12px 0 6px;
-}
-.gh-cover-asset img {
-  width: 100%;
-  height: 94px;
-  border-radius: 5px;
-  object-fit: contain;
-}
-.gh-inline-copy {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
-  padding: 16px 0;
-  font-size: 12px;
-}
-.gh-inline-copy > span {
-  color: var(--muted);
-}
-.gh-inline-copy code {
-  font-size: 11px;
-  min-width: 0;
-}
-.gh-copy {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-size: 11px;
-  border-radius: 5px;
-  padding: 7px 12px;
-  display: flex;
-  gap: 12px;
-  flex-shrink: 0;
-}
-.gh-copy:hover {
-  color: var(--mint);
-  border-color: var(--mint);
 }
 .gh-app-hero {
   display: grid;
@@ -699,72 +556,6 @@ td:first-child {
 td:nth-child(2) {
   width: 23%;
 }
-.gh-field-card label {
-  color: var(--muted);
-  font: 9px var(--mono);
-  letter-spacing: 0.8px;
-  display: block;
-  margin-top: 24px;
-}
-.gh-field-card label:first-child {
-  margin-top: 0;
-}
-.gh-field-card p {
-  font-size: 12px;
-  color: var(--text);
-  margin: 16px 0;
-}
-.gh-guide-hero {
-  padding: 65px 5% 60px;
-}
-.gh-guide-hero > p:not(.gh-eyebrow) {
-  max-width: 610px;
-}
-.gh-guide-hero .gh-button {
-  margin-top: 28px;
-}
-.gh-guide-layout {
-  display: grid;
-  grid-template-columns: 265px 1fr;
-  gap: 75px;
-  padding: 20px 5% 0;
-}
-.gh-guide-layout aside {
-  align-self: start;
-  position: sticky;
-  top: 30px;
-}
-.gh-guide-layout aside a {
-  display: flex;
-  gap: 14px;
-  align-items: baseline;
-  padding: 20px 0;
-  border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  line-height: 1.7;
-}
-.gh-guide-layout aside a span {
-  color: var(--mint);
-  font: 10px var(--mono);
-}
-.gh-guide-layout aside a:hover {
-  color: var(--mint);
-}
-.gh-guide-step {
-  padding: 0 0 58px;
-  margin-bottom: 52px;
-  border-bottom: 1px solid var(--border);
-}
-.gh-guide-step h2 {
-  font-size: 27px;
-  margin-top: 15px;
-  letter-spacing: -0.8px;
-}
-.gh-guide-step p {
-  color: var(--muted);
-  font-size: 13px;
-  margin-top: 22px;
-}
 pre {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -777,11 +568,6 @@ pre {
 }
 pre code {
   overflow-wrap: normal;
-}
-.gh-resource-list {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0 50px;
 }
 .gh-footer {
   margin: 0 5%;
@@ -807,25 +593,6 @@ pre code {
 }
 .gh-footer a:hover {
   color: var(--mint);
-}
-.gh-notice {
-  position: fixed;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  max-width: calc(100vw - 32px);
-  padding: 12px 20px;
-  border-radius: 7px;
-  color: var(--bg);
-  background: var(--mint);
-  box-shadow: 0 8px 30px #0004;
-  opacity: 0;
-  pointer-events: none;
-  font-size: 12px;
-  z-index: 9;
-}
-.gh-notice.is-visible {
-  opacity: 1;
 }
 @media (min-width: 1500px) {
   .gh-project-hero {
@@ -865,22 +632,11 @@ pre code {
     max-height: 460px;
     object-fit: contain;
   }
-  .gh-profile-grid,
   .gh-app-hero {
     gap: 35px;
   }
   .gh-app-card {
     padding: 24px;
-  }
-  .gh-asset-grid {
-    gap: 15px;
-  }
-  .gh-asset-grid article {
-    padding: 18px;
-  }
-  .gh-guide-layout {
-    grid-template-columns: 210px 1fr;
-    gap: 35px;
   }
 }
 @media (max-width: 700px) {
@@ -904,20 +660,17 @@ pre code {
   .gh-project-hero,
   .gh-section,
   .gh-identity-hero,
-  .gh-app-hero,
-  .gh-guide-hero {
+  .gh-app-hero {
     padding: 40px 6%;
   }
   .gh-hero-copy h1,
-  .gh-app-hero h1,
-  .gh-guide-hero h1 {
+  .gh-app-hero h1 {
     font-size: 50px;
     letter-spacing: -2px;
   }
   .gh-hero-copy > p:not(.gh-eyebrow),
   .gh-identity-hero > div > p:not(.gh-eyebrow),
-  .gh-app-hero > div > p:not(.gh-eyebrow),
-  .gh-guide-hero > p:not(.gh-eyebrow) {
+  .gh-app-hero > div > p:not(.gh-eyebrow) {
     font-size: 13px;
   }
   .gh-eyebrow {
@@ -973,10 +726,8 @@ pre code {
   }
   .gh-principles,
   .gh-feature-grid,
-  .gh-profile-grid,
   .gh-identity-hero,
-  .gh-app-hero,
-  .gh-asset-grid {
+  .gh-app-hero {
     grid-template-columns: 1fr;
   }
   .gh-principles {
@@ -1019,27 +770,6 @@ pre code {
   .gh-knot-art img {
     width: 210px;
   }
-  .gh-profile-preview,
-  .gh-field-card {
-    padding: 23px;
-  }
-  .gh-profile-grid {
-    gap: 35px;
-  }
-  .gh-cover-asset img {
-    height: auto;
-    max-height: 180px;
-  }
-  .gh-asset-grid img {
-    margin-top: 15px;
-  }
-  .gh-inline-copy {
-    align-items: start;
-    gap: 15px;
-  }
-  .gh-section > .gh-inline-copy {
-    flex-direction: column;
-  }
   .gh-app-hero {
     gap: 38px;
   }
@@ -1050,27 +780,6 @@ pre code {
   }
   td:nth-child(2) {
     min-width: 100px;
-  }
-  .gh-guide-layout {
-    display: block;
-    padding: 15px 6% 0;
-  }
-  .gh-guide-layout aside {
-    position: static;
-    margin-bottom: 48px;
-  }
-  .gh-guide-layout aside a {
-    padding: 12px 0;
-  }
-  .gh-guide-step h2 {
-    font-size: 25px;
-  }
-  .gh-guide-step {
-    padding-bottom: 32px;
-    margin-bottom: 35px;
-  }
-  .gh-resource-list {
-    grid-template-columns: 1fr;
   }
   .gh-footer {
     flex-wrap: wrap;

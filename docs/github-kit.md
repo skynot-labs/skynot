@@ -1,13 +1,12 @@
 # The public site and the GitHub kit
 
-Four static pages present Skynot outside the console: the project, the organization, the GitHub App's homepage and a publishing guide. They share the console's design tokens, knot and studio renderer, and talk to no service: no login, no API, no project data.
+Three static pages present Skynot outside the console: the project, the organization and the GitHub App's homepage. They are an about, written for a visitor: what each thing is and where it lives. They share the console's design tokens, knot and studio renderer, and talk to no service: no login, no API, no project data.
 
 | Page | Served by the shop | On GitHub Pages |
 | --- | --- | --- |
 | Project | `/github/` | `https://skynot-labs.github.io/skynot/` |
 | Organization | `/github/organization/` | `…/skynot/organization/` |
 | App homepage | `/github/app/` | `…/skynot/app/` |
-| Guides and downloads | `/github/guide/` | `…/skynot/guide/` |
 
 The Pages addresses follow from `organization` and `repository` in `console/src/github/site.json`; they exist once the repository lives under that organization and the workflow below has run.
 
@@ -32,16 +31,16 @@ A project site is served at `https://<owner>.github.io/<repository>/`; the organ
 
 ## The kit
 
-`console/public/github-kit/` holds what the pages offer for download. Everything in it is generated except the PNG snapshots.
+`console/public/github-kit/` holds what the maintainer takes to GitHub by hand; the pages do not link to it. Everything in it is generated except the PNG snapshots.
 
-- **Organization profile.** Copy `organization/profile/README.md` and `organization/profile/avatar.png` to `profile/` in the organization's public `.github` repository; the README shows the avatar by relative path, so both are needed. Upload `organization/avatar.png` as the organization's picture. See [customizing an organization's profile](https://docs.github.com/en/organizations/collaborating-with-groups-in-organizations/customizing-your-organizations-profile).
+- **Organization profile.** Copy `organization/profile/README.md` to `profile/README.md` in the organization's public `.github` repository. Upload `organization/avatar.png` as the organization's picture. See [customizing an organization's profile](https://docs.github.com/en/organizations/collaborating-with-groups-in-organizations/customizing-your-organizations-profile).
 - **GitHub App.** `app/LISTING.md` has the registration fields and permissions, `app/badge.png` the logo. `app/SETUP.md` is the [App guide](github-app.md). GitHub renders the App's own listing page from the registration; the App page of this site is its homepage.
 - **Repository.** `repository/social.png` goes in the repository's **Settings → Social preview**.
 - **Workflow.** `workflows/pages.yml` is a copy of this repository's workflow.
 
 ## Where things live
 
-- `console/src/github/site.json`: names, descriptions and the App's permissions. `organization` must match `console/src/design/logo.json`; the exporter checks it. When the service needs another permission, change it here and in the README.
+- `console/src/github/site.json`: names, the one-line descriptions of the product and the organization, and the App's permissions. Every page, the profile and the listing take those lines from here. `organization` must match `console/src/design/logo.json`; the exporter checks it. When the service needs another permission, change it here and in the README.
 - `console/src/github/pages/`: one component per page, with its copy. `StudioPreview.tsx` draws an invented team with the console's renderer.
 - `console/scripts/export-github.mjs`: writes `console/github/**/index.html` and the kit from those sources. Do not edit its output.
 - `console/vite.github.config.ts`: the site's own build.

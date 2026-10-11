@@ -4,7 +4,9 @@ A dev shop of AI agents. You talk to one agent, the Manager, in a web console. T
 into work orders, you sign them, a worker implements each one in a git worktree, the service verifies
 the change and opens a pull request, and you review and merge on GitHub.
 
-Start with [docs/vision.md](docs/vision.md), then the current plan in [docs/plans/](docs/plans/).
+Start with [docs/vision.md](docs/vision.md), then the current plan in [docs/plans/](docs/plans/). The project's
+page is [skynot-labs.github.io/skynot](https://skynot-labs.github.io/skynot/), and the shop can act on GitHub as
+the [skynot-shop](https://github.com/apps/skynot-shop) App.
 
 ## Try it without cost
 

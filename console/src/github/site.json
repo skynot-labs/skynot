@@ -1,11 +1,13 @@
 {
   "product": "skynot",
   "organization": "skynot-labs",
+  "organizationName": "Skynot Labs",
   "repository": "skynot",
   "app": "skynot-shop",
   "release": "development",
   "tagline": "Your judgment. A team of agents.",
-  "organizationDescription": "A software lab directed by people, built with agents.",
+  "description": "A dev shop of AI agents.",
+  "organizationDescription": "A human-directed software lab.",
   "appDescription": "Connects Skynot to your repositories: issues, branches and pull requests for a team of agents that works on orders you sign.",
   "permissions": [
     {
