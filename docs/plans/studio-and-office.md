@@ -35,8 +35,9 @@ None is taken; each is here to be argued with.
 3. **The office says what it speaks.** The studio checks the contract's major version when it connects and says
    so when they differ, instead of failing inside a view.
 4. **The office has an HTTPS address.** A public page cannot reliably reach `127.0.0.1` (see the checks below), so
-   the office is reached by name over HTTPS: a tailnet name, a tunnel or a server. The office is told which
-   address it answers as and which studios may call it.
+   the office is reached by name over HTTPS. The guide leads with a tailnet name, the one address that worked in
+   every browser tried and keeps the office off the internet; a tunnel or a server with a public address is the
+   alternative. The office is told which address it answers as and which studios may call it.
 5. **One kind of session, several ways to get it.** The studio knows one thing: a bearer token for the office.
    The office issues it after either proof of who is asking: a GitHub sign-in checked against a list of allowed
    logins, or a secret the office printed at first start. Adding a way to sign in never changes the studio.
@@ -53,10 +54,10 @@ Cheap experiments. A failure changes the plan, so they come first.
 | --- | --- | --- |
 | 1 | The public page can call an office on `http://127.0.0.1`, with a token and an event stream | **Checked 2026-10-11, from the real Pages origin.** Chromium 156 refuses until the user grants local network access, then all of it works. Firefox 157 stops at the same permission; granting it was not exercised. WebKit refuses outright as insecure content, with no permission to grant. So it cannot be the default |
 | 2 | The public page can call an office on an HTTPS tailnet name, without the same permission | **Checked 2026-10-11 in the director's Chrome**, against an office shared with Tailscale Serve. Chrome counts the tailnet as a local network and asks once to "access other devices on your local network"; after Allow, the request with a token and both kinds of stream work. **Safari, the same day:** all of it works with no prompt at all. A tailnet name is the one address tried so far that works in both |
-| 3 | The public page can call an office behind a public HTTPS address, with a token and an event stream | not checked; expected to work, since nothing local is involved |
+| 3 | The public page can call an office behind a public HTTPS address, with a token and an event stream | not checked. Expected to work with no prompt in any browser, since the address is neither local nor insecure; to be confirmed when a tunnel is documented |
 | 4 | A GitHub App can be created from a manifest with the callback on `127.0.0.1`, returning its id and private key | **Passed 2026-10-11.** One click on GitHub created a private App with contents, issues and pull requests (write), actions and metadata (read), and the callback on `127.0.0.1` received its id, client id and private key. Not exercised: the organization Projects permission, and installing the App on a repository, which is a second step on GitHub |
 | 5 | The event stream survives a tunnel for an hour without dropping silently | not checked; a similar project calls free tunnels unreliable |
-| 6 | The simulated shop can run inside the browser, for the public demo | not checked; its Node-only imports are in the adapters and the composition, which a browser build would replace |
+| 6 | The simulated shop can run inside the browser, for the public demo | **Partly checked 2026-10-11.** The shop, its API and the simulated engines bundle for a browser (about 1 MB). It was not run there: the simulated path still reaches for Node in six places, which are the event store the shop always writes to a file, the fake workspace's temp folder, path handling in the protected-paths guard and in the composition, the id generator, and a deep comparison in preferences. The console would call the bundled API directly instead of over the network |
 
 ## Slices
 
@@ -103,7 +104,6 @@ another language for the office, and separate repositories. Each waits for a pai
 
 ## Open for the director
 
-- Which address does the getting started guide lead with: a tailnet, a tunnel, or a server?
 - How is the office handed to a newcomer: a clone of this repository, or a small repository of configuration
   that runs a published image? The second needs a release of the office first.
 - One repository first, or three from the start?
