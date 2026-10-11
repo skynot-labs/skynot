@@ -32,7 +32,8 @@ This spends your `claude` or `codex` subscription quota and writes to a reposito
 4. `npm run build:console`, then `npm run start`.
 
 The steps in full are in [docs/getting-started.md](docs/getting-started.md), and what each file and variable
-decides in [docs/configuration.md](docs/configuration.md).
+decides in [docs/configuration.md](docs/configuration.md). To keep a shop running on a machine you reach over SSH,
+see [docs/running-on-a-server.md](docs/running-on-a-server.md).
 
 The console binds to `127.0.0.1` and has no login. Do not expose it. To work with broad permissions
 without risking your machine, use the [devcontainer](.devcontainer/README.md).
