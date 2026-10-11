@@ -73,6 +73,7 @@ function shopState(overrides: Partial<ShopState> = {}): ShopState {
       { role: "ui-designer", name: null, engine: "claude", model: null },
     ],
     souls: [],
+    instructions: [],
     teamChanges: [],
     briefingChanges: [],
     briefing: null,

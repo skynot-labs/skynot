@@ -36,6 +36,7 @@ export type Agent = {
   spentUsd: number | null;
   usage: TokenUsage | null;
   soul: Soul | null;
+  instructions: string | null;
   avatar: Avatar;
 };
 

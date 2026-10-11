@@ -1,6 +1,9 @@
+import { REVIEW_SYSTEM, workerStandingRules } from "../../delivery";
 import { outcomeOf } from "../../execution";
+import { SYSTEM_PROMPT } from "../../manager";
 import { renderCard } from "../../orders";
 import { describeRoles } from "../../team";
+import { advisorSystem } from "../advisor-bench";
 import { answeredOf, inboxOf } from "../inbox";
 import type { Shop } from "../shop";
 
@@ -47,6 +50,7 @@ export function readState(shop: Shop, projectId?: string) {
     answered: answeredOf(shop, project.id),
     team: describeRoles({ roles: desk.team.roles, ...(desk.team.workers && { workers: desk.team.workers }), advisors: desk.roster.members() }),
     souls: desk.roster.profiles(),
+    instructions: instructions(desk),
     teamChanges: desk.roster.pending(),
     briefingChanges: shop.briefingChanges.pendingFor(project.id),
     briefing: shop.briefingChanges.signedFor(project.id),
@@ -79,6 +83,17 @@ export function readState(shop: Shop, projectId?: string) {
     presence: presence(shop, project.id),
     activity: shop.activity.recent(ACTIVITY_LIMIT, project.id),
   };
+}
+
+// The standing text each role's engine receives, as the service sends it; a worker's order and an advisor's question come on top.
+function instructions(desk: Shop["desks"][number]): Array<{ role: string; text: string }> {
+  const workerRules = workerStandingRules(desk.project);
+  return [
+    { role: "manager", text: SYSTEM_PROMPT },
+    ...desk.workers.map((role) => ({ role, text: workerRules })),
+    ...(desk.reviewer ? [{ role: "code_reviewer", text: REVIEW_SYSTEM }] : []),
+    ...Object.entries(desk.roster.members()).map(([role, advisor]) => ({ role, text: advisorSystem(advisor.soul) })),
+  ];
 }
 
 // What the selector shows for a project: how much waits on the director.
