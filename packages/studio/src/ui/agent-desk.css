@@ -111,7 +111,7 @@ dialog:has(.agent-desk) {
 .agent-run time {
   flex-shrink: 0;
   font: 9px var(--mono);
-  color: #7f7a90;
+  color: var(--muted);
 }
 .agent-trace-entry p {
   min-width: 0;
@@ -120,7 +120,7 @@ dialog:has(.agent-desk) {
 .agent-trace-entry small {
   margin-left: 8px;
   font: 8px var(--mono);
-  color: #7f7a90;
+  color: var(--muted);
 }
 .agent-run-detail {
   flex: 1;

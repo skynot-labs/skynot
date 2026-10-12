@@ -13,6 +13,8 @@
   color: var(--sk-agent);
 }
 .question-order {
+  padding: 6px;
+  margin: -6px 0;
   background: none;
   color: inherit;
   font: inherit;
@@ -40,6 +42,8 @@
   flex: none;
 }
 .proposal-link {
+  padding: 7px 6px;
+  margin: -7px 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;

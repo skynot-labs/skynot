@@ -43,8 +43,7 @@
     "pill": "999px"
   },
   "motion": {
-    "fast": "160ms",
-    "normal": "240ms"
+    "fast": "160ms"
   },
   "semantic": {
     "action": "color.mint",

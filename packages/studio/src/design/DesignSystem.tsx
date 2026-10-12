@@ -518,10 +518,6 @@ export function DesignSystem() {
                 <span>Interactions</span>
                 <code>{tokens.motion.fast}</code>
               </div>
-              <div class="ds-motion">
-                <span>Transitions</span>
-                <code>{tokens.motion.normal}</code>
-              </div>
               <p class="ds-caption">Honors the reduced-motion preference.</p>
             </article>
             <article class="ds-code-card">
