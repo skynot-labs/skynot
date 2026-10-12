@@ -190,7 +190,7 @@ test.describe.serial("the director's projects", () => {
       await form.getByRole("button", { name: "Register the project" }).click();
 
       await expect(form.getByRole("status")).toContainText("gamma was written to the projects folder.");
-      await expect(form).toContainText("It starts with the next restart of the service. Until then it does not appear in the project list.");
+      await expect(form).toContainText("It starts with the next restart of the office: stop it and start it again the way you started it, npm run start in a terminal or a restart of its service on a server. Until then it does not appear in the project list.");
       await form.getByRole("button", { name: "Close", exact: true }).click();
       await expect(dialog(page)).toBeHidden();
       await expect(projectEntry(page, "gamma")).toHaveCount(0);

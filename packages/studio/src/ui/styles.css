@@ -317,7 +317,6 @@ h1 span {
 .stat-detail {
   font-size: 9px;
   color: var(--muted);
-  white-space: nowrap;
 }
 .view {
   display: none;
@@ -406,11 +405,6 @@ h1 span {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 15px;
-}
-.section-heading h2 {
-  font-size: 14px;
-  font-weight: 550;
-  letter-spacing: -0.1px;
 }
 .section-heading > span {
   font: 7px var(--mono);
@@ -693,11 +687,12 @@ input[type="text"]::placeholder {
   width: 27px;
   height: 27px;
   background: var(--swatch);
-  border: 2px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 5px;
   position: relative;
 }
 .swatch.selected {
+  border-width: 2px;
   border-color: #f1eee9;
   box-shadow: 0 0 0 2px #f1eee919;
 }
@@ -985,9 +980,6 @@ input[type="text"]::placeholder {
   }
   .panel-title {
     font-size: 11px;
-  }
-  .section-heading h2 {
-    font-size: 13px;
   }
   .section-heading > span {
     font-size: 6px;

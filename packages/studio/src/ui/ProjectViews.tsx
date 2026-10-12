@@ -18,7 +18,7 @@ import {
 } from "../studio/model";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
-import { RichText } from "./RichText";
+import { RichLine, RichText } from "./RichText";
 import {
   agentStatus,
   ago,
@@ -220,7 +220,6 @@ export function AgentsView({
   return (
     <>
       <div class="section-heading">
-        <h2>One vision. Different talents.</h2>
         <span>{project.agents.length} AGENTS ON THIS PROJECT</span>
       </div>
       <div class="people-grid">
@@ -958,7 +957,9 @@ export function ContextView({
             </button>
           </div>
           {readiness.length === 0 && (
-            <div class="column-empty">No setup checks have run.</div>
+            <div class="column-empty">
+              No setup checks have run. Check again to run them.
+            </div>
           )}
           {readiness.map((finding) => (
             <div class={`finding ${finding.level}`} key={finding.check}>
@@ -966,7 +967,11 @@ export function ContextView({
               <span>
                 {finding.check}
                 <small>{finding.detail}</small>
-                {finding.fix && <em>{finding.fix}</em>}
+                {finding.fix && (
+                  <em>
+                    <RichLine text={finding.fix} />
+                  </em>
+                )}
               </span>
             </div>
           ))}
@@ -975,6 +980,13 @@ export function ContextView({
     </div>
   );
 }
+
+const ACTIVITY_KIND: Record<Activity["kind"], string> = {
+  order: "Work orders",
+  delivery: "Delivery",
+  run: "Runs",
+  advice: "Advice",
+};
 
 const ACTIVITY_ICON: Record<Activity["kind"], string> = {
   order: "orders",
@@ -1013,10 +1025,9 @@ export function ActivityView({
   return (
     <section class="panel timeline-panel">
       <div class="panel-heading">
-        <span class="panel-title">Work leaves a trace.</span>
         <div class="timeline-filters">
           <select
-            aria-label="Filter the logbook by who did it"
+            aria-label="Filter the activity by who did it"
             value={author}
             onChange={(e) => setAuthor(e.currentTarget.value)}
           >
@@ -1028,17 +1039,18 @@ export function ActivityView({
             ))}
           </select>
           <select
-            aria-label="Filter the logbook"
+            aria-label="Filter the activity by kind"
             value={filter}
             onChange={(e) =>
               setFilter(e.currentTarget.value as Activity["kind"] | "all")
             }
           >
             <option value="all">Everything</option>
-            <option value="order">Work orders</option>
-            <option value="delivery">Delivery</option>
-            <option value="run">Runs</option>
-            <option value="advice">Advice</option>
+            {Object.entries(ACTIVITY_KIND).map(([kind, label]) => (
+              <option value={kind} key={kind}>
+                {label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -1105,9 +1117,24 @@ export function ActivityView({
       })}
       {activities.length === 0 && (
         <div class="empty-state">
-          {project.activity.length === 0
-            ? "Nothing has happened yet."
-            : "Nothing of this kind yet."}
+          {project.activity.length === 0 ? (
+            "Nothing has happened yet."
+          ) : (
+            <>
+              Nothing
+              {filter !== "all" && ` in ${ACTIVITY_KIND[filter]}`}
+              {author !== "all" && ` by ${nameOf(author)}`} yet.{" "}
+              <button
+                class="text-button"
+                onClick={() => {
+                  setFilter("all");
+                  setAuthor("all");
+                }}
+              >
+                Show everything
+              </button>
+            </>
+          )}
         </div>
       )}
     </section>

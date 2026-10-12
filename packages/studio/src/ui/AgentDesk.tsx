@@ -102,7 +102,7 @@ export function AgentDesk({
         {tab === "soul" && (
           <SoulPanel project={project} agent={agent} send={send} busy={busy} />
         )}
-        {tab === "look" && look}
+        <div hidden={tab !== "look"}>{look}</div>
       </div>
     </div>
   );
