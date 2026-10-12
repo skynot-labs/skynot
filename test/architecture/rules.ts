@@ -24,6 +24,7 @@ const OFFICE = "packages/office";
 const OFFICE_SOURCE = `${OFFICE}/src`;
 const STUDIO = "packages/studio";
 const CONTRACT = "packages/contract";
+const WORKSPACE_SCOPE = "@skynot/";
 const MAY_REGISTER_PROJECTS = (filePath: string) => filePath === `${OFFICE_SOURCE}/app/main.ts` || filePath.startsWith(`${OFFICE_SOURCE}/app/http/`);
 
 export function checkArchitecture(files: SourceFile[]): Violation[] {
@@ -65,8 +66,7 @@ function crossingReason(filePath: string, specifier: string): string | null {
     return allowed ? null : "the contract may import only itself and zod";
   }
   if (within(OFFICE, filePath)) {
-    const studio = target ? within(STUDIO, target) : specifier === "@skynot/studio" || specifier.startsWith("@skynot/studio/");
-    return studio ? "the office must not import the studio" : null;
+    return target && within(STUDIO, target) ? "the office must not import the studio" : null;
   }
   return null;
 }
@@ -76,7 +76,8 @@ function importsOf(file: SourceFile): string[] {
 }
 
 function resolve(filePath: string, specifier: string): string | null {
-  return specifier.startsWith(".") ? path.posix.normalize(path.posix.join(path.posix.dirname(filePath), specifier)) : null;
+  if (specifier.startsWith(".")) return path.posix.normalize(path.posix.join(path.posix.dirname(filePath), specifier));
+  return specifier.startsWith(WORKSPACE_SCOPE) ? `packages/${specifier.slice(WORKSPACE_SCOPE.length)}` : null;
 }
 
 function within(dir: string, filePath: string): boolean {

@@ -11,7 +11,7 @@ Everything in the repo is English: code, comments, commits, issues, PRs, docs, c
 Hexagonal, light DDD, event-driven. Details in `docs/vision.md`.
 
 - Three packages. `packages/contract` (`@skynot/contract`) is what the other two exchange: the state, the commands and the event stream. It imports only itself and zod.
-- `packages/office` (`@skynot/office`) is the backend. Of the packages it may import only its own contexts and the contract, never the studio.
+- `packages/office` (`@skynot/office`) is the backend. It speaks the contract and never imports the studio.
 - `packages/studio` (`@skynot/studio`) is the browser frontend. It may import only itself and the contract, never the office.
 - `packages/office/src/<context>/{domain,application,adapters}` for each bounded context, plus `packages/office/src/kernel` for the small shared kernel.
 - The domain imports no adapter and no other context's internals. Contexts talk through ports they define themselves. `packages/office/src/app` is the composition layer: it wires adapters between contexts and may import only a context's public `index`.

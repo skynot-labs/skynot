@@ -21,7 +21,7 @@ describe("architecture rules on the real source", () => {
 
 describe("boundaries between the office, the studio and the contract on the real source", () => {
   it("has no violations", () => {
-    const sources = ["packages/office/src", "packages/studio", "packages/contract/src"].flatMap(readSources);
+    const sources = ["packages/office", "packages/studio", "packages/contract/src"].flatMap(readSources);
     expect(checkBoundaries(sources)).toEqual([]);
   });
 });
@@ -43,6 +43,7 @@ describe("boundaries between the office, the studio and the contract", () => {
       file("packages/studio/e2e/support.ts", "await import(`../../office/src/app/main.ts`);"),
       file("packages/studio/vite.config.ts", `export { port } from "../office/src/app/port";`),
       file("packages/studio/scripts/export-github.mjs", `import { CONTRACT } from "../../office/src/app/http/meta.ts";`),
+      file("packages/studio/src/application/connection.ts", `import type { OfficeAccess } from "@skynot/office/src/app/http/access";`),
     ];
     expect(checkBoundaries(files).map((violation) => violation.file)).toEqual(files.map((source) => source.path));
   });
@@ -78,6 +79,7 @@ describe("boundaries between the office, the studio and the contract", () => {
       file("packages/office/src/app/main.ts", `import type { Appearance } from "../../../studio/src/application/appearance";`),
       file("packages/office/src/app/http/api.ts", `const tokens = await import("../../../../studio/src/design/tokens.json");`),
       file("packages/office/src/app/shop.ts", `import { model } from "@skynot/studio/src/studio/model";`),
+      file("packages/office/test/app/api.test.ts", `import { HttpGateway } from "../../../studio/src/adapters/http-gateway";`),
     ];
     expect(checkBoundaries(files).map((violation) => violation.file)).toEqual(files.map((source) => source.path));
   });
@@ -123,6 +125,11 @@ describe("architecture rules", () => {
 
   it("rejects one context importing another", () => {
     const files = [file("packages/office/src/delivery/application/open-pr.ts", `import { Order } from "../../orders/domain/order";`)];
+    expect(checkArchitecture(files)).toHaveLength(1);
+  });
+
+  it("rejects one context reaching another through the office's package name", () => {
+    const files = [file("packages/office/src/delivery/application/open-pr.ts", `import { Order } from "@skynot/office/src/orders/domain/order";`)];
     expect(checkArchitecture(files)).toHaveLength(1);
   });
 
