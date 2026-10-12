@@ -1,16 +1,16 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
-import { z } from "zod";
+import type { z } from "zod";
 import { followUpFromReview } from "../../delivery";
 import type { Result } from "../../kernel";
 import type { OrderError, WorkOrder } from "../../orders";
-import { MAX_PROJECT_DESCRIPTION, MAX_PROJECT_NAME, PROJECT_ID, type Project, type ProjectFile, type ProjectRegistry } from "../../projects";
+import type { Project, ProjectFile, ProjectRegistry } from "../../projects";
 import type { TeamChange, TeamError } from "../../team";
-import { PREFERENCE_KEY, setPreference } from "../preferences";
+import { setPreference } from "../preferences";
 import { registrationProblem, type ProjectsFolder } from "../projects";
 import type { Shop } from "../shop";
 import { issueSession, pairingDesk, sessionIsValid, type OfficeAccess } from "./access";
-import { CONTRACT } from "@skynot/contract";
+import { CONTRACT, MetaSchema, PairingSchema, SessionSchema, commands, type CommandName } from "@skynot/contract";
 import { readState } from "./state";
 
 export interface ApiOptions {
@@ -23,29 +23,13 @@ export interface ApiOptions {
   projects?: { registry: ProjectRegistry; folder: () => Promise<ProjectsFolder>; policyRepos: readonly string[] };
 }
 
-const text = z.string().trim().min(1).max(4000);
-const orderId = z.string().regex(/^WO-\d{4}$/);
-const projectId = z.string().regex(PROJECT_ID);
-const bucket = z.enum(["lt5", "5-15", "15-30", "gt30"]);
-const command = z.string().min(1);
-const roleName = z.string().regex(/^[a-z][a-z0-9-]{1,23}$/);
-const MAX_FOCUS = 300;
-const registration = z.object({
-  id: projectId,
-  repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
-  baseBranch: z.string().min(1),
-  verifyCommands: z.array(command).min(1),
-  setupCommand: command.optional(),
-  protectedPaths: z.array(command).optional(),
-  name: z.string().trim().min(1).max(MAX_PROJECT_NAME).optional(),
-  description: z.string().trim().min(1).max(MAX_PROJECT_DESCRIPTION).optional(),
-});
-const profile = z.object({ project: projectId, name: z.string().nullable().optional(), description: z.string().nullable().optional() });
-const preference = z.object({ key: z.string().regex(PREFERENCE_KEY), value: z.record(z.string(), z.unknown()).nullable() });
+type Payload<Name extends CommandName> = z.output<(typeof commands)[Name]>;
+type OrderCommandName = { [Name in CommandName]: Payload<Name> extends { orderId: string } ? Name : never }[CommandName];
+
 const NOT_MANAGED = "projects are not managed from the console in this mode";
 const invalid = (error: z.ZodError): string => `invalid request: ${error.issues.map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`).join("; ")}`;
 
-function toProjectFile({ repo, baseBranch, verifyCommands, setupCommand, protectedPaths, name, description }: z.infer<typeof registration>): ProjectFile {
+function toProjectFile({ repo, baseBranch, verifyCommands, setupCommand, protectedPaths, name, description }: Payload<"register-project">): ProjectFile {
   return {
     version: 1,
     ...(name && { name }),
@@ -99,16 +83,16 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     await next();
   });
 
-  api.get("/api/meta", (context) => context.json({ contract: CONTRACT, requiresSession: Boolean(access) }));
+  api.get("/api/meta", (context) => context.json(MetaSchema.parse({ contract: CONTRACT, requiresSession: Boolean(access) })));
 
   api.post("/api/sessions", async (context) => {
     if (!access || !pair) return context.json({ error: "this office takes no sessions: it answers on this machine only" }, 404);
-    const body = z.object({ secret: z.string().min(1).max(200) }).safeParse(await context.req.json().catch(() => null));
+    const body = PairingSchema.safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "the pairing secret is required" }, 400);
 
     const outcome = pair(body.data.secret);
     if (outcome === "locked") return context.json({ error: "too many wrong secrets: wait a minute" }, 429);
-    return outcome === "paired" ? context.json(issueSession(access)) : context.json({ error: "that is not this office's pairing secret" }, 401);
+    return outcome === "paired" ? context.json(SessionSchema.parse(issueSession(access))) : context.json({ error: "that is not this office's pairing secret" }, 401);
   });
 
   api.get("/api/state", (context) => {
@@ -148,7 +132,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   api.post("/api/commands/send-message", async (context) => {
-    const body = z.object({ text, project: projectId.optional() }).safeParse(await context.req.json().catch(() => null));
+    const body = commands["send-message"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "text is required" }, 400);
     const desk = body.data.project ? shop.desk(body.data.project) : shop.desks[0];
     if (!desk) return context.json({ error: `no project ${body.data.project}` }, 404);
@@ -158,7 +142,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   api.post("/api/commands/answer-decision", async (context) => {
-    const body = z.object({ decisionId: z.string().min(1), answer: text }).safeParse(await context.req.json().catch(() => null));
+    const body = commands["answer-decision"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "decisionId and answer are required" }, 400);
 
     const desk = shop.desks.find((candidate) => candidate.chat.decision(body.data.decisionId));
@@ -170,20 +154,22 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     return context.json({ accepted: true }, 202);
   });
 
-  const orderCommand = (path: string, run: (id: string, body: unknown) => Promise<Result<WorkOrder, OrderError>>, extra?: z.ZodRawShape) =>
-    api.post(`/api/commands/${path}`, async (context) => {
-      const body = z.object({ orderId, ...extra }).safeParse(await context.req.json().catch(() => null));
+  const orderCommand = <Name extends OrderCommandName>(name: Name, run: (id: string, body: Payload<Name>) => Promise<Result<WorkOrder, OrderError>>) => {
+    const schema: z.ZodType<{ orderId: string }> = commands[name];
+    api.post(`/api/commands/${name}`, async (context) => {
+      const body = schema.safeParse(await context.req.json().catch(() => null));
       if (!body.success) return context.json({ error: "invalid request" }, 400);
 
-      const result = await run(body.data.orderId, body.data);
+      const result = await run(body.data.orderId, body.data as Payload<Name>);
       return result.ok
         ? context.json({ id: result.value.id, status: result.value.status })
         : context.json({ error: result.error.message }, STATUS_FOR[result.error.kind]);
     });
+  };
 
   orderCommand("sign-order", (id) => shop.orderService.sign(id));
   api.post("/api/commands/sign-plan", async (context) => {
-    const body = z.object({ plan: orderId }).safeParse(await context.req.json().catch(() => null));
+    const body = commands["sign-plan"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "invalid request" }, 400);
 
     const result = await shop.orderService.signPlan(body.data.plan);
@@ -195,15 +181,15 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     if (review?.verdict !== "changes_requested") return Promise.resolve({ ok: false as const, error: { kind: "invalid_transition" as const, message: `${id} has no requested changes to apply` } });
     return shop.flow.followUp(id, followUpFromReview(review));
   });
-  orderCommand("answer-question", (id, body) => shop.flow.answerQuestion(id, (body as { answer: string }).answer), { answer: text });
+  orderCommand("answer-question", (id, body) => shop.flow.answerQuestion(id, body.answer));
   orderCommand("start-now", (id) => shop.flow.startNow(id));
   orderCommand("review-order", async (id) => shop.flow.requestReview(id));
-  orderCommand("reassign-order", (id, body) => shop.flow.reassign(id, (body as { worker: string }).worker), { worker: roleName });
+  orderCommand("reassign-order", (id, body) => shop.flow.reassign(id, body.worker));
   orderCommand("stop-order", async (id) => shop.flow.stop(id));
   orderCommand("approve-protected-paths", (id) => shop.flow.approveProtected(id));
-  orderCommand("follow-up", (id, body) => shop.flow.followUp(id, (body as { text: string }).text), { text });
+  orderCommand("follow-up", (id, body) => shop.flow.followUp(id, body.text));
   orderCommand("discard-order", (id) => shop.flow.discard(id));
-  orderCommand("record-minutes", (id, body) => shop.orderService.recordMinutes(id, (body as { bucket: z.infer<typeof bucket> }).bucket), { bucket });
+  orderCommand("record-minutes", (id, body) => shop.orderService.recordMinutes(id, body.bucket));
 
   api.post("/api/commands/recheck", async (context) => {
     await shop.readiness.refresh();
@@ -211,7 +197,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   api.post("/api/commands/stop-run", async (context) => {
-    const body = z.object({ runId: z.string().regex(/^run_[0-9a-f-]+$/) }).safeParse(await context.req.json().catch(() => null));
+    const body = commands["stop-run"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "invalid request" }, 400);
 
     return (await shop.scheduler.cancel(body.data.runId)) ? context.json({ stopped: true }) : context.json({ error: "that run is not live" }, 409);
@@ -231,7 +217,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     ["resume-project", (id: string) => shop.control.resumeProject(id), false],
   ] as const) {
     api.post(`/api/commands/${path}`, async (context) => {
-      const body = z.object({ project: projectId }).safeParse(await context.req.json().catch(() => null));
+      const body = commands[path].safeParse(await context.req.json().catch(() => null));
       if (!body.success) return context.json({ error: "invalid request" }, 400);
       if (!shop.desk(body.data.project)) return context.json({ error: `no project ${body.data.project}` }, 404);
 
@@ -244,7 +230,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   api.post("/api/commands/register-project", async (context) => {
     if (!options.projects) return context.json({ error: NOT_MANAGED }, 409);
     const { registry, folder, policyRepos } = options.projects;
-    const body = registration.safeParse(await context.req.json().catch(() => null));
+    const body = commands["register-project"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: invalid(body.error) }, 400);
 
     let problem: string | null;
@@ -264,7 +250,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
 
   api.post("/api/commands/describe-project", async (context) => {
     if (!options.projects) return context.json({ error: NOT_MANAGED }, 409);
-    const body = profile.safeParse(await context.req.json().catch(() => null));
+    const body = commands["describe-project"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: invalid(body.error) }, 400);
     const { project, name, description } = body.data;
     const desk = shop.desk(project);
@@ -278,17 +264,16 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   api.post("/api/commands/set-preference", async (context) => {
-    const body = preference.safeParse(await context.req.json().catch(() => null));
+    const body = commands["set-preference"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: "invalid request" }, 400);
 
     const result = await setPreference(shop.log, shop.preferences, body.data.key, body.data.value);
     return result.ok ? context.json({ key: body.data.key, value: body.data.value }) : context.json({ error: result.error.message }, result.error.kind === "too_large" ? 413 : 409);
   });
 
-  const changeId = z.string().regex(/^chg_[0-9a-f-]+$/);
-  const teamCommand = (path: string, run: (id: string) => Promise<Result<TeamChange, TeamError>>) =>
+  const teamCommand = (path: "sign-team-change" | "discard-team-change", run: (id: string) => Promise<Result<TeamChange, TeamError>>) =>
     api.post(`/api/commands/${path}`, async (context) => {
-      const body = z.object({ changeId }).safeParse(await context.req.json().catch(() => null));
+      const body = commands[path].safeParse(await context.req.json().catch(() => null));
       if (!body.success) return context.json({ error: "invalid request" }, 400);
 
       const result = await run(body.data.changeId);
@@ -298,7 +283,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     });
 
   api.post("/api/commands/set-focus", async (context) => {
-    const body = z.object({ project: projectId, role: roleName, focus: z.string().trim().min(3).max(MAX_FOCUS) }).safeParse(await context.req.json().catch(() => null));
+    const body = commands["set-focus"].safeParse(await context.req.json().catch(() => null));
     if (!body.success) return context.json({ error: invalid(body.error) }, 400);
     const desk = shop.desk(body.data.project);
     if (!desk) return context.json({ error: `no project ${body.data.project}` }, 404);
@@ -311,13 +296,12 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   teamCommand("sign-team-change", (id) => serviceOf(id).sign(id));
   teamCommand("discard-team-change", (id) => serviceOf(id).discard(id));
 
-  const briefingId = z.string().regex(/^brf_[0-9a-f-]+$/);
   for (const [path, run] of [
     ["sign-briefing-change", (id: string) => shop.briefingService.sign(id)],
     ["discard-briefing-change", (id: string) => shop.briefingService.discard(id)],
   ] as const) {
     api.post(`/api/commands/${path}`, async (context) => {
-      const body = z.object({ changeId: briefingId }).safeParse(await context.req.json().catch(() => null));
+      const body = commands[path].safeParse(await context.req.json().catch(() => null));
       if (!body.success) return context.json({ error: "invalid request" }, 400);
 
       const result = await run(body.data.changeId);
@@ -328,7 +312,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   if (options.devTools) {
     const { mergePullRequest } = options.devTools;
     api.post("/api/dev/merge-pull-request", async (context) => {
-      const body = z.object({ orderId }).safeParse(await context.req.json().catch(() => null));
+      const body = commands["merge-pull-request"].safeParse(await context.req.json().catch(() => null));
       if (!body.success) return context.json({ error: "invalid request" }, 400);
       return (await mergePullRequest(body.data.orderId)) ? context.json({ merged: true }) : context.json({ error: "no open pull request for that order" }, 404);
     });
