@@ -30,6 +30,7 @@ import { OrderDetail } from "./ui/OrderDetail";
 import { AgentDesk } from "./ui/AgentDesk";
 import { useUnreadReplies } from "./application/unread";
 import { usd } from "./ui/format";
+import { announceArrival } from "./ui/arrival";
 import { StudioCustomizer } from "./ui/StudioCustomizer";
 import {
   projectStudio,
@@ -88,7 +89,13 @@ const projectKey = "skynot.project";
 const sidebarKey = "skynot.sidebar";
 const simulatedNoticeKey = "skynot.simulated-notice";
 const DIRECTORS_PAUSE = "paused by the director";
-type Notice = { text: string; failed: boolean; shown: boolean };
+// A failure is announced where it first shows; shown again somewhere else it is the same notice, not a second alert.
+type Failure = {
+  id: number;
+  text: string;
+  repeated: boolean;
+  announcedIn: Dialog | "elsewhere";
+};
 
 export function App() {
   const { office, connect, disconnect } = useOffice();
@@ -160,15 +167,22 @@ function Console({
   );
   const [unsaved, setUnsaved] = useState(nothingUnsaved);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<Notice>({
-    text: "",
-    failed: false,
-    shown: false,
-  });
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+  const [failure, setFailure] = useState<Failure | null>(null);
+  const [confirmation, setConfirmation] = useState("");
+  const confirmationTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
   const toastRef = useRef<HTMLDivElement>(null);
+  const latestDialog = useRef(dialog);
+  latestDialog.current = dialog;
+  useEffect(() => {
+    setFailure((current) =>
+      current && current.announcedIn !== dialog
+        ? { ...current, announcedIn: "elsewhere" }
+        : current,
+    );
+  }, [dialog]);
+  useEffect(() => toastRef.current?.showPopover(), []);
   const [, setMinute] = useState(0);
   useEffect(() => {
     const tick = setInterval(() => setMinute((value) => value + 1), 60_000);
@@ -196,21 +210,28 @@ function Console({
   const studioSettings = project
     ? projectStudio(studioAppearance, project.id)
     : defaultStudioPreferences;
-  const dismissNotice = () =>
-    setNotice((current) => ({ ...current, shown: false }));
-  function notify(text: string, failed = false) {
-    clearTimeout(noticeTimer.current);
-    setNotice({ text, failed, shown: true });
-    if (!failed) noticeTimer.current = setTimeout(dismissNotice, 5000);
+  function acknowledge(text: string) {
+    clearTimeout(confirmationTimer.current);
+    setConfirmation(text);
+    confirmationTimer.current = setTimeout(() => setConfirmation(""), 5000);
+  }
+  function fail(text: string) {
+    setFailure((current) => ({
+      id: (current?.id ?? 0) + 1,
+      text,
+      repeated: current !== null,
+      announcedIn: latestDialog.current,
+    }));
   }
   async function send(command: Command) {
     if (busy) return false;
     setBusy(true);
     try {
       await gateway.send(command);
+      setFailure(null);
       return true;
     } catch (cause) {
-      notify(failureOf(cause), true);
+      fail(failureOf(cause));
       return false;
     } finally {
       setBusy(false);
@@ -232,16 +253,17 @@ function Console({
     saved: string,
   ) {
     if (!command) {
-      notify("The service cannot store a look under this id.", true);
+      fail("The service cannot store a look under this id.");
       return;
     }
+    const sender = dialog;
     setUnsaved((current) => ({
       appearance: { ...current.appearance, ...look.appearance },
       studio: { ...current.studio, ...look.studio },
     }));
     if (await send(command)) {
-      closeOver();
-      notify(saved);
+      if (latestDialog.current === sender) closeOver();
+      acknowledge(saved);
     } else setUnsaved(nothingUnsaved);
   }
   const selectedAgent =
@@ -329,36 +351,26 @@ function Console({
         ]
       : []),
   ];
-  // A modal makes everything outside it inert, so the notice is shown inside the one that is open.
-  const overModal =
+  // A dialog covers the page or makes it inert, so a failure is shown inside the one that is open.
+  const dialogShown =
     dialog?.kind === "register" ||
     Boolean(
-      project && (dialog?.kind === "studio" || selectedAgent || selectedOrder),
+      project &&
+        dialog &&
+        (dialog.kind === "agent"
+          ? selectedAgent
+          : dialog.kind === "order"
+            ? selectedOrder
+            : true),
     );
-  useEffect(() => {
-    const element = toastRef.current;
-    if (!element || element.matches(":popover-open") === notice.shown) return;
-    if (notice.shown) element.showPopover();
-    else element.hidePopover();
-  });
-  const toast = (
-    <div
-      id="toast"
-      ref={toastRef}
-      popover="manual"
-      role={notice.failed ? "alert" : "status"}
-    >
-      {notice.text}
-      {notice.failed && (
-        <button
-          class="toast-close"
-          aria-label="Dismiss this notice"
-          onClick={dismissNotice}
-        >
-          <Icon name="close" />
-        </button>
-      )}
-    </div>
+  const failureNotice = failure && (
+    <FailureNotice
+      key={failure.id}
+      text={failure.text}
+      announced={failure.announcedIn === dialog}
+      glows={failure.repeated}
+      onDismiss={() => setFailure(null)}
+    />
   );
   // The sidebar is a set of shortcuts: the office stays where it is and each entry opens over it.
   const panelOfEntry: Partial<Record<Tab, Panel["kind"]>> = {
@@ -691,8 +703,9 @@ function Console({
         </div>
       </aside>
       <main>
-        {snapshot && (
+        {(snapshot || failure) && (
           <div class="shell-banners">
+            {!dialogShown && failureNotice}
             {alerts
               .filter((alert) => !dismissed.includes(alert.key))
               .map((alert) => (
@@ -797,6 +810,7 @@ function Console({
         )}
         {dialog?.kind === "studio" && project && (
           <Modal
+            notice={failureNotice}
             title="A place for this project."
             eyebrow={`${project.name.toUpperCase()} · STUDIO STYLE`}
             onClose={() => setDialog(null)}
@@ -806,6 +820,7 @@ function Console({
               project={project}
               appearance={appearance}
               settings={studioSettings}
+              busy={busy}
               onSave={(value) =>
                 void savePreference(
                   studioPreference(project.id, value),
@@ -814,11 +829,11 @@ function Console({
                 )
               }
             />
-            {toast}
           </Modal>
         )}
         {dialog?.kind === "register" && (
           <Modal
+            notice={failureNotice}
             title="Bring a repository in."
             eyebrow="WORKSPACE · NEW PROJECT"
             onClose={() => setDialog(null)}
@@ -828,11 +843,11 @@ function Console({
               busy={busy}
               onClose={() => setDialog(null)}
             />
-            {toast}
           </Modal>
         )}
         {dialog?.kind === "board" && project && (
           <Modal
+            notice={failureNotice}
             title="Work orders."
             eyebrow={`${project.name.toUpperCase()} · THE BOARD`}
             onClose={() => setDialog(null)}
@@ -843,6 +858,7 @@ function Console({
         )}
         {dialog?.kind === "context" && project && snapshot && (
           <Modal
+            notice={failureNotice}
             title="What the team knows."
             eyebrow={`${project.name.toUpperCase()} · CONTEXT`}
             onClose={() => setDialog(null)}
@@ -858,6 +874,7 @@ function Console({
         )}
         {dialog?.kind === "agents" && project && (
           <Modal
+            notice={failureNotice}
             title="The right team."
             eyebrow={`${project.name.toUpperCase()} · AGENTS`}
             onClose={() => setDialog(null)}
@@ -875,6 +892,7 @@ function Console({
         )}
         {dialog?.kind === "costs" && project && snapshot && (
           <Modal
+            notice={failureNotice}
             title="What it takes."
             eyebrow={`${project.name.toUpperCase()} · STATS AND COSTS`}
             onClose={() => setDialog(null)}
@@ -886,6 +904,7 @@ function Console({
         )}
         {dialog?.kind === "activity" && project && (
           <Modal
+            notice={failureNotice}
             title="What happened."
             eyebrow={`${project.name.toUpperCase()} · ACTIVITY`}
             onClose={() => setDialog(null)}
@@ -902,6 +921,7 @@ function Console({
         )}
         {selectedAgent && project && (
           <Modal
+            notice={failureNotice}
             title="At their desk."
             eyebrow={`${project.name.toUpperCase()} · ${selectedAgent.role.toUpperCase()}`}
             onClose={closeOver}
@@ -956,11 +976,11 @@ function Console({
                 />
               }
             />
-            {toast}
           </Modal>
         )}
         {selectedOrder && snapshot && project && (
           <Modal
+            notice={failureNotice}
             title={selectedOrder.title}
             eyebrow={`${project.name.toUpperCase()} · ${selectedOrder.id}`}
             onClose={closeOver}
@@ -973,11 +993,45 @@ function Console({
               send={send}
               busy={busy}
             />
-            {toast}
           </Modal>
         )}
       </main>
-      {!overModal && toast}
+      <div id="toast" ref={toastRef} popover="manual" role="status">
+        {confirmation || null}
+      </div>
+    </div>
+  );
+}
+
+function FailureNotice({
+  text,
+  announced,
+  glows,
+  onDismiss,
+}: {
+  text: string;
+  announced: boolean;
+  glows: boolean;
+  onDismiss: () => void;
+}) {
+  const notice = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (announced && glows) announceArrival(notice.current);
+  }, []);
+  return (
+    <div
+      class="failure-notice"
+      role={announced ? "alert" : undefined}
+      ref={notice}
+    >
+      <span>{text}</span>
+      <button
+        class="toast-close"
+        aria-label="Dismiss this notice"
+        onClick={onDismiss}
+      >
+        <Icon name="close" />
+      </button>
     </div>
   );
 }

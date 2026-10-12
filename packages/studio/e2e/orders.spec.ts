@@ -1,37 +1,28 @@
 import type { Locator, Page } from "@playwright/test";
-import { StateSchema, commandPath, type Order, type State } from "@skynot/contract";
-import { answerInChat, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, tellTheManager, test } from "./support";
+import { commandPath, type Order, type State } from "@skynot/contract";
+import { dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, orderToSign, paintsOnTop, stageState, tellTheManager, test } from "./support";
 
 const PROJECT = "alpha";
 const TURN = { timeout: 20_000 };
 const UNBROKEN = "W".repeat(80);
 const AT = "2026-01-01T00:00:00.000Z";
+const REFUSAL = "the daily cost cap of $10.00 was reached ($10.02 spent), so nothing new is signed until the cap is raised in policy.yaml or the day ends";
 
 const desk = (page: Page) => page.getByRole("region", { name: "Decision desk" });
 const boardColumn = (page: Page, stage: string) =>
   page.locator("section").filter({ has: page.getByRole("heading", { name: stage, level: 3 }) }).last();
 const panel = (page: Page, title: string) => page.locator("section").filter({ has: page.getByText(title, { exact: true }) }).last();
 
-// The simulated shop never has a run in progress, a review with findings or a title that long: the real answer is rewritten on its way to the studio.
-async function stage(page: Page, change: (state: State) => void): Promise<void> {
-  await page.route("**/api/state*", async (route) => {
-    const response = await route.fetch();
-    const state = StateSchema.parse(await response.json());
+// The simulated shop never has a run in progress, a review with findings or a title that long, so those are staged, and only for this spec's project.
+const stage = (page: Page, change: (state: State) => void) =>
+  stageState(page, (state) => {
     if (state.project.id === PROJECT) change(state);
-    await route.fulfill({ response, json: StateSchema.parse(state) });
   });
-}
 
 const stageOrder = (page: Page, orderId: string, changes: Partial<Order>) =>
   stage(page, (state) => {
     Object.assign(state.orders.find((order) => order.id === orderId)!, changes);
   });
-
-// Read from the office, so a case does not lean on the one before it having run in the same worker.
-async function proposedOrder(page: Page): Promise<string> {
-  const state = StateSchema.parse(await (await page.request.get(`/api/state?project=${PROJECT}`)).json());
-  return state.orders.findLast((order) => order.status === "awaiting_signature")!.id;
-}
 
 async function boxOf(locator: Locator) {
   await locator.scrollIntoViewIfNeeded();
@@ -51,7 +42,8 @@ test.describe.serial("a work order on every surface that shows it", () => {
   let orderId = "";
 
   test.beforeEach(async ({ page }, info) => {
-    if (!info.title.startsWith("an option in the chat")) orderId = await proposedOrder(page);
+    // The first case files its order through the chat; every other one finds an order to sign or has the office file one.
+    if (!info.title.startsWith("an option in the chat")) orderId = await orderToSign(page, PROJECT);
   });
 
   test("an option in the chat fills the answer, and the director sends it", async ({ page }) => {
@@ -76,7 +68,7 @@ test.describe.serial("a work order on every surface that shows it", () => {
 
     const card = chat.locator(".chat-order").last();
     await expect(card.getByRole("button", { name: "Sign", exact: true })).toBeVisible(TURN);
-    await expect(card).toContainText(await proposedOrder(page));
+    await expect(card).toContainText(await orderToSign(page, PROJECT));
   });
 
   test("a row of work in motion says the order's status in words and opens the order", async ({ page }) => {
@@ -135,7 +127,10 @@ test.describe.serial("a work order on every surface that shows it", () => {
   }
 
   test("an order being worked right now says so on its card and in its detail", async ({ page }) => {
-    await stageOrder(page, orderId, { status: "on_bench", working: true, signedAt: AT });
+    await stage(page, (state) => {
+      Object.assign(state.orders.find((order) => order.id === orderId)!, { status: "on_bench", working: true, signedAt: AT });
+      state.presence.working.push({ runId: "run_staged", role: "developer", engine: "claude", orderId, since: AT });
+    });
     await openProject(page, PROJECT);
     await openView(page, "Work orders");
     const card = boardColumn(page, "On the bench").getByRole("button", { name: orderId });
@@ -144,6 +139,31 @@ test.describe.serial("a work order on every surface that shows it", () => {
     await card.click();
     await expect(dialog(page).getByText("On the bench · working", { exact: true })).toBeVisible();
     await expect(dialog(page).getByRole("button", { name: "Stop" })).toBeVisible();
+  });
+
+  test("an order being worked says so on one line of its card with five columns on the board, and in the costs", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await stage(page, (state) => {
+      const order = state.orders.find((candidate) => candidate.id === orderId)!;
+      Object.assign(order, { status: "on_bench", working: true, signedAt: AT, spentUsd: 1.5 });
+      state.orders.push({ ...order, id: "WO-9999", status: "discarded", working: false });
+      state.presence.working.push({ runId: "run_staged", role: "developer", engine: "claude", orderId, since: AT });
+    });
+    await openProject(page, PROJECT);
+    await openView(page, "Work orders");
+    await expect(dialog(page).getByRole("heading", { name: "Discarded", level: 3 })).toBeVisible();
+    const card = boardColumn(page, "On the bench").getByRole("button", { name: orderId });
+    const chip = card.getByText("On the bench · working", { exact: true });
+    const lines = await chip.evaluate((element) => {
+      const text = document.createRange();
+      text.selectNodeContents(element);
+      return text.getClientRects().length;
+    });
+    expect(lines).toBe(1);
+    await expectInside(chip, card);
+
+    await openView(page, "Costs");
+    await expect(dialog(page).getByRole("row").filter({ hasText: orderId })).toContainText("On the bench · working");
   });
 
   test("the detail lines its criteria up with their heading and gives a failing check its own line", async ({ page }) => {
@@ -201,6 +221,30 @@ test.describe.serial("a work order on every surface that shows it", () => {
     await expect(panel(page, "In the studio")).toContainText("What the team does will land here as it happens.");
     await expect(page.getByText("PRESENCE", { exact: true })).toHaveCount(0);
   });
+
+  for (const [width, height] of [[390, 844], [1440, 900]] as const) {
+    test(`a signature the office refuses is said inside the order, and leaves Sign and Discard to click at ${width}`, async ({ page, browserErrors }) => {
+      await page.setViewportSize({ width, height });
+      await stageOrder(page, orderId, { approach: Array.from({ length: 14 }, (_, step) => `Step ${step + 1} of the long way round the footer.`) });
+      await page.route(`**${commandPath("sign-order")}`, (route) => route.fulfill({ status: 409, json: { error: REFUSAL } }));
+      await openProject(page, PROJECT);
+      await openView(page, "Work orders");
+      await boardColumn(page, "To sign").getByRole("button", { name: orderId }).click();
+      const detail = dialog(page);
+      await detail.getByRole("button", { name: "Sign", exact: true }).click();
+
+      const refusal = detail.getByRole("alert").filter({ hasText: `The office refused: ${REFUSAL}.` });
+      await expect(refusal).toBeVisible();
+      for (const name of ["Sign", "Discard"]) {
+        const control = detail.getByRole("button", { name, exact: true });
+        await control.scrollIntoViewIfNeeded();
+        expect(await paintsOnTop(control), `${name} takes the click`).toBe(true);
+        await expect(refusal).toBeInViewport();
+        expect(await paintsOnTop(refusal)).toBe(true);
+      }
+      expect(browserErrors.splice(0)).toEqual([expect.stringContaining("409")]);
+    });
+  }
 
   test("discard stands apart from sign in the detail, and one click is final", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });

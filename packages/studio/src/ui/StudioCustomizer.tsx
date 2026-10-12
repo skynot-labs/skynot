@@ -23,11 +23,13 @@ export function StudioCustomizer({
   project,
   appearance,
   settings,
+  busy,
   onSave,
 }: {
   project: Project;
   appearance: Appearance;
   settings: StudioPreferences;
+  busy: boolean;
   onSave: (value: StudioPreferences) => void;
 }) {
   const [draft, setDraft] = useState({ ...settings });
@@ -239,7 +241,11 @@ export function StudioCustomizer({
           >
             Reset studio
           </button>
-          <button class="primary-button" onClick={() => onSave(draft)}>
+          <button
+            class="primary-button"
+            disabled={busy}
+            onClick={() => onSave(draft)}
+          >
             Save style
             <Icon name="check" />
           </button>

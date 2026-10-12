@@ -1,4 +1,5 @@
 import { expect, test as base, type Locator, type Page } from "@playwright/test";
+import { StateSchema, commandPath, type State } from "@skynot/contract";
 
 export type ProjectView = "The studio" | "Decisions" | "Work orders" | "Agents" | "Activity" | "Context" | "Costs";
 
@@ -80,4 +81,31 @@ export async function paintsOnTop(notice: Locator): Promise<boolean> {
     const box = element.getBoundingClientRect();
     return element.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
   });
+}
+
+// The simulated shop is not in every state a spec needs: the office's answer is rewritten on its way to the studio, and refused when it is no longer one an office could send.
+export async function stageState(page: Page, mutate: (state: State) => void): Promise<void> {
+  await page.route("**/api/state*", async (route) => {
+    const response = await route.fetch();
+    const state = StateSchema.parse(await response.json());
+    mutate(state);
+    await route.fulfill({ response, json: StateSchema.parse(state) });
+  });
+}
+
+// Asked of the office itself, so a case has an order to sign whichever case ran before it, or none.
+export async function orderToSign(page: Page, project: string): Promise<string> {
+  const turn = { timeout: 20_000 };
+  const state = async () => StateSchema.parse(await (await page.request.get(`/api/state?project=${project}`)).json());
+  const waiting = async () => (await state()).orders.findLast((order) => order.status === "awaiting_signature")?.id ?? "";
+  const found = await waiting();
+  if (found) return found;
+
+  const asked = (await state()).decisions.length;
+  await page.request.post(commandPath("send-message"), { data: { text: "Tidy the invoice footer", project } });
+  await expect.poll(async () => (await state()).decisions.length, turn).toBeGreaterThan(asked);
+  const question = (await state()).decisions.at(-1)!;
+  await page.request.post(commandPath("answer-decision"), { data: { decisionId: question.id, answer: question.options[0] } });
+  await expect.poll(waiting, turn).not.toBe("");
+  return waiting();
 }

@@ -23,7 +23,8 @@ button {
   border: 0;
   color: inherit;
 }
-button:disabled {
+button:disabled,
+button[aria-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.4;
 }
@@ -739,31 +740,42 @@ select {
   font-size: 12px;
   text-align: center;
   color: var(--text);
-  opacity: 0;
-  transition:
-    opacity var(--sk-motion-fast),
-    display var(--sk-motion-fast) allow-discrete,
-    overlay var(--sk-motion-fast) allow-discrete;
+  pointer-events: none;
+  transition: opacity var(--sk-motion-fast);
 }
-#toast:popover-open {
+#toast:empty {
+  opacity: 0;
+  transition: none;
+}
+.failure-notice {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  opacity: 1;
+  background: #36313f;
+  border: 1px solid #61586f;
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
 }
-@starting-style {
-  #toast:popover-open {
-    opacity: 0;
-  }
+dialog > .failure-notice {
+  position: sticky;
+  top: -18px;
+  z-index: 1;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 30px #0005;
 }
-#toast .toast-close {
+.failure-notice .toast-close {
   display: flex;
+  flex-shrink: 0;
   padding: 6px;
   margin: -6px 0;
   color: inherit;
   background: transparent;
 }
-#toast .toast-close svg {
+.failure-notice .toast-close svg {
   width: 13px;
   height: 13px;
 }

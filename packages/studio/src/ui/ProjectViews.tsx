@@ -25,7 +25,6 @@ import {
   agentStatus,
   ago,
   dayTime,
-  orderStatus,
   runOutcome,
   tokenCount,
   usd,
@@ -479,9 +478,7 @@ export function UsageView({
                             <small>{o.id}</small>
                           </td>
                           <td>
-                            <span class={`status-chip ${o.status}`}>
-                              {orderStatus[o.status]}
-                            </span>
+                            <OrderChip order={o} />
                           </td>
                           <td>{o.worker ?? "developer"}</td>
                           <td>{usd(o.spentUsd)}</td>

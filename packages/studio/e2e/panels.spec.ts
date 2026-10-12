@@ -1,18 +1,10 @@
 import type { Locator, Page } from "@playwright/test";
-import { StateSchema, type State } from "@skynot/contract";
-import { dialog, expect, openProject, openView, test } from "./support";
+import { dialog, expect, openProject, openView, stageState, test } from "./support";
 
 const sidebar = (page: Page): Locator => page.getByRole("complementary");
 const roster = (page: Page): Locator => page.getByRole("region", { name: "Project team" });
 const panel = (page: Page, title: string): Locator => page.locator("section").filter({ has: page.getByText(title, { exact: true }) }).last();
 const followsTheStudio = (page: Page): Locator => dialog(page).getByLabel("Follow the studio wardrobe");
-
-async function stageState(page: Page, change: (state: State) => State): Promise<void> {
-  await page.route("**/api/state*", async (route) => {
-    const response = await route.fetch();
-    await route.fulfill({ response, json: StateSchema.parse(change(StateSchema.parse(await response.json()))) });
-  });
-}
 
 async function openLook(page: Page): Promise<void> {
   await openProject(page, "beta");
@@ -36,6 +28,18 @@ test.describe("a dialog and what was typed in it", () => {
     await page.mouse.click(5, 5);
     await expect(dialog(page).getByLabel("ID", { exact: true })).toHaveValue("gamma");
     await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeHidden();
+  });
+
+  test("a click outside closes a form again once what was typed in it is gone", async ({ page }) => {
+    await page.goto("/");
+    await sidebar(page).getByRole("button", { name: "Register a project" }).click();
+    await dialog(page).getByLabel("ID", { exact: true }).pressSequentially("gamma");
+    await page.mouse.click(5, 5);
+    await expect(dialog(page)).toBeVisible();
+
+    await dialog(page).getByLabel("ID", { exact: true }).fill("");
+    await page.mouse.click(5, 5);
     await expect(dialog(page)).toBeHidden();
   });
 });
@@ -80,10 +84,9 @@ test.describe("an agent's look", () => {
 
 test.describe("the setup card", () => {
   test("a fix shows its command as code, without the backticks", async ({ page }) => {
-    await stageState(page, (state) => ({
-      ...state,
-      readiness: [{ check: "codex", level: "fail", detail: "The codex CLI is not installed.", fix: "Run `npm i -g @openai/codex`." }],
-    }));
+    await stageState(page, (state) => {
+      state.readiness = [{ check: "codex", level: "fail", detail: "The codex CLI is not installed.", fix: "Run `npm i -g @openai/codex`." }];
+    });
     await openProject(page, "beta");
     await openView(page, "Context");
     const setup = panel(page, "Setup");
@@ -92,7 +95,9 @@ test.describe("the setup card", () => {
   });
 
   test("with no checks run, the card says how to run them", async ({ page }) => {
-    await stageState(page, (state) => ({ ...state, readiness: [] }));
+    await stageState(page, (state) => {
+      state.readiness = [];
+    });
     await openProject(page, "beta");
     await openView(page, "Context");
     const setup = panel(page, "Setup");
@@ -102,12 +107,11 @@ test.describe("the setup card", () => {
 });
 
 test("an activity filter that matches nothing names itself and gives everything back", async ({ page }) => {
-  await stageState(page, (state) => ({
-    ...state,
-    activity: [
+  await stageState(page, (state) => {
+    state.activity = [
       { sequence: 1, at: "2026-01-05T10:00:00.000Z", orderId: null, projectId: "beta", role: null, by: "director", kind: "order", text: "The director signed the first order.", url: null },
-    ],
-  }));
+    ];
+  });
   await openProject(page, "beta");
   await openView(page, "Activity");
   const kind = dialog(page).getByLabel("Filter the activity by kind");

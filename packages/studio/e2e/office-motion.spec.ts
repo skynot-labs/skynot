@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { floorPoint, officeLayout } from "../src/ui/office-layout";
-import { closeDialog, dialog, expect, openProject, openView, test } from "./support";
+import { closeDialog, dialog, expect, openProject, openView, stageState, test } from "./support";
 
 declare global {
   interface Window {
@@ -36,14 +36,11 @@ function recordGlows() {
   };
 }
 
-// Snow falls for as long as the office is alive, whatever the team is doing; the shop's own state is left alone.
-async function snowIn(page: Page, project: string): Promise<void> {
-  await page.route("**/api/state*", async (route) => {
-    const response = await route.fetch();
-    const state = await response.json();
-    await route.fulfill({ response, json: { ...state, preferences: { ...state.preferences, [`studio/${project}`]: { season: "winter" } } } });
+// Snow falls across the whole office for as long as it is alive, whatever the team is doing; with no season nothing does. The shop's own state is left alone.
+const seasonIn = (page: Page, project: string, season: "winter" | "neutral") =>
+  stageState(page, (state) => {
+    state.preferences[`studio/${project}`] = { ...state.preferences[`studio/${project}`], season };
   });
-}
 
 const stage = (page: Page) => page.locator(".office-stage canvas");
 
@@ -84,7 +81,7 @@ test.describe("an office that is alive", () => {
   test("the director holds the office still and wakes it, and the browser remembers which", async ({ page }) => {
     test.slow();
     await page.addInitScript(countDraws);
-    await snowIn(page, "alpha");
+    await seasonIn(page, "alpha", "winter");
     await liveOffice(page, "alpha");
     const hold = page.getByRole("button", { name: "Hold the office still" });
     await expect(hold).toHaveAttribute("aria-pressed", "false");
@@ -94,7 +91,7 @@ test.describe("an office that is alive", () => {
     await expect(hold).toHaveAttribute("aria-pressed", "true");
     await page.mouse.move(2, 2);
     await expect.poll(() => moves(page), PATIENT).toBe(false);
-    expect(await drawsIn(page, 1000)).toBe(0);
+    await expect.poll(() => drawsIn(page, 1000), PATIENT).toBe(0);
 
     await liveOffice(page, "alpha");
     await expect(hold).toHaveAttribute("aria-pressed", "true");
@@ -109,13 +106,13 @@ test.describe("an office that is alive", () => {
   test("asking the system for less motion while the office is open stills it, and taking that back wakes it", async ({ page }) => {
     test.slow();
     await page.addInitScript(countDraws);
-    await snowIn(page, "alpha");
+    await seasonIn(page, "alpha", "winter");
     await liveOffice(page, "alpha");
     await expect.poll(() => moves(page), PATIENT).toBe(true);
 
     await page.emulateMedia({ reducedMotion: "reduce" });
     await expect.poll(() => moves(page), PATIENT).toBe(false);
-    expect(await drawsIn(page, 1000)).toBe(0);
+    await expect.poll(() => drawsIn(page, 1000), PATIENT).toBe(0);
 
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await expect.poll(() => moves(page), PATIENT).toBe(true);
@@ -123,28 +120,47 @@ test.describe("an office that is alive", () => {
 
   test("the light under what can be opened holds steady while the office lives around it", async ({ page }) => {
     test.slow();
+    await seasonIn(page, "alpha", "neutral");
     await liveOffice(page, "alpha");
+    // The board stands outside the room's front edge: nobody walks under it, and with no season nothing falls across it.
     const [x, y] = await at(page, FLOOR_UNDER_THE_BOARD);
     const light = async () => (await page.screenshot({ clip: { x: x - 4, y: y - 2, width: 8, height: 4 } })).toString("base64");
-    const seen = new Set<string>();
-    for (let sample = 0; sample < 4; sample++) {
-      seen.add(await light());
-      await page.waitForTimeout(500);
-    }
-    expect(seen.size).toBe(1);
+    let steady = "";
+    await expect(async () => {
+      const seen = new Set<string>();
+      for (let sample = 0; sample < 4; sample++) {
+        seen.add(await light());
+        await page.waitForTimeout(500);
+      }
+      expect(seen.size).toBe(1);
+      [steady = ""] = seen;
+    }).toPass(PATIENT);
 
     await page.mouse.move(...(await at(page, BOARD)));
-    await expect.poll(light, PATIENT).not.toBe([...seen][0]);
+    await expect.poll(light, PATIENT).not.toBe(steady);
   });
 });
 
 test.describe("an office held still", () => {
+  test("says the system is what holds it, and gives the control back when the system lets go", async ({ page }) => {
+    await liveOffice(page, "alpha");
+    const hold = page.getByRole("button", { name: "Hold the office still" });
+    await expect(hold).toHaveAttribute("aria-pressed", "true");
+    await expect(hold).toBeDisabled();
+    await expect(hold).toHaveAttribute("title", "Your system asks for less motion, which holds the office still");
+
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expect(hold).toBeEnabled();
+    await expect(hold).toHaveAttribute("aria-pressed", "false");
+    await expect(hold).toHaveAttribute("title", "Hold the office still");
+  });
+
   test("draws nothing on its own, and still answers the pointer and the camera", async ({ page }) => {
     test.slow();
     await page.addInitScript(countDraws);
     await liveOffice(page, "alpha");
     await expect.poll(() => moves(page), PATIENT).toBe(false);
-    expect(await drawsIn(page, 1500)).toBe(0);
+    await expect.poll(() => drawsIn(page, 1500), PATIENT).toBe(0);
     const [rest] = await frames(page, 1, 0);
 
     await page.mouse.move(...(await at(page, BOARD)));
@@ -160,8 +176,8 @@ test.describe("an office held still", () => {
     await expect.poll(async () => (await frames(page, 1, 0))[0], PATIENT).not.toBe(rest);
     await page.mouse.dblclick(...corner);
     await page.mouse.move(2, 2);
-    expect((await frames(page, 1, 0))[0]).toBe(rest);
-    expect(await drawsIn(page, 1000)).toBe(0);
+    await expect.poll(async () => (await frames(page, 1, 0))[0], PATIENT).toBe(rest);
+    await expect.poll(() => drawsIn(page, 1000), PATIENT).toBe(0);
   });
 });
 

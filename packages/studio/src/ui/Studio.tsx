@@ -31,6 +31,7 @@ import { ago, agentStatus } from "./format";
 export type DockCard = "decisions" | "manager";
 
 const stillKey = "skynot.office-still";
+const LESS_MOTION = "(prefers-reduced-motion: reduce)";
 
 function rememberedStill(): boolean {
   try {
@@ -106,6 +107,15 @@ export function StudioHero({
   const [still, setStill] = useState(rememberedStill);
   const latestStill = useRef(still);
   latestStill.current = still;
+  const [lessMotion, setLessMotion] = useState(
+    () => matchMedia(LESS_MOTION).matches,
+  );
+  useEffect(() => {
+    const preference = matchMedia(LESS_MOTION);
+    const follow = () => setLessMotion(preference.matches);
+    preference.addEventListener("change", follow);
+    return () => preference.removeEventListener("change", follow);
+  }, []);
   function holdStill(next: boolean) {
     setStill(next);
     try {
@@ -174,9 +184,7 @@ export function StudioHero({
   function openDesk(tab?: "questions" | "signatures") {
     onDock("decisions");
     inbox.current?.scrollIntoView({
-      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "instant"
-        : "smooth",
+      behavior: lessMotion ? "instant" : "smooth",
       block: "nearest",
     });
     if (!tab) return;
@@ -275,11 +283,18 @@ export function StudioHero({
             {live && (
               <button
                 onClick={() => holdStill(!still)}
-                aria-pressed={still}
+                aria-pressed={still || lessMotion}
+                disabled={lessMotion}
                 aria-label="Hold the office still"
-                title={still ? "Wake the office" : "Hold the office still"}
+                title={
+                  lessMotion
+                    ? "Your system asks for less motion, which holds the office still"
+                    : still
+                      ? "Wake the office"
+                      : "Hold the office still"
+                }
               >
-                <Icon name={still ? "play" : "pause"} />
+                <Icon name={still || lessMotion ? "play" : "pause"} />
               </button>
             )}
           </div>
