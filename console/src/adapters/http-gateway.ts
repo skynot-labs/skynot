@@ -1,8 +1,8 @@
+import { MetaSchema, RefusalSchema, StateSchema, StreamEventSchema, commandPath, type Meta } from "@skynot/contract";
 import type { Connection } from "../application/connection";
 import { config, defaultAvatar } from "../config";
 import type { Agent, AgentStatus, Command, Project, ProjectSummary, ShopState, Snapshot } from "../contracts";
 
-const DEV_COMMANDS: ReadonlySet<Command["name"]> = new Set(["merge-pull-request"]);
 const DEBOUNCE_MS = 60;
 const RECONNECT_MS = 2000;
 
@@ -87,21 +87,14 @@ function kindOf(state: ShopState, role: string): Agent["kind"] {
   return doesOrders ? "worker" : "advisor";
 }
 
-// The state is typed from the service's own code, so it only fails to map when the two were built from different versions.
-function readSnapshot(state: unknown): Snapshot {
-  try {
-    return mapState(state as ShopState);
-  } catch {
-    throw new Error("The console and the service are different versions. Run `npm run build:console` and restart the service.");
-  }
+function readSnapshot(body: unknown): Snapshot {
+  const state = StateSchema.safeParse(body);
+  if (state.success) return mapState(state.data);
+  const where = state.error.issues[0]?.path.join(".") || "the whole answer";
+  throw new Error(`The studio and the office are different versions: the state is not what this studio expects at \`${where}\`. Update whichever is older.`);
 }
 
 export class Unauthorized extends Error {}
-
-export interface OfficeMeta {
-  contract: number;
-  requiresSession: boolean;
-}
 
 export class HttpGateway {
   private cursor = 0;
@@ -112,16 +105,14 @@ export class HttpGateway {
     private readonly connection?: Connection,
     private readonly onUnauthorized?: () => void,
   ) {
-    this.base = connection ? `${connection.office}/api` : "/api";
+    this.base = connection?.office ?? "";
   }
 
-  async meta(): Promise<OfficeMeta> {
-    const response = await this.request("/meta");
-    const meta: unknown = response.ok ? await response.json().catch(() => null) : null;
-    if (typeof meta !== "object" || meta === null || !("contract" in meta) || typeof meta.contract !== "number") {
-      throw new Error(`The office did not say which contract it speaks (${response.status}).`);
-    }
-    return { contract: meta.contract, requiresSession: "requiresSession" in meta && meta.requiresSession === true };
+  async meta(): Promise<Meta> {
+    const response = await this.request("/api/meta");
+    const meta = MetaSchema.safeParse(response.ok ? await response.json().catch(() => null) : null);
+    if (!meta.success) throw new Error(`The office did not say which contract it speaks (${response.status}).`);
+    return meta.data;
   }
 
   async read(projectId?: string): Promise<Snapshot> {
@@ -132,8 +123,7 @@ export class HttpGateway {
   }
 
   async send(command: Command): Promise<void> {
-    const scope = DEV_COMMANDS.has(command.name) ? "dev" : "commands";
-    const response = await this.request(`/${scope}/${command.name}`, {
+    const response = await this.request(commandPath(command.name), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(command.payload),
@@ -157,7 +147,7 @@ export class HttpGateway {
     };
     const listen = async () => {
       try {
-        const response = await this.request(`/events?after=${seen}`, { signal: stop.signal, headers: { accept: "text/event-stream" } });
+        const response = await this.request(`/api/events?after=${seen}`, { signal: stop.signal, headers: { accept: "text/event-stream" } });
         if (response.ok && response.body && !stop.signal.aborted) {
           onConnection(true);
           onChange();
@@ -182,7 +172,7 @@ export class HttpGateway {
   // A remembered project the shop no longer has answers 404: the default project is read instead.
   private async get(projectId?: string): Promise<Response> {
     const query = projectId ? `?project=${encodeURIComponent(projectId)}` : "";
-    const response = await this.request(`/state${query}`);
+    const response = await this.request(`/api/state${query}`);
     if (response.ok) return response;
     if (response.status === 404 && projectId) return this.get();
     throw new Error(await errorOf(response, `The shop did not answer (${response.status}).`));
@@ -222,16 +212,15 @@ async function readServerSentEvents(body: ReadableStream<Uint8Array>, onData: (d
 }
 
 async function errorOf(response: Response, fallback: string): Promise<string> {
-  const detail: unknown = await response.json().catch(() => null);
-  const message = typeof detail === "object" && detail !== null && "error" in detail ? detail.error : null;
-  return typeof message === "string" ? message : fallback;
+  const refusal = RefusalSchema.safeParse(await response.json().catch(() => null));
+  return refusal.success ? refusal.data.error : fallback;
 }
+
+const SequenceSchema = StreamEventSchema.pick({ sequence: true });
 
 function sequenceOf(data: string): number | null {
   try {
-    const event: unknown = JSON.parse(data);
-    const sequence = typeof event === "object" && event !== null && "sequence" in event ? event.sequence : null;
-    return typeof sequence === "number" && Number.isInteger(sequence) ? sequence : null;
+    return SequenceSchema.parse(JSON.parse(data)).sequence;
   } catch {
     return null;
   }

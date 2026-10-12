@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,4 +17,5 @@ if (process.env.SKYNOT_E2E_PAIRING_SECRET) {
   await writeFile(join(root, "data", "pairing.secret"), `${process.env.SKYNOT_E2E_PAIRING_SECRET}\n`);
 }
 
-await import("../../src/app/main");
+const office = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../src/app/main.ts", import.meta.url))], { stdio: "inherit" });
+office.on("exit", (code) => process.exit(code ?? 1));

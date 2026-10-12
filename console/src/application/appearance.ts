@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_PREFERENCE_BYTES } from "@skynot/contract";
 import type { Agent, Command } from "../contracts";
 import { config } from "../config";
 import { avatarSchema, resolveAvatar } from "../avatars/model";
@@ -18,9 +19,8 @@ const appearanceSchema = z.record(z.string(), agentAppearanceSchema);
 export type Appearance = z.input<typeof appearanceSchema>;
 export type AgentAppearance = Appearance[string];
 
-// Mirrors PREFERENCE_KEY and MAX_PREFERENCE_BYTES in src/app/preferences.ts, which the browser cannot import.
+// Narrower than the contract's PREFERENCE_KEY: an avatar always belongs to one agent of one project.
 const AVATAR_KEY = /^avatar\/[a-z][a-z0-9-]{1,39}\/[a-z][a-z0-9_-]{0,39}$/;
-const MAX_PREFERENCE_BYTES = 2048;
 
 export function appearanceFrom(preferences: Record<string, unknown>): Appearance {
   const appearance: Appearance = {};
