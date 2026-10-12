@@ -37,6 +37,9 @@ function killGroup(pid: number | undefined): void {
   }
 }
 
+// tsx exports the tsconfig the office was started with, and a project's own tsx would read it as its own.
+delete process.env.TSX_TSCONFIG_PATH;
+
 // Each child leads its own process group, so no signal sent to this process reaches it.
 const running = new Set<number>();
 process.on("exit", () => running.forEach(killGroup));
