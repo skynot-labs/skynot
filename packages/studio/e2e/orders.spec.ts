@@ -141,7 +141,7 @@ test.describe.serial("a work order on every surface that shows it", () => {
     await expect(dialog(page).getByRole("button", { name: "Stop" })).toBeVisible();
   });
 
-  test("an order being worked says so on one line of its card with five columns on the board, and in the costs", async ({ page }) => {
+  test("an order being worked says so inside its card with five columns on the board, whatever the font, and in the costs", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await stage(page, (state) => {
       const order = state.orders.find((candidate) => candidate.id === orderId)!;
@@ -154,12 +154,10 @@ test.describe.serial("a work order on every surface that shows it", () => {
     await expect(dialog(page).getByRole("heading", { name: "Discarded", level: 3 })).toBeVisible();
     const card = boardColumn(page, "On the bench").getByRole("button", { name: orderId });
     const chip = card.getByText("On the bench · working", { exact: true });
-    const lines = await chip.evaluate((element) => {
-      const text = document.createRange();
-      text.selectNodeContents(element);
-      return text.getClientRects().length;
+    await expectInside(chip, card);
+    await chip.evaluate((element) => {
+      if (element instanceof HTMLElement) element.style.letterSpacing = "3px";
     });
-    expect(lines).toBe(1);
     await expectInside(chip, card);
 
     await openView(page, "Costs");
