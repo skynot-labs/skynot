@@ -61,6 +61,20 @@ Label an issue with the intake label and the Manager of that project reads it an
 you what it needs to know. Nothing starts without your signature. A project that names a `board` in its
 `project.yaml` gets its cards moved as its orders advance.
 
+Moving a card needs one identity that can write the board and read the issue. Tried with personal tokens: a
+fine-grained one reads the issue and cannot reach a board owned by a user, and a classic one needs both `project`
+and `repo`. A board owned by an organization was not tried with a token. A failed move never stops the work.
+
+## Known limits
+
+- **`codex` reports no cost.** Its runs show $0 and never count toward `max_usd_per_day`, so a team whose
+  developer runs on `codex` is not protected by the cap. A `claude` run that is stopped or times out records no
+  cost either.
+- **An order left blocked or on the bench holds every later order that shares files with it,** until you use Start
+  now or discard it.
+- **"Ready to merge" can lag one poll (30 s) after a push,** and may say there is no CI for a moment before it says
+  pending.
+
 ## Environment variables
 
 | Variable | Default | Meaning |

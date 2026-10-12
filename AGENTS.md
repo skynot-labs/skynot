@@ -1,10 +1,18 @@
 # skynot
 
-A dev shop of AI agents. The director talks to one agent, the Manager, who runs per-project teams of roles (architect, designer, developers, reviewer...) that turn requests into delivered software. Read `docs/vision.md` first, then the current plan in `docs/plans/`.
+A dev shop of AI agents. The director talks to one agent, the Manager, who runs per-project teams of roles (architect, designer, developers, reviewer...) that turn requests into delivered software. Read `docs/vision.md` first, then the open issues.
 
 ## Language
 
 Everything in the repo is English: code, comments, commits, issues, PRs, docs, console copy, agent prompts.
+
+## How work is tracked
+
+- **Where it is going:** `docs/vision.md`, with the phases and their order.
+- **What was decided:** an ADR in `docs/adr/`, one screen: context, decision, alternatives, consequences. Written when the decision is taken, never rewritten; a later decision supersedes it.
+- **What is left to do:** a GitHub issue that says what done means. Something left out on purpose names what would bring it back.
+- **How it was built:** the pull request's body, which closes its issue.
+- There are no plan documents in the repository. A draft or a working note stays out of it until it becomes one of the four above.
 
 ## Architecture
 
