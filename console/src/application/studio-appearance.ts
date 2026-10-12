@@ -8,7 +8,7 @@ import {
 export const studioStorageKey = "skynot-studios-v1";
 export type StudioAppearance = Record<string, StudioPreferences>;
 
-// Mirrors PREFERENCE_KEY in src/app/preferences.ts, which the browser cannot import.
+// Narrower than the contract's PREFERENCE_KEY: a studio's look belongs to a whole project.
 const STUDIO_KEY = /^studio\/[a-z][a-z0-9-]{1,39}$/;
 
 export function studioAppearanceFrom(

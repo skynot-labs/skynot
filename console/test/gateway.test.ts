@@ -426,6 +426,27 @@ describe("HttpGateway", () => {
     await expect(new HttpGateway().read()).rejects.toThrow("different versions");
   });
 
+  it("refuses a state that does not follow the contract, and says where", async () => {
+    answerWith({ status: 200, body: { ...shopState(), orders: [{ ...order("wo-1"), status: "shipped" }] } });
+
+    await expect(new HttpGateway().read()).rejects.toThrow("orders.0.status");
+  });
+
+  it("reads a state that carries more than the contract names", async () => {
+    answerWith({ status: 200, body: { ...shopState(), weather: "sunny", project: { ...shopState().project, stars: 5 } } });
+
+    const snapshot = await new HttpGateway().read();
+
+    expect(snapshot.project.id).toBe("shop");
+    expect(snapshot.cursor).toBe(42);
+  });
+
+  it("does not take an answer for an office's when it leaves out whether a session is needed", async () => {
+    answerWith({ status: 200, body: { contract: 1 } });
+
+    await expect(new HttpGateway().meta()).rejects.toThrow("contract");
+  });
+
   it("posts a command with its payload", async () => {
     answerWith({ status: 200, body: { id: "wo-1", status: "signed" } });
 

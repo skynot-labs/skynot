@@ -1,3 +1,5 @@
+import { RefusalSchema, SessionSchema } from "@skynot/contract";
+
 export interface Connection {
   // The office's origin, with no trailing slash.
   office: string;
@@ -42,10 +44,10 @@ export async function pair(office: string, secret: string): Promise<Connection> 
     throw new Error(`Could not reach the office at ${office}. Check the address, that the office is running, and that it expects this studio.`);
   }
   const answer: unknown = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(textIn(answer, "error") ?? `The office refused to pair (${response.status}).`);
-  const token = textIn(answer, "token");
-  if (!token) throw new Error("The office answered, but not with a session.");
-  return { office, token };
+  if (!response.ok) throw new Error(RefusalSchema.safeParse(answer).data?.error || `The office refused to pair (${response.status}).`);
+  const session = SessionSchema.safeParse(answer);
+  if (!session.success) throw new Error("The office answered, but not with a session.");
+  return { office, token: session.data.token };
 }
 
 export function rememberedConnection(): Connection | null {

@@ -7,5 +7,5 @@
     "jsxImportSource": "preact",
     "resolveJsonModule": true
   },
-  "include": ["src", "test", "e2e", "../src/app/http/state.ts"]
+  "include": ["src", "test", "e2e"]
 }
