@@ -26,7 +26,7 @@ export class PreferencesProjection implements Projection {
     else this.values.set(key, value);
   }
 
-  all(): Record<string, unknown> {
+  all(): Record<string, PreferenceValue> {
     return Object.fromEntries(this.values);
   }
 

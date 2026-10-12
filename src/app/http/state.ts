@@ -1,3 +1,4 @@
+import type { State } from "@skynot/contract";
 import { REVIEW_SYSTEM, workerStandingRules } from "../../delivery";
 import { outcomeOf } from "../../execution";
 import { SYSTEM_PROMPT } from "../../manager";
@@ -12,7 +13,7 @@ const RUNS_LIMIT = 50;
 const COST_DAYS = 14;
 const LIVE: readonly string[] = ["signed", "on_bench", "in_review"];
 
-export function readState(shop: Shop, projectId?: string) {
+export function readState(shop: Shop, projectId?: string): Omit<State, "simulated"> {
   const desk = (projectId ? shop.desk(projectId) : undefined) ?? shop.desks[0]!;
   const { project } = desk;
   const reviewing = desk.reviewer !== undefined;
