@@ -21,6 +21,7 @@
     "start:shared": "SKYNOT_SHARE=tailscale tsx --tsconfig packages/office/tsconfig.json packages/office/src/app/main.ts",
     "dev:shared": "SKYNOT_MOCK=1 SKYNOT_SHARE=tailscale tsx --tsconfig packages/office/tsconfig.json packages/office/src/app/main.ts",
     "check": "tsx --tsconfig packages/office/tsconfig.json packages/office/src/app/check.ts",
+    "stats": "tsx --tsconfig packages/office/tsconfig.json packages/office/src/app/stats.ts",
     "design:export": "npm run design:export -w @skynot/studio --",
     "github:export": "npm run github:export -w @skynot/studio --",
     "build:github": "npm run build:github -w @skynot/studio --",
