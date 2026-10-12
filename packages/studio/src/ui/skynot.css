@@ -404,7 +404,6 @@
   padding: 3px 6px;
 }
 .order-card {
-  container-type: inline-size;
   display: block;
   width: 100%;
   text-align: left;
@@ -431,12 +430,8 @@
 }
 .order-card .status-chip {
   padding: 4px;
-}
-/* On its own row the longest chip, "On the bench · working", needs this much of the card; under it the chip wraps rather than leave the card. */
-@container (max-width: 129px) {
-  .order-card .status-chip {
-    white-space: normal;
-  }
+  max-width: 100%;
+  white-space: normal;
 }
 .order-card h3 {
   font-size: 12px;
