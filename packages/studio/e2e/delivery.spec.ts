@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { closeDialog, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, tellTheManager, test } from "./support";
+import { answerInChat, closeDialog, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, tellTheManager, test } from "./support";
 
 const PROJECT = "alpha";
 const TURN = { timeout: 20_000 };
@@ -62,7 +62,7 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(metrics(page).getByRole("button", { name: /WORK ORDERS/ })).toContainText("1 to sign");
 
     await openView(page, "Work orders");
-    await expect(boardColumn(page, "Needs your signature").getByRole("button", { name: idea })).toContainText("To sign");
+    await expect(boardColumn(page, "To sign").getByRole("button", { name: idea })).toContainText("To sign");
 
     await openView(page, "Decisions");
     await deskTab(page, "To sign").click();
@@ -81,15 +81,15 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(criteria.filter({ hasText: "Existing behavior does not change" })).toContainText("command: npm test passes");
     await expect(criteria.filter({ hasText: "Anything not named in the request" })).toBeVisible();
 
-    await detail.getByRole("button", { name: "Sign work order" }).click();
-    await expect(detail.getByRole("button", { name: "Sign work order" })).toBeHidden();
+    await detail.getByRole("button", { name: "Sign", exact: true }).click();
+    await expect(detail.getByRole("button", { name: "Sign", exact: true })).toBeHidden();
     await expect(detail.getByText("To sign", { exact: true })).toBeHidden();
     await closeDialog(page);
 
     await expect(desk(page).getByRole("heading", { name: "Nothing to sign." })).toBeVisible();
     await expect(deskTab(page, "To sign")).toHaveText(/To sign\s*0$/);
     await openView(page, "Work orders");
-    await expect(boardColumn(page, "Needs your signature")).toContainText("Nothing here.");
+    await expect(boardColumn(page, "To sign")).toContainText("Nothing here.");
   });
 
   test("the developer's work reaches review, ready to merge, with its issue and pull request", async ({ page }) => {
@@ -193,7 +193,7 @@ test("a discarded order leaves the signing queue and never reaches a developer",
   await openProject(page, PROJECT);
 
   const chat = await tellTheManager(page, idea);
-  await chat.getByRole("button", { name: "Keep it small" }).click(TURN);
+  await answerInChat(chat, "Keep it small", TURN);
   await openDecisionDesk(page);
 
   await openView(page, "Decisions");
@@ -208,7 +208,7 @@ test("a discarded order leaves the signing queue and never reaches a developer",
 
   await openView(page, "Work orders");
   await expect(boardColumn(page, "Discarded").getByRole("button", { name: orderId })).toContainText("Discarded");
-  await expect(boardColumn(page, "Needs your signature")).toContainText("Nothing here.");
+  await expect(boardColumn(page, "To sign")).toContainText("Nothing here.");
   await expect(boardColumn(page, "On the bench")).toContainText("Nothing here.");
 
   const afterwards = await tellTheManager(page, "/ping");
@@ -229,7 +229,7 @@ test("a discarded order leaves the signing queue and never reaches a developer",
 
   await openView(page, "Work orders");
   await boardColumn(page, "Discarded").getByRole("button", { name: orderId }).click();
-  await expect(dialog(page).getByRole("button", { name: "Sign work order" })).toBeHidden();
+  await expect(dialog(page).getByRole("button", { name: "Sign", exact: true })).toBeHidden();
   await expect(dialog(page).getByText("Discarded", { exact: true })).toBeVisible();
 });
 
@@ -284,7 +284,7 @@ test("a question the chat has moved past stays pinned above it until it is answe
   await expect(pinned.getByRole("button")).toHaveText(question);
 
   await pinned.getByRole("button").click();
-  await chat.getByRole("button", { name: "Keep it small" }).click(TURN);
+  await answerInChat(chat, "Keep it small", TURN);
   await expect(chat.getByText("That settles it. Filing the order.").last()).toBeVisible(TURN);
   await expect(pinned).toBeHidden();
   await openDecisionDesk(page);
@@ -309,7 +309,7 @@ test("a plan of two orders is signed once, and the second waits for the first", 
   await expect(plan.getByRole("button", { name: "Sign the plan" })).toBeHidden();
 
   await openView(page, "Work orders");
-  await expect(boardColumn(page, "Needs your signature")).toContainText("Nothing here.");
+  await expect(boardColumn(page, "To sign")).toContainText("Nothing here.");
   const second = dialog(page).getByRole("button", { name: `Build ${wanted}` });
   await expect(second).toContainText(/Waiting for WO-\d+/);
   await expect(dialog(page).getByRole("button", { name: `Lay the ground for ${wanted}` })).not.toContainText("Waiting for");

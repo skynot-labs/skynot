@@ -593,10 +593,8 @@ function Console({
                         : p.repo}
                   </small>
                 </span>
-                {p.needsYou > 0 ? (
+                {p.needsYou > 0 && (
                   <b class="nav-counter">{p.needsYou}</b>
-                ) : (
-                  <span class="project-dot" style={{ background: p.accent }} />
                 )}
               </button>
             ))}
@@ -727,6 +725,7 @@ function Console({
                 appearance={appearance}
                 settings={studioSettings}
                 onAgent={openAgent}
+                onOrder={openOrder}
                 onOrders={() => setDialog({ kind: "board" })}
               />
             </section>

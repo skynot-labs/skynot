@@ -84,6 +84,7 @@
 }
 .order-section ul {
   list-style: none;
+  padding-left: 0;
 }
 .order-section li + li {
   margin-top: 9px;
@@ -93,6 +94,15 @@
   font: 9px var(--mono);
   color: var(--muted);
   overflow-wrap: anywhere;
+}
+.order-section .order-notice + p {
+  margin-top: 16px;
+}
+.empty-state .secondary-button {
+  margin-top: 12px;
+}
+.order-discard {
+  margin-right: auto;
 }
 .order-section .checks-failing {
   color: var(--sk-danger);
@@ -111,8 +121,7 @@
 .order-raw summary {
   cursor: pointer;
 }
-.order-raw pre,
-.briefing-text {
+.order-raw pre {
   font: 10px/1.7 var(--mono);
   color: #b9adca;
   white-space: pre-wrap;
@@ -147,17 +156,8 @@
   gap: 19px;
   min-width: 0;
 }
-.briefing-change {
-  padding: 0 19px 19px;
-}
-.briefing-change > p {
-  font-size: 11px;
-  line-height: 1.8;
-  color: var(--muted);
-}
-.briefing-change .proposal-actions {
-  justify-content: flex-end;
-  margin-top: 14px;
+.team-proposals .inbox-proposal {
+  margin: 0 19px 19px;
 }
 .finding.ok > svg {
   color: var(--mint);

@@ -30,6 +30,17 @@ const CHECKS_LABEL = {
   failing: "checks failing",
 } as const;
 
+export function OrderChip({ order }: { order: Order }) {
+  const tone = order.blocked ? "blocked" : order.working ? "working" : order.status;
+  return (
+    <span class={`status-chip ${tone}`}>
+      {order.blocked
+        ? "Blocked"
+        : `${orderStatus[order.status]}${order.working ? " · working" : ""}`}
+    </span>
+  );
+}
+
 export function OrderDetail({
   project,
   order,
@@ -51,7 +62,7 @@ export function OrderDetail({
   ) => (
     <button
       type="button"
-      class={`${style}-button`}
+      class={`${style}-button ${name === "discard-order" ? "order-discard" : ""}`}
       disabled={busy}
       onClick={() => void send({ name, payload: { orderId } })}
     >
@@ -64,15 +75,11 @@ export function OrderDetail({
   return (
     <>
       <div class="order-detail-top">
-        <span class="mono">{order.id}</span>
-        <span class={`status-chip ${order.blocked ? "blocked" : order.status}`}>
-          {order.blocked ? "Blocked" : orderStatus[order.status]}
-        </span>
+        <OrderChip order={order} />
         {order.ticket !== null && (
           <span class="mono">From ticket #{order.ticket}</span>
         )}
       </div>
-      <h3 class="order-detail-title">{order.title}</h3>
       <p class="order-objective">
         <RichLine text={order.summary} />
       </p>
@@ -299,8 +306,8 @@ export function OrderDetail({
 
       {(can.discard || can.stop || can.merge) && (
         <div class="modal-actions">
-          {can.discard && action("discard-order", "Discard")}
-          {can.sign && action("sign-order", "Sign work order", "primary")}
+          {can.discard && action("discard-order", "Discard", "danger")}
+          {can.sign && action("sign-order", "Sign", "primary")}
           {can.stop && action("stop-order", "Stop", "danger")}
           {can.merge && action("merge-pull-request", "Merge (simulated)")}
         </div>

@@ -90,13 +90,6 @@
   color: #878091;
   margin-top: 6px;
 }
-.project-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  margin-left: auto;
-  flex-shrink: 0;
-}
 .nav-divider {
   height: 1px;
   background: var(--border);
@@ -331,6 +324,12 @@
   margin-left: auto;
   flex-shrink: 0;
 }
+.work-preview-row > .status-chip {
+  margin-left: auto;
+}
+.work-preview-row > .status-chip + svg {
+  margin-left: 0;
+}
 .work-preview-row:hover {
   background: #ffffff03;
 }
@@ -446,6 +445,7 @@
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .order-card p {
   font-size: 9px;
@@ -922,11 +922,6 @@ textarea {
   font-size: 12px;
   margin-bottom: 20px;
 }
-.order-detail-title {
-  font-size: 20px;
-  line-height: 1.5;
-  font-weight: 500;
-}
 .order-objective {
   font-size: 12px;
   line-height: 1.9;
@@ -1139,7 +1134,7 @@ textarea {
     font-size: 6px;
   }
   .kanban {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .context-grid {
     grid-template-columns: 1fr;
@@ -1199,8 +1194,7 @@ textarea {
   .project-switch {
     padding: 6px 8px;
   }
-  .project-switch small,
-  .project-dot {
+  .project-switch small {
     display: none;
   }
   .project-initial {
@@ -1336,7 +1330,7 @@ textarea {
     grid-template-columns: 1fr;
   }
   .kanban {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .kanban-column {
     padding: 13px;

@@ -36,6 +36,9 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.inbox-proposal .proposal-actions .danger-button {
+  flex: none;
+}
 .proposal-link {
   display: inline-flex;
   align-items: center;

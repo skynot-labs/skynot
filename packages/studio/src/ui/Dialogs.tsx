@@ -2,7 +2,7 @@ import type { ComponentChildren } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Decision, Message, Order, Project, Send } from "../contracts";
 import { planOf } from "../application/plans";
-import { orderStatus } from "./format";
+import { OrderChip } from "./OrderDetail";
 import { Icon } from "./Icon";
 import { RichLine, RichText } from "./RichText";
 import { announceArrival } from "./arrival";
@@ -488,9 +488,7 @@ function ChatPlan({
             </p>
             <footer>
               <span class="mono muted">{order.id}</span>
-              <span class={`status-chip ${order.status}`}>
-                {orderStatus[order.status]}
-              </span>
+              <OrderChip order={order} />
               <span class="chat-order-risk">{order.risk} risk</span>
               <button
                 class="text-button"
@@ -546,7 +544,8 @@ function ChatQuestion({
               type="button"
               key={option}
               disabled={busy}
-              onClick={() => void answer(option)}
+              aria-pressed={other === option}
+              onClick={() => setOther(option)}
             >
               {option}
             </button>
@@ -566,7 +565,11 @@ function ChatQuestion({
           aria-label={`Your answer to: ${decision.question}`}
           maxLength={4000}
           value={other}
-          placeholder="or answer in your own words"
+          placeholder={
+            decision.options.length > 0
+              ? "Pick an option or answer in your own words"
+              : "Answer in your own words"
+          }
           onInput={(event) => setOther(event.currentTarget.value)}
         />
         <button
