@@ -173,8 +173,6 @@ function Console({
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
   );
-  // Under this width the sidebar lies across the top and a panel covers it with everything else.
-  const sidebarCovered = panel !== null && narrow;
   const [unsaved, setUnsaved] = useState(nothingUnsaved);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -183,6 +181,10 @@ function Console({
     undefined,
   );
   const toastRef = useRef<HTMLDivElement>(null);
+  const readFailureSaid = useRef<{
+    error: string;
+    where: Dialog | "elsewhere";
+  } | null>(null);
   const latestDialog = useRef(dialog);
   latestDialog.current = dialog;
   useEffect(() => {
@@ -199,6 +201,10 @@ function Console({
     return () => clearInterval(tick);
   }, []);
   const project = snapshot?.project;
+  // The address can name a panel before there is a project to show in it: only a panel on screen covers anything.
+  const covering = project ? panel : null;
+  // Under this width the sidebar lies across the top and a panel covers it with everything else.
+  const sidebarCovered = covering !== null && narrow;
   const preferences = snapshot?.preferences;
   const appearance = useMemo(
     () => ({ ...appearanceFrom(preferences ?? {}), ...unsaved.appearance }),
@@ -316,7 +322,7 @@ function Console({
     dock === "manager" && dialog === null,
   );
   const openManager = () => {
-    setDialog(null);
+    closePanel();
     callDock("manager");
   };
   const failing =
@@ -387,7 +393,30 @@ function Console({
       onDismiss={() => setFailure(null)}
     />
   );
-  const panelNotice = !underDialog && failureNotice;
+  // Said where it first shows, as a command's failure is: a dialog opened over it shows it without saying it again.
+  if (!error) readFailureSaid.current = null;
+  else if (readFailureSaid.current?.error !== error)
+    readFailureSaid.current = { error, where: dialog };
+  else if (readFailureSaid.current.where !== dialog)
+    readFailureSaid.current.where = "elsewhere";
+  const readFailure = error && (
+    <div
+      class="error-banner"
+      role={readFailureSaid.current?.where === dialog ? "alert" : undefined}
+    >
+      <p>{error}</p>
+      <button class="secondary-button" onClick={reload}>
+        Retry
+      </button>
+    </div>
+  );
+  const dialogNotice = (
+    <>
+      {readFailure}
+      {failureNotice}
+    </>
+  );
+  const panelNotice = !underDialog && dialogNotice;
   // The sidebar is a set of shortcuts: the office stays where it is and each entry opens over it.
   const panelOfEntry: Partial<Record<Tab, Panel["kind"]>> = {
     orders: "board",
@@ -398,7 +427,7 @@ function Console({
   };
   const shown: Tab =
     (Object.keys(panelOfEntry) as Tab[]).find(
-      (entry) => panelOfEntry[entry] === panel?.kind,
+      (entry) => panelOfEntry[entry] === covering?.kind,
     ) ?? "studio";
   const show = (entry: Tab) => {
     const opens = panelOfEntry[entry];
@@ -494,14 +523,14 @@ function Console({
     <div
       class={`app-shell skynot-shell ${collapsed ? "sidebar-collapsed" : ""}`}
     >
-      <a class="skip-link" href="#studio" inert={panel !== null}>
+      <a class="skip-link" href="#studio" inert={covering !== null}>
         Skip to the studio
       </a>
       <header class="topbar">
         <a
           class="brand"
           href="#studio"
-          inert={sidebarCovered || (panel !== null && collapsed)}
+          inert={sidebarCovered || (covering !== null && collapsed)}
           onClick={(event) => {
             event.preventDefault();
             closePanel();
@@ -510,7 +539,7 @@ function Console({
           <Brand />
         </a>
         {project ? (
-          <div class="topbar-studio" inert={panel !== null}>
+          <div class="topbar-studio" inert={covering !== null}>
             <div>
               <h1>
                 The{" "}
@@ -536,7 +565,7 @@ function Console({
             <strong>Your dev shop</strong>
           </div>
         )}
-        <div class="top-actions" inert={panel !== null}>
+        <div class="top-actions" inert={covering !== null}>
           {project && snapshot && (
             <>
               <div
@@ -726,7 +755,7 @@ function Console({
           <span class="side-footer">YOU DIRECT. AGENTS BUILD.</span>
         </div>
       </aside>
-      <main id="studio" tabIndex={-1} inert={panel !== null}>
+      <main id="studio" tabIndex={-1} inert={covering !== null}>
         {(snapshot || failure) && (
           <div class="shell-banners">
             {!dialogShown && failureNotice}
@@ -761,14 +790,7 @@ function Console({
               ))}
           </div>
         )}
-        {error && (
-          <div class="error-banner" role="alert">
-            <p>{error}</p>
-            <button class="secondary-button" onClick={reload}>
-              Retry
-            </button>
-          </div>
-        )}
+        {!dialogShown && readFailure}
         {!snapshot && !error && (
           <div class="loading-state">
             <span class="tiny-led" />
@@ -841,7 +863,7 @@ function Console({
       </main>
       {dialog?.kind === "studio" && project && (
         <Modal
-          notice={failureNotice}
+          notice={dialogNotice}
           title="A place for this project."
           eyebrow={`${project.name.toUpperCase()} · STUDIO STYLE`}
           onClose={() => setDialog(null)}
@@ -864,7 +886,7 @@ function Console({
       )}
       {dialog?.kind === "register" && (
         <Modal
-          notice={failureNotice}
+          notice={dialogNotice}
           title="Bring a repository in."
           eyebrow="WORKSPACE · NEW PROJECT"
           onClose={() => setDialog(null)}
@@ -957,7 +979,7 @@ function Console({
       )}
       {selectedAgent && project && (
         <Modal
-          notice={failureNotice}
+          notice={dialogNotice}
           title="At their desk."
           eyebrow={`${project.name.toUpperCase()} · ${selectedAgent.role.toUpperCase()}`}
           onClose={closeOver}
@@ -1015,7 +1037,7 @@ function Console({
       )}
       {selectedOrder && snapshot && project && (
         <Modal
-          notice={failureNotice}
+          notice={dialogNotice}
           title={selectedOrder.title}
           eyebrow={`${project.name.toUpperCase()} · ${selectedOrder.id}`}
           onClose={closeOver}

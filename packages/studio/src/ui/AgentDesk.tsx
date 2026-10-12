@@ -1,5 +1,5 @@
 import type { ComponentChildren } from "preact";
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { Agent, Avatar, Order, Project, Send } from "../contracts";
 import { agentWork, type Reach } from "../application/agent-work";
 import { AvatarCanvas } from "./AvatarCanvas";
@@ -156,7 +156,6 @@ function Work({
         )}
       </section>
       <Compose
-        key={work.reach.kind}
         project={project}
         agent={agent}
         reach={work.reach}
@@ -280,15 +279,23 @@ function Compose({
   onManager: () => void;
 }) {
   const [text, setText] = useState("");
+  const box = useRef<HTMLTextAreaElement>(null);
+  // Words written for one destination are not kept for another, and the box itself stays so focus can stay in it.
+  useEffect(() => setText(""), [reach.kind]);
   const copy = composeCopy(reach, agent);
+  // Emptying the box disables the button that was pressed, so focus goes back to the box first.
+  const sent = () => {
+    box.current?.focus();
+    setText("");
+  };
   async function submit(event: Event) {
     event.preventDefault();
     const value = text.trim();
     if (!value || busy) return;
     if (reach.kind === "answer") {
-      if (await send({ name: "answer-question", payload: { orderId: reach.order.id, answer: value } })) setText("");
+      if (await send({ name: "answer-question", payload: { orderId: reach.order.id, answer: value } })) sent();
     } else if (reach.kind === "redirect") {
-      if (await send({ name: "follow-up", payload: { orderId: reach.order.id, text: value } })) setText("");
+      if (await send({ name: "follow-up", payload: { orderId: reach.order.id, text: value } })) sent();
     } else {
       const message = agent.kind === "manager" ? value : `About ${agent.id}: ${value}`;
       if (await send({ name: "send-message", payload: { text: message, project: project.id } })) onManager();
@@ -305,20 +312,27 @@ function Compose({
       <div class="chat-compose">
         <textarea
           id="agentCompose"
+          ref={box}
           data-gramm="false"
           data-gramm_editor="false"
           data-enable-grammarly="false"
           rows={2}
           maxLength={3900}
           value={text}
-          placeholder={copy.placeholder}
+          placeholder={`${copy.placeholder} Ctrl+Enter sends it.`}
           onInput={(event) => setText(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey))
+              void submit(event);
+          }}
         />
         <button
           class="primary-button"
           type="submit"
           disabled={!text.trim()}
           aria-disabled={busy}
+          title="Ctrl+Enter sends it"
+          aria-keyshortcuts="Control+Enter Meta+Enter"
         >
           {copy.button}
           <Icon name="arrow" />

@@ -56,7 +56,7 @@ export function OrderDetail({
 }) {
   const orderId = order.id;
   const top = useRef<HTMLDivElement>(null);
-  // Signing or discarding takes the pressed button away: focus goes to the row that says what the order became.
+  // Signing, discarding or answering takes the pressed button away: focus goes to the row that says what the order became.
   const leaves = (name: OrderAction) =>
     name === "sign-order" || name === "discard-order";
   const action = (
@@ -102,6 +102,7 @@ export function OrderDetail({
             submit={(answer) =>
               send({ name: "answer-question", payload: { orderId, answer } })
             }
+            onSent={() => top.current?.focus()}
           />
         </div>
       )}
@@ -203,14 +204,18 @@ export function OrderDetail({
             <select
               id="orderWorker"
               value={order.worker ?? "developer"}
-              disabled={busy || !can.reassign}
+              disabled={!can.reassign}
+              aria-disabled={busy}
               title={order.working ? "Stop the work to change the worker." : undefined}
-              onChange={(event) =>
+              onChange={(event) => {
+                const select = event.currentTarget;
                 void send({
                   name: "reassign-order",
-                  payload: { orderId, worker: event.currentTarget.value },
-                })
-              }
+                  payload: { orderId, worker: select.value },
+                }).then((ok) => {
+                  if (!ok) select.value = order.worker ?? "developer";
+                });
+              }}
             >
               {project.workers.map((worker) => (
                 <option key={worker} value={worker}>
@@ -393,22 +398,29 @@ function TextForm({
   placeholder,
   busy,
   submit,
+  onSent,
 }: {
   label: string;
   placeholder: string;
   busy: boolean;
   submit: (text: string) => Promise<boolean>;
+  onSent?: () => void;
 }) {
   const [text, setText] = useState("");
+  const field = useRef<HTMLInputElement>(null);
   return (
     <form
       class="order-text-form"
       onSubmit={async (event) => {
         event.preventDefault();
-        if (text.trim() && (await submit(text.trim()))) setText("");
+        if (!text.trim() || !(await submit(text.trim()))) return;
+        // Emptying the field disables the button that was pressed, so focus leaves it first: for the field, unless the form is about to go.
+        (onSent ?? (() => field.current?.focus()))();
+        setText("");
       }}
     >
       <input
+        ref={field}
         type="text"
         value={text}
         placeholder={placeholder}

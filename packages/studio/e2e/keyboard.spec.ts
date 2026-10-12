@@ -72,39 +72,62 @@ test.describe("focus after a dialog closes", () => {
     { name: "the sidebar's Costs", opener: (page) => sidebar(page).getByRole("button", { name: "Costs" }) },
     { name: "the team shortcut", opener: (page) => page.getByRole("button", { name: "Open the team" }) },
   ];
-  const closings: Array<{ name: string; close: (page: Page) => Promise<void> }> = [
-    { name: "Escape", close: (page) => page.keyboard.press("Escape") },
-    { name: "the Close button", close: (page) => closeButton(page).click() },
+  // Each way in is closed the way the same hand would close it: the keyboard never touches the mouse, and the other way round.
+  const hands: Array<{ name: string; open: (opener: Locator) => Promise<void>; close: (page: Page) => Promise<void> }> = [
+    {
+      name: "Enter then Escape",
+      open: async (opener) => {
+        await opener.focus();
+        await opener.page().keyboard.press("Enter");
+      },
+      close: (page) => page.keyboard.press("Escape"),
+    },
+    { name: "a click then the Close button", open: (opener) => opener.click(), close: (page) => closeButton(page).click() },
   ];
 
   for (const { name, opener } of openers)
-    for (const closing of closings)
-      test(`${closing.name} returns focus to ${name}`, async ({ page }) => {
+    for (const hand of hands)
+      test(`${hand.name} returns focus to ${name}`, async ({ page }) => {
         await orderToSign(page, PROJECT);
         await openProject(page, PROJECT);
-        await opener(page).click();
+        await hand.open(opener(page));
         await expect(dialog(page)).toBeVisible();
-        await closing.close(page);
+        await hand.close(page);
         await expect(dialog(page)).toBeHidden();
         await expect(opener(page)).toBeFocused();
       });
 
-  for (const closing of closings)
-    test(`${closing.name} on an order opened from the board returns focus to its card, with the board as it was`, async ({ page }) => {
+  for (const hand of hands)
+    test(`${hand.name} on an order opened from the board returns focus to its card, with the board as it was`, async ({ page }) => {
       const order = await orderToSign(page, PROJECT);
       await openProject(page, PROJECT);
       await openView(page, "Work orders");
       await dialog(page).getByRole("searchbox", { name: "Search work orders" }).fill(order);
       const card = dialog(page).getByRole("button", { name: new RegExp(order) });
-      await card.click();
+      await hand.open(card);
       await expect(dialog(page).getByRole("heading", { name: "ACCEPTANCE CRITERIA" })).toBeVisible();
       await expect(dialog(page)).toHaveCount(1);
 
-      await closing.close(page);
+      await hand.close(page);
       await expect(dialog(page).getByRole("heading", { name: "Work orders." })).toBeVisible();
       await expect(card).toBeFocused();
       await expect(dialog(page).getByRole("searchbox", { name: "Search work orders" })).toHaveValue(order);
     });
+
+  test("an order opened from the board with Enter and closed at once with Escape returns focus to its card, five times running", async ({ page }) => {
+    const order = await orderToSign(page, PROJECT);
+    await openProject(page, PROJECT);
+    await openView(page, "Work orders");
+    const card = dialog(page).getByRole("button", { name: new RegExp(order) });
+    await card.focus();
+
+    for (let round = 1; round <= 5; round++) {
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Escape");
+      await expect(dialog(page).getByRole("heading", { name: "Work orders." }), `round ${round}`).toBeVisible();
+      await expect(card, `round ${round}`).toBeFocused();
+    }
+  });
 
   test("a panel nothing opened gives focus to the studio when it closes", async ({ page }) => {
     await openProject(page, PROJECT);
@@ -160,6 +183,25 @@ test.describe("Escape and what was typed", () => {
     await expect(cards).toHaveCount(0);
 
     await page.keyboard.press("Escape");
+    await expect(search).toHaveValue("");
+    await expect(cards).not.toHaveCount(0);
+    await expect(dialog(page).getByRole("heading", { name: "Work orders." })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeHidden();
+  });
+
+  test("Escape clears the board's search in a browser that leaves the clearing to the page", async ({ page }) => {
+    await orderToSign(page, PROJECT);
+    await openProject(page, PROJECT);
+    await openView(page, "Work orders");
+    const search = dialog(page).getByRole("searchbox", { name: "Search work orders" });
+    const cards = dialog(page).getByRole("button", { name: /WO-\d+/ });
+    await search.pressSequentially("no order is called this");
+    await expect(cards).toHaveCount(0);
+
+    // A key the page makes up carries none of the browser's own behaviour, which is what Firefox gives Escape in a search field.
+    await search.dispatchEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
     await expect(search).toHaveValue("");
     await expect(cards).not.toHaveCount(0);
     await expect(dialog(page).getByRole("heading", { name: "Work orders." })).toBeVisible();

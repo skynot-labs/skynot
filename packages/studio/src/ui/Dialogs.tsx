@@ -35,15 +35,17 @@ export function Modal({
   const titleId = useId();
   const opener = useRef<Element | null>(null);
   const typedIn = useRef(new Set<HTMLInputElement | HTMLTextAreaElement>());
+  const latestClose = useRef(onClose);
+  latestClose.current = onClose;
   const closeUnlessTyped = () => {
     const holdsText = [...typedIn.current].some(
       (field) => field.isConnected && field.value !== "",
     );
-    if (!holdsText) onClose();
+    if (!holdsText) latestClose.current();
   };
   // A full panel opens beside the sidebar, which has to stay usable: showModal would make it inert.
   const beside = size === "full";
-  // Closed in the layout phase, while the dialog is still in the document: the platform returns focus only from there.
+  // Closed while the dialog is still in the document, the only place the platform returns focus from.
   useLayoutEffect(() => {
     const element = ref.current;
     if (!element) return;
@@ -54,18 +56,18 @@ export function Modal({
     } else element.showModal();
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.isComposing || element.hidden) return;
-      if (holdsSearch(event.target)) return;
       // Prevented here and not on cancel: Chromium closes a modal on a second Escape whatever cancel answered.
       event.preventDefault();
-      closeUnlessTyped();
+      if (!clearedSearch(event.target)) closeUnlessTyped();
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
       element.close();
+      // What this dialog covered is still hidden or inert here and is given back later in this same commit.
+      queueMicrotask(() => returnFocus(opener.current));
     };
   }, []);
-  useEffect(() => () => returnFocus(opener.current), []);
   return (
     <>
       {beside && (
@@ -126,12 +128,20 @@ export function Modal({
   );
 }
 
-const holdsSearch = (target: EventTarget | null): boolean =>
-  target instanceof HTMLInputElement &&
-  target.type === "search" &&
-  target.value !== "";
+// Not every browser empties a search field on Escape, so it is emptied here and the field's own listeners are told.
+function clearedSearch(target: EventTarget | null): boolean {
+  if (
+    !(target instanceof HTMLInputElement) ||
+    target.type !== "search" ||
+    target.value === ""
+  )
+    return false;
+  target.value = "";
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  return true;
+}
 
-// What the platform could not return focus to was inert, hidden or gone when the dialog closed.
+// The platform returns focus to the opener only when it can take it as the dialog closes; focus the director moved elsewhere is left alone.
 function returnFocus(opener: Element | null) {
   const places = [
     opener,
