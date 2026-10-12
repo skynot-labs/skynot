@@ -1,0 +1,15 @@
+{
+  "name": "@skynot/office",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "The office: the service that runs the shop and answers a studio through the contract.",
+  "dependencies": {
+    "@hono/node-server": "^2.1.4",
+    "@skynot/contract": "*",
+    "hono": "^4.13.13",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.5"
+  }
+}

@@ -20,7 +20,7 @@ import { exec } from "../kernel/process";
 const mock = process.env.SKYNOT_MOCK === "1";
 const port = Number(process.env.PORT ?? 4747);
 const dataDir = process.env.SKYNOT_DATA ?? (mock ? "data/mock" : "data/shop");
-const consoleDir = "console/dist";
+const consoleDir = "packages/studio/dist";
 
 const policy = await readPolicy(mock);
 const vcs = new FakeVcs();

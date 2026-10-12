@@ -5,23 +5,22 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "packages/*",
-    "console"
+    "packages/*"
   ],
   "description": "A dev shop of AI agents: a Manager runs per-project teams that deliver software.",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit && tsc --noEmit -p console",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/contract && tsc --noEmit -p packages/office && tsc --noEmit -p packages/studio",
     "build:console": "npm run build -w @skynot/studio --",
     "dev:console": "npm run dev -w @skynot/studio --",
     "test": "vitest run",
-    "dev": "SKYNOT_MOCK=1 tsx src/app/main.ts",
-    "start": "tsx src/app/main.ts",
-    "start:shared": "SKYNOT_SHARE=tailscale tsx src/app/main.ts",
-    "dev:shared": "SKYNOT_MOCK=1 SKYNOT_SHARE=tailscale tsx src/app/main.ts",
-    "check": "tsx src/app/check.ts",
+    "dev": "SKYNOT_MOCK=1 tsx packages/office/src/app/main.ts",
+    "start": "tsx packages/office/src/app/main.ts",
+    "start:shared": "SKYNOT_SHARE=tailscale tsx packages/office/src/app/main.ts",
+    "dev:shared": "SKYNOT_MOCK=1 SKYNOT_SHARE=tailscale tsx packages/office/src/app/main.ts",
+    "check": "tsx packages/office/src/app/check.ts",
     "design:export": "npm run design:export -w @skynot/studio --",
     "github:export": "npm run github:export -w @skynot/studio --",
     "build:github": "npm run build:github -w @skynot/studio --",
@@ -33,12 +32,5 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
-  },
-  "dependencies": {
-    "@hono/node-server": "^2.1.4",
-    "@skynot/contract": "*",
-    "hono": "^4.13.13",
-    "yaml": "^2.9.1",
-    "zod": "^4.6.5"
   }
 }

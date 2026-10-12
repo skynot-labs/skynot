@@ -7,7 +7,7 @@ const portOf = (office: string) => new URL(office).port;
 // A second one asks for a session, for the specs about a studio connecting to an office elsewhere.
 export default defineConfig({
   testDir: ".",
-  outputDir: "../../test-results",
+  outputDir: "../../../test-results",
   workers: 1,
   // CI renders the office in software on two cores: the same steps take three to four times as long there.
   timeout: process.env.CI ? 120_000 : 30_000,
@@ -18,14 +18,14 @@ export default defineConfig({
   use: { reducedMotion: "reduce", baseURL: LOCAL_OFFICE, trace: "retain-on-failure", screenshot: "only-on-failure" },
   webServer: [
     {
-      command: `PORT=${portOf(LOCAL_OFFICE)} npx tsx console/e2e/serve.ts`,
-      cwd: "../..",
+      command: `PORT=${portOf(LOCAL_OFFICE)} npx tsx packages/studio/e2e/serve.ts`,
+      cwd: "../../..",
       url: `${LOCAL_OFFICE}/api/state`,
       reuseExistingServer: false,
     },
     {
-      command: `PORT=${portOf(SESSION_OFFICE)} SKYNOT_OFFICE_URL=${SESSION_OFFICE} SKYNOT_STUDIO=${LOCAL_OFFICE}/ SKYNOT_E2E_PAIRING_SECRET=${PAIRING_SECRET} npx tsx console/e2e/serve.ts`,
-      cwd: "../..",
+      command: `PORT=${portOf(SESSION_OFFICE)} SKYNOT_OFFICE_URL=${SESSION_OFFICE} SKYNOT_STUDIO=${LOCAL_OFFICE}/ SKYNOT_E2E_PAIRING_SECRET=${PAIRING_SECRET} npx tsx packages/studio/e2e/serve.ts`,
+      cwd: "../../..",
       url: `${SESSION_OFFICE}/api/meta`,
       reuseExistingServer: false,
     },
