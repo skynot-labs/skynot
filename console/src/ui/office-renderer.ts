@@ -672,8 +672,9 @@ class Office {
         ] as const)
           block(u + du, v + dv, 0.08, 0.09, 43, "#8a7b70");
         const wood = zone === "manager" ? color(palette.wood, -12) : palette.wood;
-        // The front panel is what makes someone behind the desk read as sitting at it: only chest and head show.
-        block(u + 0.14, v + 0.1, DESK.width - 0.28, 0.06, 37, color(wood, -22), 6);
+        // The panel closes the side that faces the room and leaves the owner's side open for their legs. It is what
+        // makes someone behind the desk read as sitting at it: only chest and head show over it.
+        block(u + 0.14, v + DESK.depth - 0.16, DESK.width - 0.28, 0.06, 37, color(wood, -22), 6);
         block(u, v, DESK.width, DESK.depth, 5, wood, 43);
         block(u + 0.86, v + 0.08, 0.6, 0.15, 2, "#e5d6c4", 49);
         for (let k = 0; k < 5; k++)
