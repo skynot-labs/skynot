@@ -39,6 +39,7 @@ export function StudioHero({
   onTeam,
   onOrders,
   onActivity,
+  onStats,
   onContext,
   dock,
   onDock,
@@ -55,6 +56,7 @@ export function StudioHero({
   onTeam: () => void;
   onOrders: () => void;
   onActivity: () => void;
+  onStats: () => void;
   onContext: () => void;
   dock: DockCard;
   onDock: (card: DockCard) => void;
@@ -144,6 +146,8 @@ export function StudioHero({
     },
     onDecisions: () => openDesk("questions"),
     onBoard: onOrders,
+    onManager,
+    onStats,
   };
   function openBubble(agent: Agent) {
     const target = agentBubble(project, agent)?.open;

@@ -147,6 +147,7 @@ test.describe.serial("the director's projects", () => {
 
     await openView(page, "Agents");
     await expect(managerCard(page)).toContainText("In line · number 1");
+    await openView(page, "Costs");
     await expect(metrics(page)).toContainText("1 queued · project paused");
     await expect(metrics(page)).toContainText("0 / 2 agents");
 
@@ -163,7 +164,9 @@ test.describe.serial("the director's projects", () => {
     await expect(studio(page, "alpha")).toBeVisible();
     await expect(pauseControl(page, "Pause this project")).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: "is paused" })).toHaveCount(0);
+    await openView(page, "Costs");
     await expect(metrics(page)).not.toContainText("paused");
+    await openView(page, "The studio");
     await expect(projectEntry(page, "alpha")).toHaveAttribute("title", "acme/alpha");
 
     await projectEntry(page, "beta").click();

@@ -15,20 +15,25 @@ export class Hotspot {
   readonly tip = new Plate({ fill: "#31363fe8", color: "#f1ead9", size: 13, height: 24, padding: 9, tail: true });
   private lit = false;
 
-  /** `patch` is the lit piece of floor, as the corners of a polygon. */
+  /** `patch` is the lit piece of floor or wall, as the corners of a polygon. */
   constructor(patch: Array<[number, number]>, tipAt: [number, number], onTap: () => void) {
-    this.glow
-      .poly(patch.flat())
-      .fill({ color: "#f6e7b0", alpha: 0.55 })
-      .stroke({ color: "#fff6cf", width: 2 });
+    this.place(patch, tipAt);
     this.glow.eventMode = "static";
     this.glow.cursor = "pointer";
     this.glow.on("pointerover", () => this.hover(true));
     this.glow.on("pointerout", () => this.hover(false));
     this.glow.on("pointertap", onTap);
-    this.tip.position.set(tipAt[0], tipAt[1] - 31);
     this.tip.eventMode = "none";
     this.tip.visible = false;
+  }
+
+  place(patch: Array<[number, number]>, tipAt: [number, number]): void {
+    this.glow
+      .clear()
+      .poly(patch.flat())
+      .fill({ color: "#f6e7b0", alpha: 0.55 })
+      .stroke({ color: "#fff6cf", width: 2 });
+    this.tip.position.set(tipAt[0], tipAt[1] - 31);
   }
 
   hover(over: boolean): void {

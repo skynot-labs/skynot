@@ -118,6 +118,7 @@ export function studioScene(
       status: agent.status,
       bubble: agentBubble(project, agent),
       errand: agentErrand(project, agent),
+      runs: agent.runs,
       ...studioAgentAppearance(project.id, agent, appearance, settings),
     })),
   };

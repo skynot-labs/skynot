@@ -38,6 +38,15 @@ test.describe("the live office", () => {
     await expect(page.getByRole("navigation", { name: "Project views" }).getByRole("button", { name: "The studio" })).toHaveAttribute("aria-current", "page");
   });
 
+  test("the frame on the wall opens the project's stats and costs", async ({ page }) => {
+    await openProject(page, "beta");
+    await clickOffice(page, floorPoint(8.2, 0.04, 90));
+    const panel = dialog(page);
+    await expect(panel.getByRole("heading", { name: "What it takes." })).toBeVisible();
+    await expect(panel.getByRole("region", { name: "Project metrics" })).toContainText("ACTIVE RUNS");
+    await expect(page).toHaveURL(/#costs$/);
+  });
+
   test("the project's name opens what the team knows about it, over the office", async ({ page }) => {
     await openProject(page, "beta");
     await page.getByRole("banner").getByRole("button", { name: "beta" }).click();

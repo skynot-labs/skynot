@@ -1,6 +1,6 @@
 // The console's content security policy forbids eval; this swaps Pixi's generated shaders code for a plain one.
 import "pixi.js/unsafe-eval";
-import { Application, Container, Rectangle, Sprite, Texture, type FederatedPointerEvent } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Sprite, Texture, type FederatedPointerEvent } from "pixi.js";
 import { avatarBounds, drawPixelAvatar } from "../ui/avatar-renderer";
 import { assignStudioSeats, DECISION_TABLE, deskKit, floorPoint, getStudioLayout, officeLayout, seatSpots } from "../ui/office-layout";
 import { Office, type Piece, type SceneAgent, type SceneState } from "../ui/office-renderer";
@@ -18,6 +18,8 @@ export type StageHandlers = {
   onBubble: (id: string) => void;
   onDecisions: () => void;
   onBoard: () => void;
+  onManager: () => void;
+  onStats: () => void;
 };
 
 const FRAME = { width: officeLayout.width, height: officeLayout.height };
@@ -32,6 +34,8 @@ const OPEN_HAUNTS: Haunt[] = [
   { u: 8.6, v: 6.6, doing: "stretching" },
   { u: 8.8, v: 12.3, doing: "thinking" },
 ];
+// The frame on the back wall, in tiles along it and pixels above the floor.
+const HONORS = { u: 7.75, width: 0.95, bottom: 58, top: 124 };
 // Where the board stands, outside the front edge of the room.
 const BOARD_AT = { u: 2.57, v: officeLayout.room.depth + 0.64 };
 const SOLES = 27;
@@ -59,6 +63,11 @@ export class OfficeStage {
   private readonly figures = new Map<string, Texture>();
   private readonly desk: Hotspot;
   private readonly board: Hotspot;
+  private readonly lead: Hotspot;
+  private readonly honors: Hotspot;
+  // The framed portrait on the wall: whoever ran the most this month.
+  private readonly portrait = new Sprite();
+  private readonly plaque = new Graphics();
   // The one thing in the office that asks for the director: how many decisions wait at the table.
   private readonly waiting = new Plate({ fill: "#ecd0a7", color: "#46514a", size: 15, bold: true, height: 26, padding: 9, minWidth: 30, tail: true });
   private readonly more = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 15, height: 28, padding: 10, minWidth: 200 });
@@ -93,7 +102,29 @@ export class OfficeStage {
     this.board = new Hotspot(floorPatch(underBoard, 0.25), floorPoint(BOARD_AT.u, BOARD_AT.v, 52), () =>
       this.tap(() => this.handlers().onBoard()),
     );
-    for (const spot of [this.desk, this.board]) {
+    this.lead = new Hotspot(floorPatch(DECISION_TABLE, 0), [0, 0], () => this.tap(() => this.handlers().onManager()));
+    const onWall = (du: number, z: number) => floorPoint(HONORS.u + du, 0.04, z);
+    const wallPatch = [onWall(-0.12, HONORS.top + 8), onWall(HONORS.width + 0.12, HONORS.top + 8), onWall(HONORS.width + 0.12, HONORS.bottom - 8), onWall(-0.12, HONORS.bottom - 8)];
+    this.honors = new Hotspot(wallPatch, onWall(HONORS.width / 2, HONORS.top + 8), () => this.tap(() => this.handlers().onStats()));
+    const inner = [onWall(0.07, HONORS.top - 5), onWall(HONORS.width - 0.07, HONORS.top - 5), onWall(HONORS.width - 0.07, HONORS.bottom + 5), onWall(0.07, HONORS.bottom + 5)];
+    this.plaque
+      .poly([onWall(0, HONORS.top), onWall(HONORS.width, HONORS.top), onWall(HONORS.width, HONORS.bottom), onWall(0, HONORS.bottom)].flat())
+      .fill("#d9b56a")
+      .poly(inner.flat())
+      .fill("#39404d");
+    const window = new Graphics().poly(inner.flat()).fill("#ffffff");
+    this.portrait.anchor.set(0.5, 0);
+    this.portrait.scale.set(0.9);
+    // The wall runs down to the right at half a pixel per pixel; the portrait leans with it.
+    this.portrait.skew.y = Math.atan(0.5);
+    this.portrait.position.set(...onWall(HONORS.width / 2, HONORS.top - 8));
+    this.portrait.mask = window;
+    for (const piece of [this.plaque, window, this.portrait]) {
+      piece.eventMode = "none";
+      piece.zIndex = BEHIND + 2;
+      this.scenery.addChild(piece);
+    }
+    for (const spot of [this.desk, this.board, this.lead, this.honors]) {
       spot.glow.zIndex = BEHIND + 1;
       this.scenery.addChild(spot.glow);
       this.signs.addChild(spot.tip);
@@ -158,6 +189,19 @@ export class OfficeStage {
     this.waiting.write(String(scene.pending));
     this.desk.say(scene.pending > 0 ? `${scene.pending} to decide` : "Decision desk");
     this.board.say(`Work orders · ${scene.openOrders} open`);
+    const managerSeat = seats.find((seat) => seat.agent?.kind === "manager");
+    this.lead.glow.visible = managerSeat !== undefined;
+    if (managerSeat) {
+      const chair = seatSpots(managerSeat).chair;
+      this.lead.place(floorPatch(seatSpots(managerSeat).footprint, 0.3), floorPoint(chair.u, chair.v, 118));
+      this.lead.say("Talk to your Manager");
+    }
+    const busiest = scene.agents
+      .filter((agent) => agent.kind !== "manager" && (agent.runs ?? 0) > 0)
+      .sort((a, b) => (b.runs ?? 0) - (a.runs ?? 0))[0];
+    this.portrait.visible = busiest !== undefined;
+    if (busiest) this.portrait.texture = this.figure(busiest, false, 0);
+    this.honors.say(busiest ? `Employee of the month: ${busiest.name} · stats and costs` : "Stats and costs");
     const unseated = scene.agents.length - seated.size;
     this.more.visible = unseated > 0;
     this.more.write(`+${unseated} MORE ON THE TEAM`);
@@ -274,8 +318,7 @@ export class OfficeStage {
     this.reactions.tick(elapsed);
     this.ambient.tick(elapsed, time);
     this.waiting.pivot.y = time ? Math.round(Math.sin(time / 300) * 2) : 0;
-    this.desk.frame(time);
-    this.board.frame(time);
+    for (const spot of [this.desk, this.board, this.lead, this.honors]) spot.frame(time);
   }
 
   private paint(scene: SceneState): void {

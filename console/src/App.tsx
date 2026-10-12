@@ -57,7 +57,7 @@ type Dialog =
   | Panel
   | null;
 // The panels have an address: the fragment says which one is open, so a reload or a shared link opens it again.
-const panels = ["activity", "board", "context"] as const;
+const panels = ["activity", "board", "context", "costs"] as const;
 type Panel = { kind: (typeof panels)[number] };
 const isPanel = (name: string | undefined): name is Panel["kind"] => (panels as readonly string[]).includes(name ?? "");
 const panelOf = (dialog: Dialog): Panel | null => (dialog && isPanel(dialog.kind) ? { kind: dialog.kind } : null);
@@ -264,6 +264,96 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
     snapshot?.readiness.filter((f) => f.level === "fail").length ?? 0;
   const toReview =
     snapshot?.readiness.filter((f) => f.level === "warn").length ?? 0;
+  // The numbers of the project at a glance: shown with the costs, in their view and in their panel.
+  const stats = project && snapshot && (
+    <section class="stats" aria-label="Project metrics">
+      <div class="stat">
+        <span class="stat-icon lavender">
+          <Icon name="code" />
+        </span>
+        <div>
+          <span class="stat-label">ACTIVE RUNS</span>
+          <strong>
+            {active}
+            <small> / {project.agents.length} agents</small>
+          </strong>
+          <span class="stat-detail">
+            {queued} queued ·{" "}
+            {snapshot.paused
+              ? "shop paused"
+              : project.paused
+                ? "project paused"
+                : "queue open"}
+          </span>
+        </div>
+      </div>
+      <button
+        class="stat stat-clickable"
+        onClick={() => setTab("orders")}
+      >
+        <span class="stat-icon mint">
+          <Icon name="check" />
+        </span>
+        <div>
+          <span class="stat-label">WORK ORDERS</span>
+          <strong>
+            {project.orders.length}
+            <small> in this project</small>
+          </strong>
+          <span class="stat-detail">
+            {
+              project.orders.filter((o) => o.status === "delivered")
+                .length
+            }{" "}
+            delivered · {toSign} to sign
+          </span>
+        </div>
+      </button>
+      <button
+        class="stat stat-clickable"
+        onClick={() => setTab("decisions")}
+      >
+        <span class="stat-icon blue">
+          <Icon name="chat" />
+        </span>
+        <div>
+          <span class="stat-label">WAITING FOR YOU</span>
+          <strong>
+            {pending}
+            <small> to decide</small>
+          </strong>
+          <span class="stat-detail">
+            {project.inbox.length}{" "}
+            {project.inbox.length === 1 ? "question" : "questions"} ·{" "}
+            {pending - project.inbox.length - blocked} to sign
+            {blocked > 0 && ` · ${blocked} blocked`}
+          </span>
+        </div>
+      </button>
+      <button
+        class="stat stat-clickable"
+        onClick={() => setTab("costs")}
+      >
+        <span class="stat-icon peach">
+          <Icon name="wallet" />
+        </span>
+        <div>
+          <span class="stat-label">COST TODAY · USD</span>
+          <strong>
+            {usd(snapshot.costs.today)}
+            <small>
+              {snapshot.costs.cap === null
+                ? ""
+                : ` of ${usd(snapshot.costs.cap)}`}
+            </small>
+          </strong>
+          <span class="stat-detail">
+            {usd(project.spentUsd)} on this project · UTC day
+          </span>
+        </div>
+      </button>
+    </section>
+  );
   return (
     <div
       class={`app-shell skynot-shell ${collapsed ? "sidebar-collapsed" : ""}`}
@@ -565,6 +655,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
                 onTeam={() => setTab("agents")}
                 onOrders={() => setDialog({ kind: "board" })}
                 onActivity={() => setDialog({ kind: "activity" })}
+                onStats={() => setDialog({ kind: "costs" })}
                 onContext={() => setDialog({ kind: "context" })}
                 dock={dock}
                 onDock={setDock}
@@ -608,93 +699,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
                 </div>
               </section>
             )}
-            <section class="stats" aria-label="Project metrics">
-              <div class="stat">
-                <span class="stat-icon lavender">
-                  <Icon name="code" />
-                </span>
-                <div>
-                  <span class="stat-label">ACTIVE RUNS</span>
-                  <strong>
-                    {active}
-                    <small> / {project.agents.length} agents</small>
-                  </strong>
-                  <span class="stat-detail">
-                    {queued} queued ·{" "}
-                    {snapshot.paused
-                      ? "shop paused"
-                      : project.paused
-                        ? "project paused"
-                        : "queue open"}
-                  </span>
-                </div>
-              </div>
-              <button
-                class="stat stat-clickable"
-                onClick={() => setTab("orders")}
-              >
-                <span class="stat-icon mint">
-                  <Icon name="check" />
-                </span>
-                <div>
-                  <span class="stat-label">WORK ORDERS</span>
-                  <strong>
-                    {project.orders.length}
-                    <small> in this project</small>
-                  </strong>
-                  <span class="stat-detail">
-                    {
-                      project.orders.filter((o) => o.status === "delivered")
-                        .length
-                    }{" "}
-                    delivered · {toSign} to sign
-                  </span>
-                </div>
-              </button>
-              <button
-                class="stat stat-clickable"
-                onClick={() => setTab("decisions")}
-              >
-                <span class="stat-icon blue">
-                  <Icon name="chat" />
-                </span>
-                <div>
-                  <span class="stat-label">WAITING FOR YOU</span>
-                  <strong>
-                    {pending}
-                    <small> to decide</small>
-                  </strong>
-                  <span class="stat-detail">
-                    {project.inbox.length}{" "}
-                    {project.inbox.length === 1 ? "question" : "questions"} ·{" "}
-                    {pending - project.inbox.length - blocked} to sign
-                    {blocked > 0 && ` · ${blocked} blocked`}
-                  </span>
-                </div>
-              </button>
-              <button
-                class="stat stat-clickable"
-                onClick={() => setTab("costs")}
-              >
-                <span class="stat-icon peach">
-                  <Icon name="wallet" />
-                </span>
-                <div>
-                  <span class="stat-label">COST TODAY · USD</span>
-                  <strong>
-                    {usd(snapshot.costs.today)}
-                    <small>
-                      {snapshot.costs.cap === null
-                        ? ""
-                        : ` of ${usd(snapshot.costs.cap)}`}
-                    </small>
-                  </strong>
-                  <span class="stat-detail">
-                    {usd(project.spentUsd)} on this project · UTC day
-                  </span>
-                </div>
-              </button>
-            </section>
+            {tab === "costs" && stats}
             <section class="view active" key={project.id + "/" + tab}>
               {tab === "studio" && (
                 <Studio
@@ -839,6 +844,17 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             size="full"
           >
             <ContextView project={project} readiness={snapshot.readiness} send={send} busy={busy} />
+          </Modal>
+        )}
+        {dialog?.kind === "costs" && project && snapshot && (
+          <Modal
+            title="What it takes."
+            eyebrow={`${project.name.toUpperCase()} · STATS AND COSTS`}
+            onClose={() => setDialog(null)}
+            size="full"
+          >
+            {stats}
+            <UsageView project={project} costs={snapshot.costs} />
           </Modal>
         )}
         {dialog?.kind === "activity" && project && (
