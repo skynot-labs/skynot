@@ -30,6 +30,16 @@ import { ago, agentStatus } from "./format";
 
 export type DockCard = "decisions" | "manager";
 
+const stillKey = "skynot.office-still";
+
+function rememberedStill(): boolean {
+  try {
+    return localStorage.getItem(stillKey) === "yes";
+  } catch {
+    return false;
+  }
+}
+
 export function StudioHero({
   project,
   paused,
@@ -51,6 +61,7 @@ export function StudioHero({
   send,
   busy,
   covered = false,
+  connected,
 }: {
   project: Project;
   paused: Snapshot["paused"];
@@ -73,6 +84,7 @@ export function StudioHero({
   send: Send;
   busy: boolean;
   covered?: boolean;
+  connected: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const office = useRef<Office | null>(null);
@@ -91,6 +103,17 @@ export function StudioHero({
   const stage = useRef<OfficeStage | null>(null);
   const stageHandlers = useRef<StageHandlers | null>(null);
   const [live, setLive] = useState(false);
+  const [still, setStill] = useState(rememberedStill);
+  const latestStill = useRef(still);
+  latestStill.current = still;
+  function holdStill(next: boolean) {
+    setStill(next);
+    try {
+      localStorage.setItem(stillKey, next ? "yes" : "no");
+    } catch {
+      // the choice only lasts until the page reloads
+    }
+  }
   const scene = studioScene(
     project,
     appearance,
@@ -107,10 +130,11 @@ export function StudioHero({
     if (!canvas.current) return;
     const renderer = new Office(canvas.current);
     office.current = renderer;
-    renderer.draw(latestScene.current);
+    renderer.draw(latestScene.current, 0, canvas.current.clientWidth / officeLayout.width);
     stage.current?.show(latestScene.current);
   }, [project, appearance, settings, paused, unread]);
   useEffect(() => stage.current?.rest(covered), [covered]);
+  useEffect(() => stage.current?.hold(still), [still]);
   useEffect(() => {
     let gone = false;
     void import("../stage/office-stage")
@@ -120,6 +144,7 @@ export function StudioHero({
       .then((mounted) => {
         if (gone) return mounted.destroy();
         stage.current = mounted;
+        mounted.hold(latestStill.current);
         mounted.rest(latestCovered.current);
         mounted.show(latestScene.current);
         setLive(true);
@@ -247,6 +272,16 @@ export function StudioHero({
             >
               <Icon name="team" />
             </button>
+            {live && (
+              <button
+                onClick={() => holdStill(!still)}
+                aria-pressed={still}
+                aria-label="Hold the office still"
+                title={still ? "Wake the office" : "Hold the office still"}
+              >
+                <Icon name={still ? "play" : "pause"} />
+              </button>
+            )}
           </div>
         </div>
         <div class="studio-inbox-dock" ref={inbox}>
@@ -272,8 +307,14 @@ export function StudioHero({
             onOrder={onOrder}
           />
         </div>
-        {(paused || project.paused) && (
+        {(paused || project.paused || !connected) && (
           <div class="studio-pause-labels" role="status">
+            {!connected && (
+              <div class="studio-pause-label">
+                <Icon name="link" />
+                Reconnecting…
+              </div>
+            )}
             {project.paused && (
               <div class="studio-pause-label">
                 <Icon name="pause" />

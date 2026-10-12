@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { HOME, panBy, zoomAt } from "../src/stage/camera";
+import { glide, HOME, panBy, zoomAt } from "../src/stage/camera";
 
 const frame = { width: 1440, height: 850 };
 
@@ -26,5 +26,19 @@ describe("the office camera", () => {
     expect(panBy(zoomed, 5000, 5000, frame)).toMatchObject({ x: 0, y: 0 });
     expect(panBy(zoomed, -5000, -5000, frame)).toMatchObject({ x: -1440, y: -850 });
     expect(panBy(HOME, 300, -200, frame)).toEqual(HOME);
+  });
+
+  it("comes home from a zoom in a fifth of a second, quick to leave and slow to arrive", () => {
+    const zoomed = zoomAt(HOME, 3, { x: 1440, y: 850 }, frame);
+    expect(glide(zoomed, HOME, 0)).toEqual(zoomed);
+    expect(glide(zoomed, HOME, 200)).toBe(HOME);
+    expect(glide(zoomed, HOME, 5000)).toBe(HOME);
+
+    const scales = [0, 50, 100, 150, 200].map((elapsed) => glide(zoomed, HOME, elapsed).scale);
+    expect(scales).toEqual([...scales].sort((a, b) => b - a));
+    expect(scales[0]! - scales[1]!).toBeGreaterThan(scales[3]! - scales[4]!);
+    const halfway = glide(zoomed, HOME, 100);
+    expect(halfway.scale).toBeLessThan(2);
+    expect(halfway.x).toBeGreaterThan(zoomed.x / 2);
   });
 });

@@ -1,13 +1,12 @@
-const GLOW_MS = 1800;
+const GLOW_MS = 600;
+const EDGE = "var(--sk-color-blue)";
 
-// A panel that opens, or is asked for while already open, lights its edge for a moment so the eye finds it.
+// A dock card that is asked for lights its edge for a moment, so a click on one already open is seen to land.
 export function announceArrival(element: Element | null | undefined): void {
-  if (!element || matchMedia("(prefers-reduced-motion: reduce)").matches)
-    return;
-  element.animate(
+  element?.animate(
     [
-      { boxShadow: "0 0 0 2px #a9c8ff, 0 0 28px #a9c8ff80" },
-      { boxShadow: "0 0 0 2px #a9c8ff00, 0 0 28px #a9c8ff00" },
+      { boxShadow: `0 0 0 2px ${EDGE}, 0 0 28px color-mix(in srgb, ${EDGE} 50%, transparent)` },
+      { boxShadow: "0 0 0 2px transparent, 0 0 28px transparent" },
     ],
     { duration: GLOW_MS, easing: "ease-out" },
   );

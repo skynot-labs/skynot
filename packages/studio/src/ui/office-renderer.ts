@@ -27,6 +27,7 @@ import {
 } from "../studio/model";
 import type { AgentStatus, Avatar } from "../contracts";
 import type { Haunt, Rect } from "../studio/idle-life";
+import { legible } from "../stage/legible";
 import {
   drawWindowLandscape,
   drawStudioDecor,
@@ -70,6 +71,10 @@ export const BUBBLE_FILL: Record<BubbleTone, string> = {
   wait: "#c9c6d4",
 };
 export const BUBBLE_STEP_MS = 300;
+const BUBBLE_TEXT = 11;
+/** The dots over someone at work: they count up while time runs and stand whole when it does not. */
+export const busyDots = (time: number): string =>
+  time > 0 ? "·".repeat(1 + (Math.floor(time / BUBBLE_STEP_MS) % 3)).padEnd(3, " ") : "···";
 // Canvas pixels from the floor under a chair to the top of the sprite of whoever sits on it.
 export const SEATED_TOP = 90;
 /** Heights of a screen's bottom and top edge above the floor. */
@@ -138,7 +143,8 @@ class Office {
     }
     return pieces;
   }
-  draw(state: SceneState, time = 0): void {
+  /** `ratio` is how much of its own size the screen gives the canvas: what the director has to read grows to stay readable. */
+  draw(state: SceneState, time = 0, ratio = 1): void {
     const ctx = this.ctx;
     if (!ctx) return;
     const settings = normalizeStudioPreferences(state.settings);
@@ -595,12 +601,18 @@ class Office {
         labels.push(() => {
           const step = Math.floor(time / BUBBLE_STEP_MS);
           const busy = bubble.tone === "busy";
-          const label = busy ? "·".repeat(1 + (step % 3)) : bubble.text;
+          const label = busy ? busyDots(time) : bubble.text;
           const width = busy ? 34 : label.length * 7 + 16;
           const calls = bubble.tone !== "busy" && bubble.tone !== "wait";
           const left = x + 3 - width / 2;
           const bubbleTop = top - 31 - (calls && step % 2 ? 3 : 0);
           const id = `bubble:${member.id}`;
+          const grow = legible(BUBBLE_TEXT, ratio);
+          const tip: Point = [x + 3, bubbleTop + 26];
+          ctx.save();
+          ctx.translate(...tip);
+          ctx.scale(grow, grow);
+          ctx.translate(-tip[0], -tip[1]);
           ctx.fillStyle = BUBBLE_FILL[bubble.tone];
           ctx.fillRect(left, bubbleTop, width, 19);
           poly(
@@ -620,17 +632,18 @@ class Office {
             label,
             busy ? left + 9 : x + 3,
             bubbleTop + 14,
-            "bold 11px monospace",
+            `bold ${BUBBLE_TEXT}px monospace`,
             "#2f3340",
             busy ? "left" : "center",
           );
+          ctx.restore();
           this.hits.push({
             id,
             kind: "bubble",
             x: x + 3,
-            y: bubbleTop + 11,
-            r: Math.max(width / 2 + 4, 18),
-            ry: 16,
+            y: tip[1] - 15 * grow,
+            r: Math.max(width / 2 + 4, 18) * grow,
+            ry: 16 * grow,
           });
         });
       labels.push(() => {

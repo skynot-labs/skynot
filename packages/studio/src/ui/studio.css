@@ -94,6 +94,10 @@
   color: var(--text);
   border-color: var(--text);
 }
+.studio-shortcuts button[aria-pressed="true"] {
+  color: var(--mint);
+  border-color: var(--mint);
+}
 .studio-inbox-dock {
   position: absolute;
   top: 18px;

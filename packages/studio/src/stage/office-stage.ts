@@ -8,9 +8,10 @@ import { along, apart, idlePose, pathLength, route, TILES_PER_SECOND, type Floor
 import { Ambient } from "./ambient";
 import { Reactions } from "./reactions";
 import { normalizeStudioPreferences } from "../studio/model";
-import { AgentActor, AVATAR_SCALE } from "./agent-actor";
-import { HOME, panBy, zoomAt, type View } from "./camera";
+import { AgentActor, AVATAR_SCALE, BUBBLE_TEXT, NAME_TEXT } from "./agent-actor";
+import { glide, HOME, panBy, zoomAt, type View } from "./camera";
 import { Hotspot } from "./hotspot";
+import { arrange, legible, reads, type Box } from "./legible";
 import { Plate } from "./plates";
 
 export type StageHandlers = {
@@ -45,6 +46,7 @@ const NIGHT_FROM = 20;
 const NIGHT_UNTIL = 6;
 const NIGHT_SHADE = 0.16;
 const LIGHTS_OFF = 0.42;
+const LABEL_GAP = 4;
 const CONFETTI = ["#f3c299", "#b4debf", "#d2c3ed", "#f08a8f", "#f3e3a2", "#93b7d5"];
 type Errand = { beside: string; doing: string; path: Spot[]; length: number; walked: number };
 
@@ -77,7 +79,15 @@ export class OfficeStage {
   private readonly seen = new Map<string, { failed: boolean; finished: boolean }>();
   private tallies: { delivered: number; pending: number } | null = null;
   private lastFrame = 0;
-  private readonly still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  private readonly reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  // Chromium drops the change event of a query whose `matches` was read since the preference changed: it is read once.
+  private reduced = this.reducedMotion.matches;
+  private held = false;
+  private covered = false;
+  // How much of its own size the screen gives the stage, and how wide the part of it that shows is.
+  private ratio = 1;
+  private shownWidth = FRAME.width;
+  private gliding: { from: View; since: number } | null = null;
   private scene: SceneState | null = null;
   private seats: ReturnType<typeof assignStudioSeats<SceneAgent>> = [];
   private painted = "";
@@ -86,6 +96,8 @@ export class OfficeStage {
   private view: View = HOME;
   private drag: { x: number; y: number; moved: boolean } | null = null;
   private readonly unbind: Array<() => void> = [];
+  // The floor under the count of what waits: its tail points here whatever size the count is drawn at.
+  private readonly waitingAt = floorPoint(DECISION_TABLE.u + 1.75, DECISION_TABLE.v + 0.7, 62);
 
   private constructor(
     private readonly app: Application,
@@ -129,8 +141,6 @@ export class OfficeStage {
       this.scenery.addChild(spot.glow);
       this.signs.addChild(spot.tip);
     }
-    const [wx, wy] = floorPoint(DECISION_TABLE.u + 1.75, DECISION_TABLE.v + 0.7, 62);
-    this.waiting.position.set(wx, wy - 33);
     this.waiting.eventMode = "static";
     this.waiting.cursor = "pointer";
     this.waiting.on("pointerover", () => this.desk.hover(true));
@@ -144,6 +154,26 @@ export class OfficeStage {
 
     this.bindCamera();
     app.ticker.add(() => this.frame());
+    const onPreference = (event: MediaQueryListEvent) => {
+      this.reduced = event.matches;
+      this.settle();
+    };
+    this.reducedMotion.addEventListener("change", onPreference);
+    this.unbind.push(() => this.reducedMotion.removeEventListener("change", onPreference));
+    const host = app.canvas.parentElement;
+    if (host) {
+      const resized = new ResizeObserver(() => {
+        this.ratio = app.canvas.clientWidth / FRAME.width;
+        this.shownWidth = this.ratio > 0 ? host.clientWidth / this.ratio : FRAME.width;
+        this.redraw();
+      });
+      resized.observe(host);
+      this.unbind.push(() => resized.disconnect());
+    }
+  }
+
+  private get still(): boolean {
+    return this.held || this.reduced;
   }
 
   static async mount(host: HTMLElement, handlers: () => StageHandlers): Promise<OfficeStage> {
@@ -155,8 +185,8 @@ export class OfficeStage {
       resolution: Math.min(2, Math.max(1, window.devicePixelRatio)),
       preference: "webgl",
     });
-    // Pixel art gains nothing past this, and with reduced motion the frames only serve the pointer.
-    app.ticker.maxFPS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 10 : 30;
+    // Pixel art gains nothing past this.
+    app.ticker.maxFPS = 30;
     host.appendChild(app.canvas);
     return new OfficeStage(app, handlers);
   }
@@ -207,17 +237,42 @@ export class OfficeStage {
     const unseated = scene.agents.length - seated.size;
     this.more.visible = unseated > 0;
     this.more.write(`+${unseated} MORE ON THE TEAM`);
-    const hour = new Date().getHours();
-    const night = hour >= NIGHT_FROM || hour < NIGHT_UNTIL;
-    this.ambient.set(settings.season, scene.paused ? LIGHTS_OFF : night ? NIGHT_SHADE : 0, !this.still && !scene.paused);
-    this.frame();
+    this.air(scene);
+    this.redraw();
     this.react(scene);
   }
 
   // Nothing moves while something covers the office: the frames would be paid for and never seen.
   rest(covered: boolean): void {
-    if (covered) this.app.ticker.stop();
+    this.covered = covered;
+    this.settle();
+  }
+
+  /** The director's own switch. The system asking for less motion holds the office still as well. */
+  hold(still: boolean): void {
+    this.held = still;
+    this.settle();
+  }
+
+  private settle(): void {
+    if (this.still || this.covered) this.app.ticker.stop();
     else this.app.ticker.start();
+    if (this.still) this.reactions.clear();
+    if (this.scene) this.air(this.scene);
+    this.redraw();
+  }
+
+  // A still office has no clock: it is drawn when something in it changes or the pointer moves over it.
+  private redraw(): void {
+    this.frame();
+    if (this.still && !this.covered) this.app.render();
+  }
+
+  private air(scene: SceneState): void {
+    const hour = new Date().getHours();
+    const night = hour >= NIGHT_FROM || hour < NIGHT_UNTIL;
+    const season = normalizeStudioPreferences(scene.settings).season;
+    this.ambient.set(season, scene.paused ? LIGHTS_OFF : night ? NIGHT_SHADE : 0, !this.still && !scene.paused);
   }
 
   destroy(): void {
@@ -302,6 +357,8 @@ export class OfficeStage {
     const time = this.still ? 0 : performance.now();
     const elapsed = Math.min(MAX_FRAME_MS, Math.max(0, time - this.lastFrame));
     this.lastFrame = time;
+    if (this.gliding) this.look(this.still ? HOME : glide(this.gliding.from, HOME, time - this.gliding.since));
+    if (this.view === HOME) this.gliding = null;
     const poses = new Map<string, IdlePose>();
     for (const seat of this.seats) {
       const agent = seat.agent;
@@ -319,14 +376,37 @@ export class OfficeStage {
     // A visit is a conversation only while its host is at the desk to have it.
     const heard = new Set<string>();
     for (const pose of poses.values()) if (pose?.beside && poses.get(pose.beside) === null) heard.add(pose.beside);
+    const shown = this.ratio * this.view.scale;
+    const look = { bubble: legible(BUBBLE_TEXT, shown), names: reads(NAME_TEXT, shown) };
     for (const [id, pose] of poses)
       this.actors
         .get(id)
-        ?.frame(time, pose, pose?.beside && heard.has(pose.beside) ? "speaks" : heard.has(id) ? "listens" : null);
+        ?.frame(time, pose, pose?.beside && heard.has(pose.beside) ? "speaks" : heard.has(id) ? "listens" : null, look);
     this.reactions.tick(elapsed);
     this.ambient.tick(elapsed, time);
     this.waiting.pivot.y = time ? Math.round(Math.sin(time / 300) * 2) : 0;
-    for (const spot of [this.desk, this.board, this.lead, this.honors]) spot.frame(time);
+    this.label(shown, LABEL_GAP * look.bubble);
+  }
+
+  // What the director has to read is sized for the screen, kept inside what shows of it and off its neighbours.
+  private label(shown: number, gap: number): void {
+    const count = legible(this.waiting.look.size, shown);
+    const [x, y] = this.waitingAt;
+    const height = this.waiting.tall * count;
+    this.waiting.scale.set(count);
+    const labels = [
+      ...(this.waiting.visible
+        ? [{ box: { x, y: y - height, width: this.waiting.span * count, height }, put: (at: Box) => this.waiting.position.set(at.x, at.y) }]
+        : []),
+      ...[...this.actors.values()].flatMap((actor) => (actor.speech ? [{ box: actor.speech, put: (at: Box) => actor.say(at) }] : [])),
+    ];
+    const { scale } = this.view;
+    const bounds = {
+      left: -this.view.x / scale + LABEL_GAP,
+      right: (this.shownWidth - this.view.x) / scale - LABEL_GAP,
+      top: -this.view.y / scale + LABEL_GAP,
+    };
+    arrange(labels.map((label) => label.box), bounds, gap).forEach((at, index) => labels[index]!.put(at));
   }
 
   private paint(scene: SceneState): void {
@@ -396,6 +476,12 @@ export class OfficeStage {
     this.world.position.set(view.x, view.y);
   }
 
+  // The director's hand on the camera is direct, and takes it from a reset on its way home.
+  private steer(view: View): void {
+    this.gliding = null;
+    this.look(view);
+  }
+
   private bindCamera(): void {
     const { stage, canvas } = this.app;
     const listen = <K extends keyof HTMLElementEventMap>(type: K, on: (event: HTMLElementEventMap[K]) => void) => {
@@ -411,9 +497,14 @@ export class OfficeStage {
         x: ((event.clientX - box.left) / box.width) * FRAME.width,
         y: ((event.clientY - box.top) / box.height) * FRAME.height,
       };
-      this.look(zoomAt(this.view, Math.exp(-event.deltaY / 200), at, FRAME));
+      this.steer(zoomAt(this.view, Math.exp(-event.deltaY / 200), at, FRAME));
+      if (this.still) this.redraw();
     });
-    listen("dblclick", () => this.look(HOME));
+    listen("dblclick", () => (this.gliding = { from: this.view, since: performance.now() }));
+    for (const type of ["dblclick", "pointermove", "pointerdown", "pointerup", "pointerleave"] as const)
+      listen(type, () => {
+        if (this.still) this.redraw();
+      });
     stage.eventMode = "static";
     stage.hitArea = new Rectangle(0, 0, FRAME.width, FRAME.height);
     stage.on("pointerdown", (event: FederatedPointerEvent) => {
@@ -425,7 +516,7 @@ export class OfficeStage {
       const dx = event.global.x - drag.x;
       const dy = event.global.y - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) < DRAG_STARTS_AT) return;
-      this.look(panBy(this.view, dx, dy, FRAME));
+      this.steer(panBy(this.view, dx, dy, FRAME));
       this.drag = { x: event.global.x, y: event.global.y, moved: true };
     });
   }
