@@ -1,4 +1,5 @@
 import type { ScenePainter, SceneTheme } from "./scene-decor";
+import { roomGrowth } from "../ui/office-layout";
 
 // Large silhouettes establish identity; smaller details support it. Decorations
 // share the room projection and never participate in operational hit areas.
@@ -417,7 +418,7 @@ export function drawPlaceWallArt(painter: Painter, theme: SceneTheme) {
 
 export const landmarkDecor = {
   summerLounge({ p, ctx, block, add }: ScenePainter) {
-    add(24.5, () => {
+    add(24.5 + roomGrowth.south, () => {
       block(1.5, 10.8, 1.4, 0.8, 5, "#f6cf68");
       for (let i = 0; i < 5; i++)
         block(1.5 + i * 0.28, 10.8, 0.12, 0.8, 1, "#f7f1d4", 5);
@@ -431,7 +432,7 @@ export const landmarkDecor = {
     });
   },
   snowman({ p, ctx, add }: ScenePainter) {
-    add(24.8, () => {
+    add(24.8 + roomGrowth.east + roomGrowth.south, () => {
       const [x, y] = p(12.7, 10.5, 7);
       circle(ctx, x, y - 20, 26, "#dfedf1");
       circle(ctx, x, y - 52, 21, "#f4f7ed");
@@ -492,7 +493,7 @@ export const landmarkDecor = {
           2,
         );
     }
-    add(24.6, () => {
+    add(24.6 + roomGrowth.east + roomGrowth.south, () => {
       const [x, y] = p(12.8, 10.5, 40);
       circle(ctx, x, y - 37, 23, "#f5eadc");
       poly(
@@ -514,7 +515,7 @@ export const landmarkDecor = {
     });
   },
   ofrenda({ p, ctx, poly, block, add }: ScenePainter) {
-    add(16.5, () => {
+    add(16.5 + roomGrowth.south, () => {
       block(0.55, 9.48, 2.6, 0.74, 37, "#a64d74");
       block(0.6, 9.47, 2.4, 0.45, 24, "#df783b", 37);
       block(0.8, 9.46, 1.9, 0.24, 26, "#744c92", 61);

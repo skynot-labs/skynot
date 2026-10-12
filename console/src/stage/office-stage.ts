@@ -2,7 +2,7 @@
 import "pixi.js/unsafe-eval";
 import { Application, Container, Rectangle, Sprite, Texture, type FederatedPointerEvent } from "pixi.js";
 import { avatarBounds, drawPixelAvatar } from "../ui/avatar-renderer";
-import { assignStudioSeats, floorPoint, getStudioLayout, officeLayout } from "../ui/office-layout";
+import { assignStudioSeats, DECISION_SIGN, deskKit, floorPoint, getStudioLayout, officeLayout, seatSpots } from "../ui/office-layout";
 import { Office, type Piece, type SceneAgent, type SceneState } from "../ui/office-renderer";
 import { idlePose, type Floor, type Haunt } from "../studio/idle-life";
 import { normalizeStudioPreferences } from "../studio/model";
@@ -23,11 +23,11 @@ const IN_FRONT = 1000;
 const DRAG_STARTS_AT = 4;
 // Places to stand that no piece of furniture owns.
 const OPEN_HAUNTS: Haunt[] = [
-  { u: 0.5, v: 3.2, doing: "looking outside" },
-  { u: 0.5, v: 7.0, doing: "looking outside" },
-  { u: 9.5, v: 0.7, doing: "reading the wall" },
-  { u: 5.0, v: 5.0, doing: "stretching" },
-  { u: 7.3, v: 9.6, doing: "thinking" },
+  { u: 0.6, v: 3.4, doing: "looking outside" },
+  { u: 0.6, v: 9.2, doing: "looking outside" },
+  { u: 10.5, v: 0.8, doing: "reading the wall" },
+  { u: 8.6, v: 6.6, doing: "stretching" },
+  { u: 8.8, v: 12.3, doing: "thinking" },
 ];
 const SOLES = 27;
 const FIGURE_MARGIN = 1;
@@ -41,12 +41,14 @@ export class OfficeStage {
   private readonly scenery = new Container();
   private readonly overlay = new Container();
   private readonly seatLabels = new Container();
+  // Above the name tags: the one sign the director is meant to act on.
+  private readonly signs = new Container();
   private readonly actors = new Map<string, AgentActor>();
   private readonly figures = new Map<string, Texture>();
-  private readonly decisions = new Plate({ fill: "#dae3d3", color: "#46514a", size: 12, bold: true, height: 42, padding: 14, minWidth: 152, tail: true });
-  private readonly inbox = words("OPEN INBOX →", { fontSize: 9, fill: "#5e675a" });
-  private readonly boardLabel = words("", { fontSize: 11, fontWeight: "bold", fill: "#a9a3b7" });
-  private readonly more = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 12, height: 23, padding: 8, minWidth: 168 });
+  private readonly decisions = new Plate({ fill: "#dae3d3", color: "#46514a", size: 15, bold: true, height: 52, padding: 16, minWidth: 190, tail: true });
+  private readonly inbox = words("OPEN INBOX →", { fontSize: 11, fill: "#5e675a" });
+  private readonly boardLabel = words("", { fontSize: 14, fontWeight: "bold", fill: "#a9a3b7" });
+  private readonly more = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 15, height: 28, padding: 10, minWidth: 200 });
   private readonly still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   private scene: SceneState | null = null;
   private seats: ReturnType<typeof assignStudioSeats<SceneAgent>> = [];
@@ -62,23 +64,25 @@ export class OfficeStage {
     private readonly handlers: () => StageHandlers,
   ) {
     this.scenery.sortableChildren = true;
-    this.world.addChild(this.scenery, this.overlay);
+    this.world.addChild(this.scenery, this.overlay, this.signs);
     app.stage.addChild(this.world);
 
     this.decisions.eventMode = "static";
     this.decisions.cursor = "pointer";
     this.decisions.on("pointertap", () => this.tap(() => this.handlers().onDecisions()));
     this.inbox.anchor.set(0.5, 0.5);
-    this.inbox.y = 34;
+    this.inbox.y = 42;
+    this.decisions.caption.y = 20;
     this.decisions.addChild(this.inbox);
-    const [dx, dy] = floorPoint(10.3, 8.5, 140);
-    this.decisions.position.set(dx, dy - 17);
+    const [dx, dy] = floorPoint(DECISION_SIGN.u, DECISION_SIGN.v, DECISION_SIGN.z);
+    this.decisions.position.set(dx, dy - 27);
     this.boardLabel.anchor.set(0.5, 1);
     this.boardLabel.position.set(...floorPoint(2.57, officeLayout.room.depth + 0.64, -30));
     const [mx, my] = floorPoint(6.5, officeLayout.room.depth + 1.1, -29);
     this.more.position.set(mx, my + 32);
     for (const still of [this.inbox, this.boardLabel, this.more]) still.eventMode = "none";
-    this.overlay.addChild(this.seatLabels, this.decisions, this.boardLabel, this.more);
+    this.overlay.addChild(this.seatLabels, this.boardLabel, this.more);
+    this.signs.addChild(this.decisions);
 
     this.bindCamera();
     app.ticker.add(() => this.frame());
@@ -102,7 +106,7 @@ export class OfficeStage {
     const settings = normalizeStudioPreferences(scene.settings);
     const seats = assignStudioSeats(scene.agents, getStudioLayout(settings.layout));
     this.seats = seats;
-    const key = JSON.stringify([scene.name, scene.accent, settings, seats.map((seat) => [seat.u, seat.v, Boolean(seat.agent)])]);
+    const key = JSON.stringify([scene.name, scene.accent, settings, seats.map((seat) => [seat.u, seat.v, seat.agent?.name, deskKit(seat.agent)])]);
     if (key !== this.painted) {
       this.painted = key;
       this.paint(scene);
@@ -157,13 +161,8 @@ export class OfficeStage {
       const actor = agent && this.actors.get(agent.id);
       if (!agent || !actor) continue;
       const roams = agent.status === "idle" && !scene.paused;
-      const haunts = [
-        ...this.haunts,
-        ...seats
-          .filter((other) => other.agent && other.agent.id !== agent.id)
-          .map((other) => ({ u: other.u + 2.3, v: other.v + 0.9, doing: `with ${other.agent!.name.slice(0, 12)}` })),
-      ];
-      actor.frame(time, roams ? idlePose(agent.id, { u: seat.u + 0.9, v: seat.v + 1.75 }, this.floor, haunts, time) : null);
+      const haunts = this.haunts.filter((haunt) => haunt.owner !== agent.id);
+      actor.frame(time, roams ? idlePose(agent.id, seatSpots(seat).standsUp, this.floor, haunts, time) : null);
     }
     this.decisions.pivot.y = scene.pending > 0 && time ? Math.round(Math.sin(time / 300) * 2) : 0;
   }

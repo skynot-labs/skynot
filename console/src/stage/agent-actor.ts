@@ -1,14 +1,14 @@
 import { Container, Graphics, Sprite, type Texture } from "pixi.js";
 import { avatarBounds } from "../ui/avatar-renderer";
-import { floorPoint } from "../ui/office-layout";
-import { BUBBLE_FILL, BUBBLE_STEP_MS, type SceneAgent } from "../ui/office-renderer";
+import { deskKit, deskScreens, floorPoint, SEAT_LABEL_DROP, seatSpots } from "../ui/office-layout";
+import { BUBBLE_FILL, BUBBLE_STEP_MS, SCREEN, SEATED_TOP, type SceneAgent } from "../ui/office-renderer";
 import type { IdlePose, Spot } from "../studio/idle-life";
 import { Plate } from "./plates";
 
 export const AVATAR_SCALE = 3.2;
 // Sprite rows from the top of the avatar grid to its soles, and how far a chair lifts them off the floor.
 const SOLES = 27;
-const CHAIR_LIFT = 36;
+const CHAIR_LIFT = Math.round(SEATED_TOP - SOLES * AVATAR_SCALE);
 const WALK_STEP_MS = 180;
 const TYPE_STEP_MS = 500;
 
@@ -23,9 +23,9 @@ export class AgentActor {
   private readonly shadow = new Graphics().ellipse(0, 0, 17, 7).fill({ color: 0x000000, alpha: 0.14 });
   private readonly figure = new Sprite();
   private readonly outline = new Graphics();
-  private readonly name = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 12, height: 23, padding: 8, minWidth: 60 });
-  private readonly bubble = new Plate({ fill: "#c9c6d4", color: "#2f3340", size: 11, bold: true, height: 19, padding: 8, tail: true });
-  private readonly note = new Plate({ fill: "#f4f1e6d9", color: "#5a6170", size: 10, height: 15, padding: 6 });
+  private readonly name = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 15, height: 28, padding: 10, minWidth: 70 });
+  private readonly bubble = new Plate({ fill: "#c9c6d4", color: "#2f3340", size: 14, bold: true, height: 24, padding: 10, tail: true });
+  private readonly note = new Plate({ fill: "#f4f1e6d9", color: "#5a6170", size: 12, height: 18, padding: 7 });
   private agent: SceneAgent;
   private seat: Spot;
   private lastX = 0;
@@ -52,13 +52,13 @@ export class AgentActor {
   cast(agent: SceneAgent, seat: Spot): void {
     this.agent = agent;
     this.seat = seat;
-    const [x, y] = floorPoint(seat.u + 0.5, seat.v + 0.25);
-    const corner = (du: number, z: number) => {
-      const [sx, sy] = floorPoint(seat.u + 0.5 + du, seat.v + 0.235, z);
-      return [sx - x, sy - y];
-    };
-    this.screen.position.set(x, y);
-    this.screen.clear().poly([corner(0.045, 93), corner(0.855, 93), corner(0.855, 68), corner(0.045, 68)].flat()).fill("#91b8bd");
+    this.screen.clear();
+    for (const screen of deskScreens(seat, deskKit(agent))) {
+      const corner = (du: number, z: number) => floorPoint(screen.u + du, screen.v - 0.015, z);
+      this.screen
+        .poly([corner(0.045, SCREEN.top - 3), corner(screen.width - 0.045, SCREEN.top - 3), corner(screen.width - 0.045, SCREEN.bottom + 4), corner(0.045, SCREEN.bottom + 4)].flat())
+        .fill("#91b8bd");
+    }
     this.screen.zIndex = seat.u + seat.v + 1.001;
     this.name.write(agent.name.slice(0, 17), undefined, agent.status === "working" ? "#d2c3ed" : "#d7e6d8");
   }
@@ -68,12 +68,13 @@ export class AgentActor {
     const { agent, seat } = this;
     const working = agent.status === "working";
     const stride = pose?.walking ? 1 + (Math.floor(time / WALK_STEP_MS) % 2) : 0;
-    const [x, y] = pose ? floorPoint(pose.u, pose.v) : floorPoint(seat.u + 0.9, seat.v + 1.1);
+    const spots = seatSpots(seat);
+    const [x, y] = pose ? floorPoint(pose.u, pose.v) : floorPoint(spots.chair.u, spots.chair.v);
     const lift = pose ? (stride === 1 ? 2 : 0) : CHAIR_LIFT;
     const typing = !pose && working ? Math.floor(time / TYPE_STEP_MS) % 2 : 0;
 
     this.body.position.set(x, y);
-    this.body.zIndex = pose ? pose.u + pose.v - 0.4 : seat.u + seat.v + 0.99;
+    this.body.zIndex = pose ? pose.u + pose.v - 0.4 : seat.u + seat.v + 0.2;
     this.shadow.visible = pose !== null;
     this.figure.texture = this.figures(agent, pose === null, pose ? stride : typing);
     this.figure.y = -lift;
@@ -86,7 +87,7 @@ export class AgentActor {
 
     const top = -lift - (SOLES - avatarBounds(agent.avatar).top) * AVATAR_SCALE;
     this.tags.position.set(x, y);
-    this.name.y = pose ? 9 : 15;
+    this.name.y = pose ? 9 : SEAT_LABEL_DROP;
     this.outline.clear();
     if (this.hovered)
       this.outline
@@ -99,12 +100,12 @@ export class AgentActor {
       const step = Math.floor(time / BUBBLE_STEP_MS);
       const calls = said.tone !== "busy" && said.tone !== "wait";
       this.bubble.write(said.tone === "busy" ? "·".repeat(1 + (step % 3)).padEnd(3, " ") : said.text, BUBBLE_FILL[said.tone]);
-      this.bubble.position.set(3, top - 31 - (calls && step % 2 ? 3 : 0));
+      this.bubble.position.set(3, top - 38 - (calls && step % 2 ? 3 : 0));
     }
     this.note.visible = !said && Boolean(pose?.doing);
     if (pose?.doing) {
       this.note.write(pose.doing);
-      this.note.position.set(3, top - 24);
+      this.note.position.set(3, top - 26);
     }
   }
 

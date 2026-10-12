@@ -1,19 +1,19 @@
 import type { LayoutId } from "../studio/catalog";
 export type StudioZone = "manager" | "design" | "development" | "decisions";
 export const officeLayout = {
-  width: 1440,
-  height: 850,
-  room: { width: 14, depth: 10.4, wallHeight: 150 },
-  projection: { x: 500, y: 192, tileWidth: 40, tileHeight: 20 },
+  width: 1800,
+  height: 1062,
+  room: { width: 17.5, depth: 13, wallHeight: 150 },
+  projection: { x: 610, y: 250, tileWidth: 40, tileHeight: 20 },
   zones: [
     {
       id: "manager",
       name: "Management",
       description: "Manager and vision",
-      u: 0.7,
-      v: 0.65,
-      width: 4.7,
-      depth: 3.7,
+      u: 0.8,
+      v: 0.8,
+      width: 5.6,
+      depth: 4.6,
       color: "#9ebba9",
       icon: "chat",
     },
@@ -21,10 +21,10 @@ export const officeLayout = {
       id: "design",
       name: "Design and strategy",
       description: "Designer and specialist agents",
-      u: 6.1,
-      v: 0.65,
-      width: 7.1,
-      depth: 3.7,
+      u: 7.4,
+      v: 0.8,
+      width: 9.3,
+      depth: 4.6,
       color: "#b7a7c4",
       icon: "edit",
     },
@@ -32,10 +32,10 @@ export const officeLayout = {
       id: "development",
       name: "Development",
       description: "Workers in their worktrees",
-      u: 0.7,
-      v: 5.25,
-      width: 6.9,
-      depth: 4.6,
+      u: 0.8,
+      v: 6.5,
+      width: 8.6,
+      depth: 5.7,
       color: "#8dabb9",
       icon: "code",
     },
@@ -43,26 +43,63 @@ export const officeLayout = {
       id: "decisions",
       name: "Decision desk",
       description: "Questions, doubts and conflicts",
-      u: 8.2,
-      v: 5.25,
-      width: 5.0,
-      depth: 4.6,
+      u: 10.4,
+      v: 6.5,
+      width: 6.3,
+      depth: 5.7,
       color: "#c0a38c",
       icon: "help",
     },
   ] as const,
   seats: [
-    { zone: "manager", u: 2.0, v: 1.65 },
-    { zone: "design", u: 7.0, v: 1.65 },
-    { zone: "design", u: 10.3, v: 1.65 },
-    { zone: "development", u: 1.3, v: 5.45 },
-    { zone: "development", u: 4.5, v: 5.45 },
-    { zone: "development", u: 1.3, v: 7.9 },
-    { zone: "development", u: 4.5, v: 7.9 },
-    { zone: "decisions", u: 10.7, v: 5.45 },
+    { zone: "manager", u: 2.6, v: 2.7 },
+    { zone: "design", u: 8.8, v: 2.7 },
+    { zone: "design", u: 13.4, v: 2.7 },
+    { zone: "development", u: 1.6, v: 8.0 },
+    { zone: "development", u: 5.6, v: 8.0 },
+    { zone: "development", u: 1.6, v: 10.7 },
+    { zone: "development", u: 5.6, v: 10.7 },
+    { zone: "decisions", u: 13.6, v: 7.6 },
   ] as const,
 };
-
+// How much the room grew past the one the theme decor was drawn for; scenery pinned to the far walls moves by this.
+export const roomGrowth = { east: officeLayout.room.width - 14, south: officeLayout.room.depth - 10.4 };
+export const DESK = { width: 1.94, depth: 0.88 };
+export const DECISION_TABLE = { u: 11.2, v: 10.0, width: 3.5, depth: 2.2 };
+/** Where the sign over the decision table hangs: over its far end, clear of the desks beside it. */
+export const DECISION_SIGN = { u: DECISION_TABLE.u + 3.2, v: DECISION_TABLE.v + 0.65, z: 130 };
+export const COFFEE_COUNTER = { u: 0.65, v: officeLayout.room.depth - 0.8, width: 2.2, depth: 0.55 };
+// Canvas pixels from the floor under a chair down to the top of its owner's name, which hangs under the desk in line with them.
+export const SEAT_LABEL_DROP = 34;
+type Spot = { u: number; v: number };
+/**
+ * Where things are around a desk. Its owner sits behind it, facing the room, a little to the right so the screens,
+ * which stand to the left, never cover a face.
+ */
+export const seatSpots = (seat: Spot) => ({
+  chair: { u: seat.u + 1.15, v: seat.v - 0.42 },
+  standsUp: { u: seat.u + 1.15, v: seat.v - 1.0 },
+  visitor: { u: seat.u + 0.97, v: seat.v + 1.7 },
+  footprint: { u: seat.u - 0.05, v: seat.v - 0.9, width: DESK.width + 0.1, depth: DESK.depth + 0.95 },
+});
+export type DeskKit = "plain" | "lead" | "dual" | "dev" | "tablet" | "papers";
+/** What stands on a desk says whose it is. */
+export function deskKit(owner: { role: string; kind: "manager" | "worker" | "advisor" } | undefined): DeskKit {
+  if (!owner) return "plain";
+  if (owner.kind === "manager") return "lead";
+  if (/architect/i.test(owner.role)) return "dual";
+  if (/design/i.test(owner.role)) return "tablet";
+  if (/review|qa|security|audit/i.test(owner.role)) return "papers";
+  return owner.kind === "worker" ? "dev" : "plain";
+}
+const SCREEN_PLANE = 0.3;
+/** The screens of a desk as tile spans along its width; they share one plane and one height. */
+export const deskScreens = (seat: Spot, kit: DeskKit): Array<{ u: number; v: number; width: number }> =>
+  (kit === "dual" ? [[0, 0.58], [0.62, 0.58]] : kit === "lead" ? [[0.1, 0.95]] : [[0.3, 0.8]]).map(([du, width]) => ({
+    u: seat.u + du!,
+    v: seat.v + SCREEN_PLANE,
+    width: width!,
+  }));
 type Seat = { zone: StudioZone; u: number; v: number };
 export type StudioLayout = {
   zones: Array<{
@@ -87,24 +124,23 @@ export type StudioLayout = {
   }>;
 };
 const originalPartitions = [
-  { u: 5.7, v: 0.35, width: 0.12, depth: 4, height: 66 },
-  { u: 0.55, v: 4.55, width: 3.2, depth: 0.12, height: 44 },
-  { u: 6.2, v: 4.55, width: 2.4, depth: 0.12, height: 44 },
-  { u: 10.8, v: 4.55, width: 2.4, depth: 0.12, height: 44 },
-  { u: 7.9, v: 6, width: 0.12, depth: 3.8, height: 36 },
+  { u: 6.75, v: 0.35, width: 0.12, depth: 5, height: 66 },
+  { u: 0.55, v: 5.9, width: 4.2, depth: 0.12, height: 44 },
+  { u: 7.6, v: 5.9, width: 3, depth: 0.12, height: 44 },
+  { u: 13.4, v: 5.9, width: 3.4, depth: 0.12, height: 44 },
+  { u: 9.8, v: 7.4, width: 0.12, depth: 4.6, height: 36 },
 ];
 const row = (zone: StudioZone, v: number, us: number[]): Seat[] =>
   us.map((u) => ({ zone, u, v }));
-// Each row sits 0.45 left of the one behind, so a front monitor lands between the avatars behind it.
+// Each row sits 0.4 right of the one behind, so nobody sits straight behind a screen and the front row clears the corner decor.
 const denseDevelopment = [
-  ...row("development", 4.8, [1.2, 3.55, 5.9]),
-  ...row("development", 6.4, [0.75, 3.1, 5.45]),
-  ...row("development", 8.0, [0.3, 2.65, 5.0]),
+  ...row("development", 7.3, [0.2, 2.8, 5.4]),
+  ...row("development", 9.2, [0.6, 3.2, 5.8]),
+  ...row("development", 11.1, [1.0, 3.6, 6.2]),
 ];
-// Kept right of the decision bubble and off the screen column above the decision seat.
 const denseDesign = [
-  ...row("design", 0.9, [7.6, 9.95]),
-  ...row("design", 2.5, [9.5, 11.85]),
+  ...row("design", 1.9, [8.4, 12.4]),
+  ...row("design", 3.9, [10.0, 14.0]),
 ];
 export const studioLayouts: Record<LayoutId, StudioLayout> = {
   zones: {
@@ -116,20 +152,20 @@ export const studioLayouts: Record<LayoutId, StudioLayout> = {
   open: {
     zones: officeLayout.zones.map((z) =>
       z.id === "manager"
-        ? { ...z, width: 3.7 }
+        ? { ...z, width: 4.8, depth: 4.4 }
         : z.id === "design"
-          ? { ...z, u: 4.9, width: 8.3 }
-          : { ...z, v: 4.3, depth: 5.55 },
+          ? { ...z, u: 6.2, width: 10.5, depth: 4.4 }
+          : { ...z, v: 5.6, depth: 6.6 },
     ),
     seats: [
-      { zone: "manager", u: 1.2, v: 1.2 },
-      { zone: "design", u: 5, v: 1.2 },
-      { zone: "design", u: 8.3, v: 1.2 },
-      { zone: "development", u: 1.3, v: 4.7 },
-      { zone: "development", u: 4.5, v: 4.7 },
-      { zone: "development", u: 1.3, v: 7.3 },
-      { zone: "development", u: 4.5, v: 7.3 },
-      { zone: "decisions", u: 10.7, v: 5.45 },
+      { zone: "manager", u: 1.8, v: 2.4 },
+      { zone: "design", u: 7, v: 2.4 },
+      { zone: "design", u: 11.2, v: 2.4 },
+      { zone: "development", u: 1.6, v: 7.2 },
+      { zone: "development", u: 5.6, v: 7.2 },
+      { zone: "development", u: 1.6, v: 10.2 },
+      { zone: "development", u: 5.6, v: 10.2 },
+      { zone: "decisions", u: 13.6, v: 7.6 },
     ],
     denseSeats: [...denseDevelopment, ...denseDesign],
     partitions: [],
@@ -137,31 +173,31 @@ export const studioLayouts: Record<LayoutId, StudioLayout> = {
   pods: {
     zones: officeLayout.zones.map((z) =>
       z.id === "manager"
-        ? { ...z, u: 9.3, width: 4 }
+        ? { ...z, u: 11.6, width: 5.1 }
         : z.id === "design"
-          ? { ...z, u: 0.7, width: 8 }
+          ? { ...z, u: 0.8, width: 10 }
           : { ...z },
     ),
     seats: [
-      { zone: "manager", u: 10, v: 1.65 },
-      { zone: "design", u: 1.3, v: 1.65 },
-      { zone: "design", u: 4.7, v: 1.65 },
-      { zone: "development", u: 1.3, v: 5.45 },
-      { zone: "development", u: 4.5, v: 5.45 },
-      { zone: "development", u: 1.3, v: 7.9 },
-      { zone: "development", u: 4.5, v: 7.9 },
-      { zone: "decisions", u: 10.7, v: 5.45 },
+      { zone: "manager", u: 12.8, v: 2.7 },
+      { zone: "design", u: 1.8, v: 2.7 },
+      { zone: "design", u: 6, v: 2.7 },
+      { zone: "development", u: 1.6, v: 8.0 },
+      { zone: "development", u: 5.6, v: 8.0 },
+      { zone: "development", u: 1.6, v: 10.7 },
+      { zone: "development", u: 5.6, v: 10.7 },
+      { zone: "decisions", u: 13.6, v: 7.6 },
     ],
     denseSeats: [
       ...denseDevelopment,
-      ...row("design", 0.9, [1.45, 3.8]),
-      ...row("design", 2.5, [1.0, 3.3]),
+      ...row("design", 1.9, [1.4, 5.4]),
+      ...row("design", 3.9, [3.0, 7.0]),
     ],
     partitions: [
-      { u: 9, v: 0.35, width: 0.12, depth: 4, height: 66 },
-      { u: 0.55, v: 4.55, width: 2.3, depth: 0.12, height: 40 },
-      { u: 4.3, v: 4.55, width: 2.5, depth: 0.12, height: 40 },
-      { u: 7.9, v: 6, width: 0.12, depth: 3.8, height: 36 },
+      { u: 11.1, v: 0.35, width: 0.12, depth: 5, height: 66 },
+      { u: 0.55, v: 5.9, width: 3, depth: 0.12, height: 40 },
+      { u: 5.4, v: 5.9, width: 3.2, depth: 0.12, height: 40 },
+      { u: 9.8, v: 7.4, width: 0.12, depth: 4.6, height: 36 },
     ],
   },
 };

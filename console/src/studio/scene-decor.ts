@@ -1,6 +1,7 @@
 import type { resolveSceneTheme } from "./model";
 import type { DecorId } from "./catalog";
 import { landmarkDecor, circle, foliage, star } from "./scene-motifs";
+import { roomGrowth } from "../ui/office-layout";
 type Point = [number, number];
 export type ScenePainter = {
   ctx: CanvasRenderingContext2D;
@@ -172,7 +173,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
     }
   },
   bonsai({ p, poly, line, block, add }, theme) {
-    add(13.9, () => {
+    add(13.9 + roomGrowth.east, () => {
       block(12.6, 0.65, 0.85, 0.6, 12, "#7b857c");
       const [x, y] = p(13, 0.9, 13);
       line([x, y], [x - 8, y - 28], "#806d5b", 5);
@@ -195,7 +196,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
     });
   },
   parasol({ p, poly, line, add }, theme) {
-    add(10.8, () => {
+    add(10.8 + roomGrowth.south, () => {
       const [x, y] = p(0.8, 9.5);
       line([x, y], [x, y - 130], "#938b77", 4);
       poly(
@@ -221,7 +222,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
     });
   },
   cactus({ p, block, add, ctx }, theme) {
-    add(13.8, () => {
+    add(13.8 + roomGrowth.east, () => {
       block(12.7, 0.7, 0.65, 0.65, 15, "#b9876d");
       const [x, y] = p(13, 1, 13);
       ctx.fillStyle = theme.palette.foliage;
@@ -236,7 +237,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
     });
   },
   blossoms({ p, ctx, line, add }) {
-    add(17.8, () => {
+    add(17.8 + roomGrowth.east, () => {
       const [x, y] = p(14.4, 3.4, 15);
       line([x, y], [x, y - 90], "#885a4c", 9);
       line([x, y - 65], [x - 30, y - 103], "#885a4c", 5);
@@ -291,7 +292,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
     }
   },
   pumpkins({ p, ctx, add }) {
-    add(16.4, () => {
+    add(16.4 + roomGrowth.south, () => {
       for (let i = 0; i < 3; i++) {
         const [x, y] = p(0.95 + i * 0.67, 9.65, 44);
         circle(ctx, x, y - 18, 20, i % 2 ? "#f39b2f" : "#e77129");
@@ -307,7 +308,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
     });
   },
   tree({ p, poly, block, ctx, add }) {
-    add(10.7, () => {
+    add(10.7 + roomGrowth.south, () => {
       const [x, y] = p(0.55, 9.25);
       block(0.35, 9.05, 0.4, 0.4, 18, "#a9794f");
       for (let i = 0; i < 4; i++)
@@ -329,7 +330,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
         );
       star(ctx, x, y - 177, 17, "#ffdc67");
     });
-    add(16.3, () => {
+    add(16.3 + roomGrowth.south, () => {
       for (const [u, v, c] of [
         [0.8, 9.75, "#e36077"],
         [1.65, 9.75, "#429faf"],
@@ -343,7 +344,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
   garland,
   ...landmarkDecor,
   marigolds({ p, ctx, block, add }) {
-    add(14.2, () => {
+    add(14.2 + roomGrowth.east, () => {
       block(12.65, 0.7, 1, 0.5, 14, "#bc8c70");
       for (let i = 0; i < 20; i++) {
         const [x, y] = p(

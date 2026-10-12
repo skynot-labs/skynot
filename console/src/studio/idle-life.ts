@@ -1,7 +1,8 @@
 export type Spot = { u: number; v: number };
 export type Rect = { u: number; v: number; width: number; depth: number };
 export type Floor = { width: number; depth: number; blocked: Rect[] };
-export type Haunt = Spot & { doing: string };
+// A haunt someone owns (their desk) is for the others to visit, never for its owner.
+export type Haunt = Spot & { doing: string; owner?: string };
 // null is "at the desk".
 export type IdlePose = (Spot & { walking: boolean; doing: string | null }) | null;
 
