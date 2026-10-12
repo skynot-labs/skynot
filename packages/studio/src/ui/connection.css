@@ -27,6 +27,12 @@
   border-radius: 6px;
   font-size: 13px;
 }
+.connection-card .error-banner p {
+  white-space: pre-line;
+}
+.connection-card .form-note a {
+  text-decoration: underline;
+}
 .connection-card .modal-actions {
   align-items: center;
 }

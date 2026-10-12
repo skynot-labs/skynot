@@ -66,8 +66,8 @@ pairing secret. The secret is the content of `pairing.secret` in the office's da
 
 ## Ending sessions
 
-- **One browser:** use Disconnect, next to the office's name at the bottom of the studio's sidebar. It forgets
-  the session on that browser.
+- **One browser:** use Disconnect, next to the office's name in the footer at the bottom right of the studio. It
+  forgets the session on that browser.
 - **Every browser:** stop the office, delete `session.key` and `pairing.secret` from its data folder and start it
   again. Every session ends and a new pairing link is printed. Do this if a link may have been seen by someone
   else.
@@ -76,18 +76,27 @@ Five wrong secrets in a minute stop the office from listening to secrets for a m
 
 ## When it does not connect
 
-- **The studio says the office speaks another contract.** The studio and the office were built from versions
-  that no longer agree. The console the office itself serves always matches: open the office's own address.
-- **"unknown host".** The office was reached at an address it was not told about. `SKYNOT_OFFICE_URL` must be
-  exactly the address in the browser's bar, scheme included.
+- **The studio says it and the office are different versions.** One of them is older, and the screen says
+  which. An older office is updated with `git pull`, `npm ci` and a restart. An older public studio is a reload
+  away; until it matches, use the console the office serves at its own address. When that console is the one
+  that differs, the office was started before the console was rebuilt: run `npm run build:console` and restart
+  it.
+- **The studio says the office was reached at an address it was not started with.** `SKYNOT_OFFICE_URL` must
+  be exactly the address in the browser's bar, scheme included.
+- **The studio could not reach the office.** A browser reports four causes the same way, so check them in
+  order: the address is the one in the pairing link; the office is running; the office accepts this studio (the
+  public one unless `SKYNOT_STUDIO` names another); and the browser may reach your local network. The studio
+  gives up after fifteen seconds without an answer.
 - **Chrome never asked, and the studio cannot reach the office.** The permission was refused earlier. Allow
   local network access for the studio in the site's settings and reload.
-- **The public studio cannot reach an office on `http://127.0.0.1`.** Browsers block or gate that call. Use the
-  console the office serves at http://127.0.0.1:4747 instead, or give the office an address as above.
+- **The public studio cannot reach an office on `http://127.0.0.1`.** Browsers block or gate that call, so a
+  studio served over https refuses that address. Use the console the office serves at http://127.0.0.1:4747
+  instead, or give the office an address as above.
 
 ## Your own studio
 
 The studio is a static site. `npm run build:github && npm run build:studio` leaves it in
 `packages/studio/dist/github/studio`, built to work from any folder of any host. Name its address in
 `SKYNOT_STUDIO` so the office accepts its calls. The office and a studio agree on a contract number
-(`packages/contract`), which the office reports at `/api/meta`.
+(`packages/contract`), which the office reports at `/api/meta`; it is the version the studio shows when the two
+differ.
