@@ -49,7 +49,7 @@ console (web)  ──API / event log──▶  orchestrator  ──▶ role runs
 Hexagonal, light DDD, event-driven.
 
 - **Bounded contexts:** Orders (work order lifecycle), Team (roles, rosters, hiring), Execution (role runs, queue, concurrency, engines), Delivery (worktrees, verification, GitHub, PRs), Memory (the memory repo), Governance (policy and limits).
-- **Layout:** `src/<context>/{domain,application,adapters}` plus a small shared kernel. The domain never imports an adapter; a test or linter (e.g. dependency-cruiser) enforces it.
+- **Layout:** `packages/office/src/<context>/{domain,application,adapters}` plus a small shared kernel. The domain never imports an adapter; `test/architecture` enforces it.
 - **Outbound ports:** `RoleEngine` (adapters: claude CLI, codex CLI, fake), `Vcs` (gh, fake), `Workspace`, `MemoryStore`, `EventStore`, `Clock`. **Inbound:** web console over HTTP and SSE; Telegram later.
 - **Domain events** (`OrderDrafted`, `OrderSigned`, `TeamProposed`, `RoleRunStarted`, `RoleRunCompleted`, `VerificationFailed`, `PullRequestOpened`, `OrderDelivered`) go through an in-process bus and an append-only JSONL log. The log feeds the console, the logbook and the ledger, and coordinates the flow between contexts. State is rebuilt from the log at startup; no full event sourcing and no database at first.
 - **Light DDD:** aggregates only for the work order and the role run. Ubiquitous language in English. No empty layers.

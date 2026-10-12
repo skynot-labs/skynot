@@ -45,17 +45,17 @@ Ambient styling applies festival costumes first. Without a festival, the selecte
 
 | File | Responsibility |
 | --- | --- |
-| `console/src/studio/catalog.ts` | Place palettes, material/window styles, season/festival decoration IDs, layout labels and suggested combinations |
-| `console/src/studio/model.ts` | Validated preferences, defaults, catalog fallback and theme composition |
-| `console/src/application/studio-appearance.ts` | Browser storage and project preference lookup |
-| `console/src/studio/wardrobe.ts` | Wardrobe-only presets and reversible avatar composition |
-| `console/src/studio/presentation.ts` | Project + preferences → scene and displayed avatars; preserves runtime state |
-| `console/src/studio/scene-decor.ts` | Typed, procedural material/window/decor painters |
-| `console/src/studio/scene-motifs.ts` | Large cultural wall art, architecture, surroundings and landmark props |
-| `console/src/ui/office-layout.ts` | Room frame, zone/seat/partition definitions and role-aware seat placement |
-| `console/src/ui/office-renderer.ts` | Shared scene renderer, depth ordering and agent/decision hit areas |
-| `console/src/ui/StudioCustomizer.tsx` | Unsaved draft, live preview, choices and commit callback |
-| `console/src/ui/AvatarEditor.tsx` | Personal look editor and per-agent wardrobe participation |
+| `packages/studio/src/studio/catalog.ts` | Place palettes, material/window styles, season/festival decoration IDs, layout labels and suggested combinations |
+| `packages/studio/src/studio/model.ts` | Validated preferences, defaults, catalog fallback and theme composition |
+| `packages/studio/src/application/studio-appearance.ts` | Browser storage and project preference lookup |
+| `packages/studio/src/studio/wardrobe.ts` | Wardrobe-only presets and reversible avatar composition |
+| `packages/studio/src/studio/presentation.ts` | Project + preferences → scene and displayed avatars; preserves runtime state |
+| `packages/studio/src/studio/scene-decor.ts` | Typed, procedural material/window/decor painters |
+| `packages/studio/src/studio/scene-motifs.ts` | Large cultural wall art, architecture, surroundings and landmark props |
+| `packages/studio/src/ui/office-layout.ts` | Room frame, zone/seat/partition definitions and role-aware seat placement |
+| `packages/studio/src/ui/office-renderer.ts` | Shared scene renderer, depth ordering and agent/decision hit areas |
+| `packages/studio/src/ui/StudioCustomizer.tsx` | Unsaved draft, live preview, choices and commit callback |
+| `packages/studio/src/ui/AvatarEditor.tsx` | Personal look editor and per-agent wardrobe participation |
 
 The same composed avatars feed the canvas, preview, roster and agents view. The editor saves the base avatar, never the temporary ambient layer. Layouts only change visual positions and partitions. They do not change agent roles, work assignments, status, permissions, approvals or costs. A zone that runs out of desks switches to tighter rows, up to fifteen desks (one Manager, nine workers, five advisors); beyond that the scene paints "+N MORE ON THE TEAM" and the full team stays in the roster.
 
@@ -67,7 +67,7 @@ The same composed avatars feed the canvas, preview, roster and agents view. The 
 
 **New layout:** add a stable key and label to `layoutChoices`, then a matching entry in `studioLayouts`. Define zone bounds, role-tagged seats, the `denseSeats` a zone switches to when its team outgrows them, and partitions; keep desk extents and seated avatars inside the room. The shared placement algorithm puts Manager, workers and advisors in appropriate visual zones without duplicating an agent. Room dimensions, projection, the shared decision table and hit coordinate scaling remain common to the initial layouts.
 
-**New look:** add a wardrobe-only patch to `wardrobeLooks`. The editor builds its look shelf from that map. For a new seasonal/festival ID, extend the ambient look resolver as well; TypeScript catches a missing mapping. Do not put body, face, identity or runtime fields in the patch. A new accessory shape needs both an enum choice in `console/src/avatars/model.ts` and a drawing/bounds update in `console/src/ui/avatar-renderer.ts`.
+**New look:** add a wardrobe-only patch to `wardrobeLooks`. The editor builds its look shelf from that map. For a new seasonal/festival ID, extend the ambient look resolver as well; TypeScript catches a missing mapping. Do not put body, face, identity or runtime fields in the patch. A new accessory shape needs both an enum choice in `packages/studio/src/avatars/model.ts` and a drawing/bounds update in `packages/studio/src/ui/avatar-renderer.ts`.
 
 Unknown stored catalog IDs fall back one field at a time. Retain stable IDs when renaming labels. If replacing IDs, add a migration rather than relying on defaults. Storage write failures leave the current session usable and show a notice; they do not pretend the preference was saved.
 

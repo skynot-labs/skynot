@@ -6,7 +6,7 @@ The App is only an identity. Installing it starts no agent: the Node service run
 
 ## Register the App
 
-Under the owning account's settings, open **Developer settings → GitHub Apps → New GitHub App**. For the `skynot-labs` organization, the name, description, homepage and badge are in [LISTING.md](../packages/studio/public/github-kit/app/LISTING.md), generated from `console/src/github/site.json`.
+Under the owning account's settings, open **Developer settings → GitHub Apps → New GitHub App**. For the `skynot-labs` organization, the name, description, homepage and badge are in [LISTING.md](../packages/studio/public/github-kit/app/LISTING.md), generated from `packages/studio/src/github/site.json`.
 
 - **Webhook:** leave *Active* unchecked. The service polls GitHub for labeled issues and merged pull requests; it has no webhook receiver.
 - **Callback URL, setup URL, user authorization:** leave empty. The service authenticates only as an installation, never on behalf of a user.

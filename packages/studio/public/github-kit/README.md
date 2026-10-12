@@ -8,13 +8,13 @@ Three static pages present Skynot outside the console: the project, the organiza
 | Organization | `/github/organization/` | `…/skynot/organization/` |
 | App homepage | `/github/app/` | `…/skynot/app/` |
 
-The Pages addresses follow from `organization` and `repository` in `console/src/github/site.json`; they exist once the repository lives under that organization and the workflow below has run.
+The Pages addresses follow from `organization` and `repository` in `packages/studio/src/github/site.json`; they exist once the repository lives under that organization and the workflow below has run.
 
 ## Build
 
 ```bash
-npm run build:github    # the site alone, in console/dist/github/
-npm run build:console   # the console, with the site under console/dist/github/
+npm run build:github    # the site alone, in packages/studio/dist/github/
+npm run build:console   # the console, with the site under packages/studio/dist/github/
 ```
 
 After `build:console` the shop serves the site at `/github/` next to the console. `npm run dev:console` serves it from source at the same path. `npm run github:export` alone regenerates the entry pages and the kit after a copy change.
@@ -23,7 +23,7 @@ Every page is a real `index.html` with relative links, scripts and assets, so th
 
 ## Publish on GitHub Pages
 
-[`.github/workflows/pages.yml`](workflows/pages.yml) builds the site and deploys `console/dist/github`. It runs on every push to `main` that touches the console, and can be started by hand from **Actions**.
+[`.github/workflows/pages.yml`](workflows/pages.yml) builds the site and deploys `packages/studio/dist/github`. It runs on every push to `main` that touches the console, and can be started by hand from **Actions**.
 
 Once, in the repository's **Settings → Pages**, choose **GitHub Actions** as the source.
 
@@ -31,7 +31,7 @@ A project site is served at `https://<owner>.github.io/<repository>/`; the organ
 
 ## The kit
 
-`console/public/github-kit/` holds what the maintainer takes to GitHub by hand; the pages do not link to it. Everything in it is generated except the PNG snapshots.
+`packages/studio/public/github-kit/` holds what the maintainer takes to GitHub by hand; the pages do not link to it. Everything in it is generated except the PNG snapshots.
 
 - **Organization profile.** Copy `organization/profile/README.md` to `profile/README.md` in the organization's public `.github` repository. Upload `organization/avatar.png` as the organization's picture. See [customizing an organization's profile](https://docs.github.com/en/organizations/collaborating-with-groups-in-organizations/customizing-your-organizations-profile).
 - **GitHub App.** `app/LISTING.md` has the registration fields and permissions, `app/badge.png` the logo. `app/SETUP.md` is the [App guide](app/SETUP.md). GitHub renders the App's own listing page from the registration; the App page of this site is its homepage.
@@ -40,10 +40,10 @@ A project site is served at `https://<owner>.github.io/<repository>/`; the organ
 
 ## Where things live
 
-- `console/src/github/site.json`: names, the one-line descriptions of the product and the organization, and the App's permissions. Every page, the profile and the listing take those lines from here. `organization` must match `console/src/design/logo.json`; the exporter checks it. When the service needs another permission, change it here and in the README.
-- `console/src/github/pages/`: one component per page, with its copy. `StudioPreview.tsx` draws an invented team with the console's renderer.
-- `console/scripts/export-github.mjs`: writes `console/github/**/index.html` and the kit from those sources. Do not edit its output.
-- `console/vite.github.config.ts`: the site's own build.
+- `packages/studio/src/github/site.json`: names, the one-line descriptions of the product and the organization, and the App's permissions. Every page, the profile and the listing take those lines from here. `organization` must match `packages/studio/src/design/logo.json`; the exporter checks it. When the service needs another permission, change it here and in the README.
+- `packages/studio/src/github/pages/`: one component per page, with its copy. `StudioPreview.tsx` draws an invented team with the console's renderer.
+- `packages/studio/scripts/export-github.mjs`: writes `packages/studio/github/**/index.html` and the kit from those sources. Do not edit its output.
+- `packages/studio/vite.github.config.ts`: the site's own build.
 
 ### Regenerating the PNGs
 
@@ -52,7 +52,7 @@ The PNGs are checked-in snapshots of the generated SVGs, so a build needs no ima
 ```bash
 npm run github:export -- --svg-only
 npm install --no-save --package-lock=false sharp
-node console/scripts/rasterize-github.mjs
+node packages/studio/scripts/rasterize-github.mjs
 npm prune
 ```
 
