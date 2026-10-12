@@ -1444,3 +1444,70 @@ textarea {
     flex-wrap: wrap;
   }
 }
+
+.spend-chart {
+  margin: 4px 22px 18px;
+}
+.spend-chart ol {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 84px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-bottom: 1px solid var(--border);
+}
+.spend-chart li {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+}
+.spend-chart li > span {
+  width: 100%;
+  min-height: 2px;
+  background: #a5d7b84d;
+  border-radius: 2px 2px 0 0;
+}
+.spend-chart li.today > span,
+.spend-chart li:hover > span {
+  background: var(--mint);
+}
+.spend-chart figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 7px;
+  font: 8px var(--mono);
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.cost-tabs {
+  display: flex;
+  gap: 22px;
+  padding: 16px 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cost-tabs button {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 0 1px 11px;
+  margin-bottom: -1px;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.cost-tabs button > span {
+  font: 9px var(--mono);
+}
+.cost-tabs button:hover {
+  color: var(--text);
+}
+.cost-tabs button[aria-selected="true"] {
+  color: var(--mint);
+  border-bottom-color: var(--mint);
+}

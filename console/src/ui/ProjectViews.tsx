@@ -88,7 +88,9 @@ export function OrdersView({
       <div class="view-toolbar">
         <div>
           <h2>From idea to delivery.</h2>
-          <p>Signature, work, review and delivery. Every step leaves a trace.</p>
+          <p>
+            Signature, work, review and delivery. Every step leaves a trace.
+          </p>
         </div>
         <input
           type="search"
@@ -107,7 +109,9 @@ export function OrdersView({
       ) : (
         <div class={`kanban ${discarded ? "with-discarded" : ""}`}>
           {stages.map((stage) => {
-            const list = orders.filter((o) => stage.statuses.includes(o.status));
+            const list = orders.filter((o) =>
+              stage.statuses.includes(o.status),
+            );
             return (
               <section class="kanban-column" key={stage.name}>
                 <div class="kanban-heading">
@@ -391,6 +395,7 @@ export function UsageView({
   const active = project.agents.filter((a) => a.runs > 0);
   const roleName = (role: string) =>
     project.agents.find((a) => a.id === role)?.name ?? role;
+  const [tab, setTab] = useState<"orders" | "agents" | "runs">("orders");
   return (
     <>
       <div class="usage-top">
@@ -413,6 +418,7 @@ export function UsageView({
               ? "No daily cap is set."
               : `${ratio.toFixed(0)}% of the daily cap.`}
           </p>
+          <SpendChart days={costs.days} />
           <div class="budget-total">
             <span>Shop total</span>
             <strong>{usd(costs.total)}</strong>
@@ -452,125 +458,206 @@ export function UsageView({
         </section>
       </div>
       <section class="panel cost-table">
-        <div class="panel-heading">
-          <span class="panel-title">Spent per work order</span>
+        <div class="cost-tabs" role="tablist" aria-label="Where the money went">
+          {(
+            [
+              ["orders", "Per work order", spenders.length],
+              ["agents", "Per agent", active.length],
+              ["runs", "Run history", project.runs.length],
+            ] as const
+          ).map(([id, title, count]) => (
+            <button
+              role="tab"
+              id={`cost-tab-${id}`}
+              aria-controls="cost-tabpanel"
+              aria-selected={tab === id}
+              onClick={() => setTab(id)}
+              key={id}
+            >
+              {title}
+              <span>{count}</span>
+            </button>
+          ))}
         </div>
-        {spenders.length > 0 ? (
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>ORDER</th>
-                  <th>STATUS</th>
-                  <th>WORKER</th>
-                  <th>USD</th>
-                </tr>
-              </thead>
-              <tbody>
-                {spenders.map((o) => (
-                  <tr key={o.id}>
-                    <td>
-                      <strong>{o.title}</strong>
-                      <small>{o.id}</small>
-                    </td>
-                    <td>
-                      <span class={`status-chip ${o.status}`}>
-                        {orderStatus[o.status]}
-                      </span>
-                    </td>
-                    <td>{o.worker ?? "developer"}</td>
-                    <td>{usd(o.spentUsd)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div class="empty-state">No work order has spent anything yet.</div>
-        )}
-      </section>
-      {active.length > 0 && (
-        <section class="panel cost-table">
-          <div class="panel-heading">
-            <span class="panel-title">Spent per agent</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>AGENT</th>
-                  <th>RUNS</th>
-                  <th>TOKENS IN</th>
-                  <th>CACHED</th>
-                  <th>TOKENS OUT</th>
-                  <th>USD</th>
-                </tr>
-              </thead>
-              <tbody>
-                {active.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <strong>{a.name}</strong>
-                      <small>{a.engine}</small>
-                    </td>
-                    <td>{a.runs}</td>
-                    <td>
-                      {a.usage ? tokenCount(a.usage.inputTokens) : NOT_REPORTED}
-                    </td>
-                    <td>
-                      {a.usage?.cachedInputTokens == null
-                        ? NOT_REPORTED
-                        : tokenCount(a.usage.cachedInputTokens)}
-                    </td>
-                    <td>
-                      {a.usage ? tokenCount(a.usage.outputTokens) : NOT_REPORTED}
-                    </td>
-                    <td>{reportedSpend(a.spentUsd)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-      <section class="panel cost-table">
-        <div class="panel-heading">
-          <span class="panel-title">Run history</span>
-          {project.runs.length > 0 && (
-            <span class="pill">LAST {project.runs.length}</span>
+        <div
+          role="tabpanel"
+          id="cost-tabpanel"
+          aria-labelledby={`cost-tab-${tab}`}
+        >
+          {tab === "orders" && (
+            <>
+              {spenders.length > 0 ? (
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>ORDER</th>
+                        <th>STATUS</th>
+                        <th>WORKER</th>
+                        <th>USD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spenders.map((o) => (
+                        <tr key={o.id}>
+                          <td>
+                            <strong>{o.title}</strong>
+                            <small>{o.id}</small>
+                          </td>
+                          <td>
+                            <span class={`status-chip ${o.status}`}>
+                              {orderStatus[o.status]}
+                            </span>
+                          </td>
+                          <td>{o.worker ?? "developer"}</td>
+                          <td>{usd(o.spentUsd)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div class="empty-state">
+                  No work order has spent anything yet.
+                </div>
+              )}
+            </>
+          )}
+          {tab === "agents" && (
+            <>
+              {active.length > 0 ? (
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>AGENT</th>
+                        <th>RUNS</th>
+                        <th>TOKENS IN</th>
+                        <th>CACHED</th>
+                        <th>TOKENS OUT</th>
+                        <th>USD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {active.map((a) => (
+                        <tr key={a.id}>
+                          <td>
+                            <strong>{a.name}</strong>
+                            <small>{a.engine}</small>
+                          </td>
+                          <td>{a.runs}</td>
+                          <td>
+                            {a.usage
+                              ? tokenCount(a.usage.inputTokens)
+                              : NOT_REPORTED}
+                          </td>
+                          <td>
+                            {a.usage?.cachedInputTokens == null
+                              ? NOT_REPORTED
+                              : tokenCount(a.usage.cachedInputTokens)}
+                          </td>
+                          <td>
+                            {a.usage
+                              ? tokenCount(a.usage.outputTokens)
+                              : NOT_REPORTED}
+                          </td>
+                          <td>{reportedSpend(a.spentUsd)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div class="empty-state">
+                  No agent has run on this project yet.
+                </div>
+              )}
+            </>
+          )}
+          {tab === "runs" && (
+            <>
+              {project.runs.length > 0 ? (
+                <div class="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>FINISHED</th>
+                        <th>AGENT</th>
+                        <th>ENGINE</th>
+                        <th>OUTCOME</th>
+                        <th>TURNS</th>
+                        <th>TOKENS</th>
+                        <th>ORDER</th>
+                        <th>USD</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {project.runs.map((run) => (
+                        <RunRow
+                          key={run.runId}
+                          run={run}
+                          role={roleName(run.role)}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div class="empty-state">
+                  No run has finished on this project yet.
+                </div>
+              )}
+            </>
           )}
         </div>
-        {project.runs.length > 0 ? (
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>FINISHED</th>
-                  <th>AGENT</th>
-                  <th>ENGINE</th>
-                  <th>OUTCOME</th>
-                  <th>TURNS</th>
-                  <th>TOKENS</th>
-                  <th>ORDER</th>
-                  <th>USD</th>
-                </tr>
-              </thead>
-              <tbody>
-                {project.runs.map((run) => (
-                  <RunRow key={run.runId} run={run} role={roleName(run.role)} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div class="empty-state">No run has finished on this project yet.</div>
-        )}
       </section>
       <p class="view-note">
         <Icon name="help" />
         Cost as reported by the CLIs. It is not a subscription invoice.
       </p>
     </>
+  );
+}
+
+const monthDay = (day: string) =>
+  new Date(`${day}T00:00:00.000Z`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+
+function SpendChart({ days }: { days: Snapshot["costs"]["days"] }) {
+  if (days.length < 2) return null;
+  const tallest = Math.max(...days.map((entry) => entry.usd));
+  return (
+    <figure class="spend-chart">
+      <ol aria-label={`Spent per day, last ${days.length} days`}>
+        {days.map((entry, index) => (
+          <li
+            key={entry.day}
+            class={index === days.length - 1 ? "today" : ""}
+            title={`${monthDay(entry.day)} · ${usd(entry.usd)}`}
+            aria-label={`${monthDay(entry.day)}: ${usd(entry.usd)}`}
+          >
+            <span
+              style={{
+                height:
+                  tallest === 0 ? "0%" : `${(entry.usd / tallest) * 100}%`,
+              }}
+            />
+          </li>
+        ))}
+      </ol>
+      <figcaption>
+        <span>{monthDay(days[0]!.day)}</span>
+        <span>
+          {tallest === 0
+            ? "Nothing spent in these days"
+            : `Tallest day ${usd(tallest)}`}
+        </span>
+        <span>Today</span>
+      </figcaption>
+    </figure>
   );
 }
 
@@ -832,7 +919,9 @@ export function ContextView({
           </div>
           <div class="context-principle">
             <Icon name="shield" />
-            <span>The LLM proposes. The code validates. The director decides.</span>
+            <span>
+              The LLM proposes. The code validates. The director decides.
+            </span>
           </div>
         </section>
       </div>
@@ -1002,10 +1091,7 @@ export function ActivityView({
                   ))}
                 {a.orderId && " · "}
                 {order ? (
-                  <button
-                    onClick={() => onOrder(order)}
-                    title={order.title}
-                  >
+                  <button onClick={() => onOrder(order)} title={order.title}>
                     {order.id} · {order.title}
                   </button>
                 ) : (
@@ -1015,7 +1101,6 @@ export function ActivityView({
             </div>
             <span class="event-sequence">#{a.sequence}</span>
           </article>
-        
         );
       })}
       {activities.length === 0 && (
