@@ -9,7 +9,7 @@ const followsTheStudio = (page: Page): Locator => dialog(page).getByLabel("Follo
 async function openLook(page: Page): Promise<void> {
   await openProject(page, "beta");
   await roster(page).getByRole("button", { name: "manager" }).click();
-  await dialog(page).getByRole("tab", { name: "Look" }).click();
+  await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
 }
 
 test.describe("a dialog and what was typed in it", () => {
@@ -48,15 +48,15 @@ test.describe("an agent's look", () => {
   test("a visit to another tab of the desk keeps the unsaved look", async ({ page }) => {
     await openLook(page);
     await dialog(page).getByLabel("DISPLAY ALIAS").fill("Grace Hopper");
-    await dialog(page).getByRole("tab", { name: "Soul" }).click();
+    await dialog(page).getByRole("button", { name: "Soul", exact: true }).click();
     await expect(dialog(page).getByLabel("DISPLAY ALIAS")).toBeHidden();
-    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
     await expect(dialog(page).getByLabel("DISPLAY ALIAS")).toHaveValue("Grace Hopper");
   });
 
   test("choosing a garment or its colour stops following the studio wardrobe", async ({ page }) => {
     await openLook(page);
-    await dialog(page).getByRole("tab", { name: "Wardrobe" }).click();
+    await dialog(page).getByRole("button", { name: "Wardrobe", exact: true }).click();
 
     await followsTheStudio(page).check();
     await dialog(page).getByRole("group", { name: "Top", exact: true }).getByRole("button", { pressed: false }).first().click();
@@ -71,7 +71,7 @@ test.describe("an agent's look", () => {
 
   test("a colour as dark as the dialog still has an edge", async ({ page }) => {
     await openLook(page);
-    await dialog(page).getByRole("tab", { name: "Wardrobe" }).click();
+    await dialog(page).getByRole("button", { name: "Wardrobe", exact: true }).click();
     const darkest = dialog(page).getByRole("button", { name: "Pants 8", exact: true });
     await expect(darkest).toHaveAttribute("aria-pressed", "false");
     const edge = await darkest.evaluate((swatch) => {

@@ -20,7 +20,7 @@ test.describe("the live office", () => {
     const chair = seatSpots(seat).chair;
     const [x, y] = floorPoint(chair.u, chair.v);
     await clickOffice(page, [x, y - 70]);
-    await expect(dialog(page).getByRole("tab", { name: "Soul" })).toBeVisible();
+    await expect(dialog(page).getByRole("button", { name: "Soul", exact: true })).toBeVisible();
     await expect(dialog(page)).toContainText("developer");
   });
 

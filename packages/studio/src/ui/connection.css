@@ -20,6 +20,7 @@
 }
 .connection-card .error-banner p {
   white-space: pre-line;
+  min-width: 0;
 }
 .connection-card .form-note a {
   text-decoration: underline;

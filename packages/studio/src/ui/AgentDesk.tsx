@@ -60,7 +60,7 @@ export function AgentDesk({
         {live && agent.runId && (
           <button
             class="secondary-button"
-            disabled={busy}
+            aria-disabled={busy}
             onClick={() =>
               void send({ name: "stop-run", payload: { runId: agent.runId! } })
             }
@@ -70,14 +70,11 @@ export function AgentDesk({
           </button>
         )}
       </header>
-      <div class="agent-desk-tabs" role="tablist" aria-label="Agent">
+      <div class="agent-desk-tabs" role="group" aria-label="Agent">
         {deskTabs.map((item) => (
           <button
             type="button"
-            role="tab"
-            id={`agent-tab-${item.id}`}
-            aria-selected={tab === item.id}
-            aria-controls={`agent-panel-${item.id}`}
+            aria-pressed={tab === item.id}
             onClick={() => setTab(item.id)}
             key={item.id}
           >
@@ -85,11 +82,7 @@ export function AgentDesk({
           </button>
         ))}
       </div>
-      <div
-        role="tabpanel"
-        id={`agent-panel-${tab}`}
-        aria-labelledby={`agent-tab-${tab}`}
-      >
+      <div>
         {tab === "work" && (
           <Work
             project={project}
@@ -153,7 +146,7 @@ function Work({
             {unblock && (
               <button
                 class="primary-button"
-                disabled={busy}
+                aria-disabled={busy}
                 onClick={() => void send(unblock.command)}
               >
                 {unblock.label}
@@ -324,7 +317,8 @@ function Compose({
         <button
           class="primary-button"
           type="submit"
-          disabled={busy || !text.trim()}
+          disabled={!text.trim()}
+          aria-disabled={busy}
         >
           {copy.button}
           <Icon name="arrow" />
@@ -407,7 +401,8 @@ function SoulPanel({
           <button
             class="primary-button"
             type="submit"
-            disabled={busy || !changed}
+            disabled={!changed}
+            aria-disabled={busy}
           >
             Set the focus
             <Icon name="check" />

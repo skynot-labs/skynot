@@ -1,5 +1,5 @@
 import { expect, test as base, type Locator, type Page } from "@playwright/test";
-import { StateSchema, commandPath, type State } from "@skynot/contract";
+import { StateSchema, commandPath, type Order, type State } from "@skynot/contract";
 
 export type ProjectView = "The studio" | "Decisions" | "Work orders" | "Agents" | "Activity" | "Context" | "Costs";
 
@@ -92,6 +92,50 @@ export async function stageState(page: Page, mutate: (state: State) => void): Pr
     await route.fulfill({ response, json: StateSchema.parse(state) });
   });
 }
+
+export const STAGED_AT = "2026-01-05T10:00:00.000Z";
+
+// An order the simulated shop never filed, for a state staged on its way to the studio.
+export const stagedOrder = (id: string, status: Order["status"], changes: Partial<Order> = {}): Order => ({
+  id,
+  plan: id,
+  title: `Tidy the invoice footer, part ${id}`,
+  summary: "The footer lines up with the totals.",
+  objective: "Line the footer up.",
+  context: null,
+  approach: [],
+  likelyFiles: [],
+  risk: "low",
+  criteria: [],
+  outOfScope: [],
+  status,
+  card: id,
+  pullRequest: null,
+  ticket: null,
+  minutes: null,
+  proposedAt: STAGED_AT,
+  signedAt: null,
+  deliveredAt: null,
+  spentUsd: 0,
+  working: false,
+  issue: null,
+  issueUrl: null,
+  pullRequestUrl: null,
+  blocked: null,
+  protectedPaths: [],
+  approvedPaths: [],
+  waitingOn: [],
+  worker: null,
+  question: null,
+  questionAt: null,
+  answers: [],
+  answered: [],
+  reviews: 0,
+  review: null,
+  checks: null,
+  ready: false,
+  ...changes,
+});
 
 // Asked of the office itself, so a case has an order to sign whichever case ran before it, or none.
 export async function orderToSign(page: Page, project: string): Promise<string> {

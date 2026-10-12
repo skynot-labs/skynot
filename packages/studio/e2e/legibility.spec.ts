@@ -1,13 +1,14 @@
 import type { Locator, Page } from "@playwright/test";
-import { CONTRACT, type Order, type State } from "@skynot/contract";
+import { CONTRACT, type State } from "@skynot/contract";
 import { LOCAL_OFFICE, PAIRING_SECRET, SESSION_OFFICE } from "./offices";
-import { closeDialog, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, stageState, test } from "./support";
+import { STAGED_AT, closeDialog, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, stageState, stagedOrder, test } from "./support";
 
 const PROJECT = "beta";
-const AT = "2026-01-05T10:00:00.000Z";
+const AT = STAGED_AT;
 const CAPTION = 12;
 const HIT = 24;
 const READABLE = 4.5;
+const RING_PIXELS = 300;
 const PAUSE = { since: AT, reason: "paused by the director" };
 const STATE_LABELS =
   ".status-chip, .project-paused, .pill.state, .nav-counter, .inbox-counter, .inbox-tabs button span, .studio-zone-nav b, .studio-pause-controls button, .studio-pause-label, .question-meta, .main-footer > span:last-child";
@@ -16,47 +17,6 @@ const pairingLink = `${LOCAL_OFFICE}/#office=${encodeURIComponent(SESSION_OFFICE
 const desk = (page: Page) => page.getByRole("region", { name: "Decision desk" });
 const roster = (page: Page) => page.getByRole("region", { name: "Project team" });
 
-const order = (id: string, status: Order["status"], changes: Partial<Order> = {}): Order => ({
-  id,
-  plan: id,
-  title: `Tidy the invoice footer, part ${id}`,
-  summary: "The footer lines up with the totals.",
-  objective: "Line the footer up.",
-  context: null,
-  approach: [],
-  likelyFiles: [],
-  risk: "low",
-  criteria: [],
-  outOfScope: [],
-  status,
-  card: id,
-  pullRequest: null,
-  ticket: null,
-  minutes: null,
-  proposedAt: AT,
-  signedAt: null,
-  deliveredAt: null,
-  spentUsd: 0,
-  working: false,
-  issue: null,
-  issueUrl: null,
-  pullRequestUrl: null,
-  blocked: null,
-  protectedPaths: [],
-  approvedPaths: [],
-  waitingOn: [],
-  worker: null,
-  question: null,
-  questionAt: null,
-  answers: [],
-  answered: [],
-  reviews: 0,
-  review: null,
-  checks: null,
-  ready: false,
-  ...changes,
-});
-
 // The simulated shop is never paused with a question, a blocked order and work to sign all at once: every state is staged on the way to the studio, and the shop itself is left as it was.
 function everyState(state: State): State {
   if (state.project.id !== PROJECT) return state;
@@ -64,9 +24,9 @@ function everyState(state: State): State {
     ...state,
     projects: state.projects.map((project) => (project.id === PROJECT ? { ...project, paused: true, questions: 2, awaitingSignature: 1, blocked: 1, needsYou: 4 } : project)),
     orders: [
-      order("WO-901", "awaiting_signature"),
-      order("WO-902", "on_bench", { working: true, signedAt: AT, worker: "developer", question: "Which footer?", questionAt: AT }),
-      order("WO-903", "in_review", { signedAt: AT, blocked: "the checks failed three times" }),
+      stagedOrder("WO-901", "awaiting_signature"),
+      stagedOrder("WO-902", "on_bench", { working: true, signedAt: AT, worker: "developer", question: "Which footer?", questionAt: AT }),
+      stagedOrder("WO-903", "in_review", { signedAt: AT, blocked: "the checks failed three times" }),
     ],
     inbox: [
       { id: "question-1", kind: "worker_question", from: "developer", question: "Which footer?", options: ["Left", "Right"], orderId: "WO-902", ticket: null, askedAt: AT },
@@ -174,6 +134,44 @@ async function expectProductRing(page: Page): Promise<void> {
   expect({ colour: ring.colour, style: ring.style }).toEqual({ colour: ring.product, style: "solid" });
 }
 
+// Runs in the page, which can read a PNG without a library: both shots are of one box, so they compare pixel for pixel.
+async function changedPixels(page: Page, before: Buffer, after: Buffer): Promise<number> {
+  return page.evaluate(
+    async (shots) => {
+      const [first = new Uint8ClampedArray(), second = new Uint8ClampedArray()] = await Promise.all(
+        shots.map(async (png) => {
+          const image = await createImageBitmap(new Blob([Uint8Array.from(atob(png), (byte) => byte.charCodeAt(0))], { type: "image/png" }));
+          const context = new OffscreenCanvas(image.width, image.height).getContext("2d");
+          context?.drawImage(image, 0, 0);
+          return context?.getImageData(0, 0, image.width, image.height).data;
+        }),
+      );
+      const noticeable = 60;
+      let changed = 0;
+      for (let at = 0; at < first.length; at += 4) {
+        const distance = Math.abs(first[at]! - second[at]!) + Math.abs(first[at + 1]! - second[at + 1]!) + Math.abs(first[at + 2]! - second[at + 2]!);
+        if (distance > noticeable) changed += 1;
+      }
+      return first.length === second.length ? changed : -1;
+    },
+    [before.toString("base64"), after.toString("base64")],
+  );
+}
+
+async function expectVisibleRing(control: Locator): Promise<void> {
+  const page = control.page();
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+  const unfocused = await control.screenshot();
+  await control.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(control).toBeFocused();
+  expect(await control.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
+  const changed = await changedPixels(page, unfocused, await control.screenshot());
+  expect(changed, `${await control.getAttribute("aria-label") ?? (await control.innerText())}: ${changed} pixels changed`).toBeGreaterThanOrEqual(RING_PIXELS);
+}
+
 for (const width of [1440, 390]) {
   test(`at ${width}px a state is said in type no smaller than the caption, and no label leaves its row`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -221,7 +219,7 @@ test("the small controls leave at least 24 by 24 to hit", async ({ page, browser
   await expectHittable(page.getByRole("complementary").getByRole("button", { name: "Register a project" }));
   await expectHittable(page.getByRole("button", { name: "All work orders" }));
   await expectHittable(desk(page).getByRole("button", { name: "WO-902", exact: true }));
-  await desk(page).getByRole("tab", { name: "To sign" }).click();
+  await desk(page).getByRole("group", { name: "Waiting for you" }).getByRole("button", { name: "To sign" }).click();
   await expectHittable(desk(page).getByRole("button", { name: "Open detail" }).first());
   await expectHittable(desk(page).getByRole("button", { name: "See the team" }));
 
@@ -258,7 +256,7 @@ test("the chat box, the pairing secret and the wardrobe take the product's focus
   await expectProductRing(page);
 
   await roster(page).getByRole("button", { name: "manager" }).click();
-  await dialog(page).getByRole("tab", { name: "Look" }).click();
+  await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
   await dialog(page).getByLabel("DISPLAY ALIAS").press("Tab");
   expect(await page.evaluate(() => document.activeElement?.closest(".avatar-editor") !== null && document.activeElement?.tagName !== "BODY")).toBe(true);
   await expectProductRing(page);
@@ -273,6 +271,29 @@ test("the chat box, the pairing secret and the wardrobe take the product's focus
   };
   await address.focus();
   expect(await secret.evaluate(field)).toEqual(await address.evaluate(field));
+});
+
+test("the dock's headings and the pause buttons show their focus ring inside the box that clips them", async ({ page }) => {
+  await openStagedStudio(page);
+  const [deskHeading, chatHeading] = [desk(page).getByRole("button", { name: /Decision desk/ }), page.getByRole("region", { name: "Your Manager" }).getByRole("button", { name: /Your Manager/ })];
+
+  await expect(chatHeading).toHaveAttribute("aria-expanded", "false");
+  await expectVisibleRing(chatHeading);
+  await expectVisibleRing(deskHeading);
+  for (const pause of await page.getByRole("group", { name: "Pause" }).getByRole("button").all()) await expectVisibleRing(pause);
+
+  await openManagerChat(page);
+  await expect(deskHeading).toHaveAttribute("aria-expanded", "false");
+  await expectVisibleRing(deskHeading);
+  await expectVisibleRing(chatHeading);
+});
+
+test("the connection screen with a problem to say fits a 320px screen without scrolling sideways", async ({ page, browserErrors }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`${LOCAL_OFFICE}/#office=${encodeURIComponent(SESSION_OFFICE)}&secret=not-the-secret`);
+  await expect(page.getByRole("alert")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
+  expect(browserErrors.splice(0)).toEqual([expect.stringContaining("401")]);
 });
 
 test("the primary button's ink is the token the design page names, and passes on mint", async ({ page }) => {
@@ -295,7 +316,7 @@ test("quiet text still keeps 4.5 to 1 against what is behind it", async ({ page 
   await expectReadable(page.locator(".main-footer, .main-footer > span:last-child > span:last-child"));
   await expectReadable(page.locator(".activity-item small"));
   await expectReadable(roster(page).locator("small"));
-  await expectReadable(desk(page).getByRole("tab").locator("span"));
+  await expectReadable(desk(page).getByRole("group", { name: "Waiting for you" }).getByRole("button").locator("span"));
 
   await openView(page, "Work orders");
   await expectReadable(dialog(page).getByText("Nothing here."));

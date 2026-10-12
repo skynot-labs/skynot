@@ -5,11 +5,11 @@ const PROJECT = "alpha";
 const TURN = { timeout: 20_000 };
 
 const desk = (page: Page) => page.getByRole("region", { name: "Decision desk" });
-const deskTab = (page: Page, title: "To decide" | "To sign" | "Answered") => desk(page).getByRole("tab", { name: title });
+const deskTab = (page: Page, title: "To decide" | "To sign" | "Answered") => desk(page).getByRole("group", { name: "Waiting for you" }).getByRole("button", { name: title });
 const metrics = (page: Page) => page.getByRole("region", { name: "Project metrics" });
 
 // The board columns and the cost panels are unnamed <section>s: the innermost one holding the text is the only handle.
-const costTab = (page: Page, name: string) => dialog(page).getByRole("tab", { name });
+const costTab = (page: Page, name: string) => dialog(page).getByRole("group", { name: "Where the money went" }).getByRole("button", { name });
 const sectionWith = (page: Page, text: string | RegExp) => page.locator("section").filter({ hasText: text }).last();
 const boardColumn = (page: Page, stage: string) =>
   page.locator("section").filter({ has: page.getByRole("heading", { name: stage, level: 3 }) }).last();
@@ -42,7 +42,7 @@ test.describe.serial("an order's life in alpha", () => {
 
     await openView(page, "Decisions");
     await expect(deskTab(page, "To decide")).toHaveText(/To decide\s*1$/);
-    await expect(deskTab(page, "To decide")).toHaveAttribute("aria-selected", "true");
+    await expect(deskTab(page, "To decide")).toHaveAttribute("aria-pressed", "true");
     await expect(desk(page).getByRole("heading", { name: questionAbout(idea) })).toBeVisible();
     await expect(desk(page).getByRole("button", { name: "Send answer" })).toBeDisabled();
 
@@ -53,7 +53,7 @@ test.describe.serial("an order's life in alpha", () => {
 
     await expect(deskTab(page, "To decide")).toHaveText(/To decide\s*0$/);
     await expect(deskTab(page, "To sign")).toHaveText(/To sign\s*1$/, TURN);
-    await expect(deskTab(page, "To sign")).toHaveAttribute("aria-selected", "true");
+    await expect(deskTab(page, "To sign")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("the proposed order waits for a signature, shows its acceptance criteria and is signed", async ({ page }) => {

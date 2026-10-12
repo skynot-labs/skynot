@@ -196,7 +196,7 @@ export function AvatarEditor({
           </div>
           <div
             class="avatar-editor-tabs"
-            role="tablist"
+            role="group"
             aria-label="Avatar customization"
           >
             {(
@@ -208,22 +208,14 @@ export function AvatarEditor({
             ).map((item) => (
               <button
                 type="button"
-                id={`avatar-tab-${item.value}`}
-                role="tab"
-                aria-selected={tab === item.value}
-                aria-controls={`avatar-panel-${item.value}`}
+                aria-pressed={tab === item.value}
                 onClick={() => setTab(item.value)}
               >
                 {item.label}
               </button>
             ))}
           </div>
-          <div
-            class="avatar-editor-panel"
-            id={`avatar-panel-${tab}`}
-            role="tabpanel"
-            aria-labelledby={`avatar-tab-${tab}`}
-          >
+          <div class="avatar-editor-panel">
             {tab === "body" && (
               <>
                 <div class="avatar-sliders">
@@ -319,8 +311,9 @@ export function AvatarEditor({
         <div class="modal-actions">
           <button
             class="secondary-button"
-            disabled={busy}
+            aria-disabled={busy}
             onClick={() => {
+              if (busy) return;
               setDraft(resolveAvatar(agent.avatar));
               setFollow(true);
             }}
@@ -329,8 +322,10 @@ export function AvatarEditor({
           </button>
           <button
             class="primary-button"
-            disabled={busy}
-            onClick={() => onSave(draft, name, follow)}
+            aria-disabled={busy}
+            onClick={() => {
+              if (!busy) onSave(draft, name, follow);
+            }}
           >
             Save avatar
             <Icon name="check" />
