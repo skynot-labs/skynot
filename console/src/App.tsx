@@ -57,12 +57,13 @@ type Dialog =
   | Panel
   | null;
 // The panels have an address: the fragment says which one is open, so a reload or a shared link opens it again.
-type Panel = { kind: "activity" | "board" };
-const panelOf = (dialog: Dialog): Panel | null =>
-  dialog?.kind === "activity" || dialog?.kind === "board" ? dialog : null;
+const panels = ["activity", "board", "context"] as const;
+type Panel = { kind: (typeof panels)[number] };
+const isPanel = (name: string | undefined): name is Panel["kind"] => (panels as readonly string[]).includes(name ?? "");
+const panelOf = (dialog: Dialog): Panel | null => (dialog && isPanel(dialog.kind) ? { kind: dialog.kind } : null);
 const panelInAddress = (): Panel | null => {
   const named = location.hash.slice(1);
-  return named === "activity" || named === "board" ? { kind: named } : null;
+  return isPanel(named) ? { kind: named } : null;
 };
 type Unsaved = { appearance: Appearance; studio: StudioAppearance };
 const nothingUnsaved: Unsaved = { appearance: {}, studio: {} };
@@ -282,7 +283,15 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
           <div class="topbar-studio">
             <div>
               <h1>
-                The <span>{project.name}</span> studio.
+                The{" "}
+                <button
+                  class="heading-link"
+                  onClick={() => setDialog({ kind: "context" })}
+                  title="Open this project's context"
+                >
+                  {project.name}
+                </button>{" "}
+                studio.
               </h1>
               {project.description && <p>{project.description}</p>}
             </div>
@@ -556,7 +565,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
                 onTeam={() => setTab("agents")}
                 onOrders={() => setDialog({ kind: "board" })}
                 onActivity={() => setDialog({ kind: "activity" })}
-                onContext={() => setTab("context")}
+                onContext={() => setDialog({ kind: "context" })}
                 dock={dock}
                 onDock={setDock}
                 send={send}
@@ -820,6 +829,16 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             size="full"
           >
             <OrdersView project={project} onOrder={openOrder} />
+          </Modal>
+        )}
+        {dialog?.kind === "context" && project && snapshot && (
+          <Modal
+            title="What the team knows."
+            eyebrow={`${project.name.toUpperCase()} · CONTEXT`}
+            onClose={() => setDialog(null)}
+            size="full"
+          >
+            <ContextView project={project} readiness={snapshot.readiness} send={send} busy={busy} />
           </Modal>
         )}
         {dialog?.kind === "activity" && project && (

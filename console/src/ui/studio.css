@@ -210,8 +210,17 @@ button.inbox-heading:hover h2 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.topbar-studio h1 span {
+.topbar-studio h1 .heading-link {
+  padding: 0;
+  font: inherit;
+  letter-spacing: inherit;
   color: #b9d5bd;
+  background: none;
+  border-bottom: 1px dashed transparent;
+}
+.topbar-studio h1 .heading-link:hover,
+.topbar-studio h1 .heading-link:focus-visible {
+  border-bottom-color: currentColor;
 }
 .topbar-studio .studio-live-label {
   white-space: nowrap;

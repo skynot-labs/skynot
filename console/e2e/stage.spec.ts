@@ -38,6 +38,15 @@ test.describe("the live office", () => {
     await expect(page.getByRole("navigation", { name: "Project views" }).getByRole("button", { name: "The studio" })).toHaveAttribute("aria-current", "page");
   });
 
+  test("the project's name opens what the team knows about it, over the office", async ({ page }) => {
+    await openProject(page, "beta");
+    await page.getByRole("banner").getByRole("button", { name: "beta" }).click();
+    await expect(dialog(page).getByRole("heading", { name: "What the team knows." })).toBeVisible();
+    await expect(page).toHaveURL(/#context$/);
+    await closeDialog(page);
+    await expect(page).not.toHaveURL(/#/);
+  });
+
   test("the activity log opens over the office, and an order opened from it closes back to the log", async ({ page }) => {
     await openProject(page, "alpha");
     await page.getByRole("button", { name: "Open the activity log" }).click();
