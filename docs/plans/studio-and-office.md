@@ -1,8 +1,10 @@
 # Plan · A public studio, and an office anyone can run
 
-**Status:** draft under review with the director. Nothing is built. The director has settled that the public
-studio is the main way in, not only a showcase, and that this goes before greenfield. See [vision](../vision.md) for what
-exists, and [running on a server](../running-on-a-server.md) for the only remote setup that works today.
+**Status:** slices A, B and C are built and merged (#31, #37, #38, #39); D and E are not started. The director settled that the
+public studio is the main way in, not only a showcase, and that this goes before greenfield. What was decided is
+in [ADR 0002](../adr/0002-studio-office-and-a-contract.md), and how a studio reaches an office is in
+[connecting a studio](../connecting-a-studio.md). One thing is still owed on what is built: nobody has run a real
+order from the published studio against a real office.
 
 ## Why
 
@@ -23,32 +25,35 @@ This is not a competitor to `claude` or `codex`. It is a small, readable project
 
 The office runs wherever they want, on their own machine or a server, and has an address the studio can reach.
 
-## Proposed decisions
+## Decisions
 
-None is taken; each is here to be argued with.
+Taken, unless a line says otherwise.
 
 1. **Two deployables and a contract.** The **studio** is the static console. The **office** is the service: the
    Manager, the orchestrator, the policy and the event log. The **contract** is what they exchange: the state, the
    commands and the event stream, written as schemas and versioned on its own.
-2. **The contract is language-neutral.** The zod schemas are the source; JSON Schema is generated from them. The
-   studio stops importing types from the office's code, and a test keeps it that way.
+2. **The contract is language-neutral.** The zod schemas are the source, the studio imports nothing from the
+   office's code, and a test keeps it that way. *Not done:* generating JSON Schema from them. Nothing written in
+   another language asks for it yet.
 3. **The office says what it speaks.** The studio checks the contract's major version when it connects and says
    so when they differ, instead of failing inside a view.
 4. **The office has an HTTPS address.** A public page cannot reliably reach `127.0.0.1` (see the checks below), so
    the office is reached by name over HTTPS. The guide leads with a tailnet name, the one address that worked in
    every browser tried and keeps the office off the internet; a tunnel or a server with a public address is the
    alternative. The office is told which address it answers as and which studios may call it.
-5. **One kind of session, several ways to get it.** The studio knows one thing: a bearer token for the office.
-   The office issues it after either proof of who is asking: a GitHub sign-in checked against a list of allowed
-   logins, or a secret the office printed at first start. Adding a way to sign in never changes the studio.
+5. **One kind of session, several ways to get it.** The studio knows one thing: a session with the office. The
+   office gives it to whoever opens the pairing link it prints at start. *Not done:* a GitHub sign-in checked
+   against a list of allowed logins. Adding it must not change the studio.
 6. **The office keeps a studio of its own.** It still serves a console built from the same commit, on the same
    origin. That is what works offline, in a browser that blocks the public one, and when versions differ.
-7. **One repository until the contract has changed once.** Three packages with the boundary enforced by a test and
-   released separately. Separate repositories come after the first breaking change shows what a release costs.
+7. **One repository until the contract has changed once.** Three packages with the boundary enforced by a test.
+   Separate repositories come after the first breaking change shows what a release costs. *Not done:* releasing
+   them separately; nothing is released yet.
 
-## To validate before building
+## What was validated before building
 
-Cheap experiments. A failure changes the plan, so they come first.
+Cheap experiments, run first because a failure changed the plan. Rows 3 and 5 are still open and matter for the
+public-address path only.
 
 | # | Assumption | Status |
 | --- | --- | --- |
@@ -63,25 +68,26 @@ Cheap experiments. A failure changes the plan, so they come first.
 
 Each is delivered and tried before the next is planned in detail.
 
-**A · The contract.** Schemas for the state, every command and the events; a version; an endpoint that reports it.
+**A · The contract. Done.** Schemas for the state, every command and the events; a version; an endpoint that reports it.
 The office's real answers are checked against the schemas in its tests. The console builds from the contract
 alone. **Done when** deleting the console's access to the office's source breaks nothing, and a field removed from
 the state fails a test on both sides.
 
-**B · An office that accepts a studio from elsewhere.** The token, the list of origins allowed to call, and a
+**B · An office that accepts a studio from elsewhere. Built.** Pairing is covered by tests that run two services
+against each other; an order from idea to pull request from another origin is the walk slice C still owes. The token, the list of origins allowed to call, and a
 stream that carries the token. The bundled console keeps working with no setup. **Done when** a console served from
 another origin runs an order from idea to pull request, and a request without the token, or from an origin not on
 the list, is refused.
 
-**C · A studio that connects.** A connection screen, the pairing link, the version check, and the studio published
+**C · A studio that connects. Built, not yet walked:** the done-when below is still owed. A connection screen, the pairing link, the version check, and the studio published
 on Pages next to the public site. **Done when** the director runs a real order from the public studio against the
 office on their machine.
 
-**D · Set up in minutes.** One command that creates the GitHub App, writes the configuration, runs the check and
+**D · Set up in minutes. Not started;** assumption 4 says the App half is possible. One command that creates the GitHub App, writes the configuration, runs the check and
 prints the link. The getting started guide is rewritten around it and timed by someone who has never seen the
 project. **Done when** that person has a shop answering in under ten minutes, not counting the engine login.
 
-**E · The demo.** The public studio shows a simulated shop when it is not connected to an office. **Done when** a
+**E · The demo. Not started;** assumption 6 lists the six places that still need Node. The public studio shows a simulated shop when it is not connected to an office. **Done when** a
 visitor walks an order through without installing anything.
 
 ## Not in this plan
@@ -106,6 +112,6 @@ another language for the office, and separate repositories. Each waits for a pai
 
 - How is the office handed to a newcomer: a clone of this repository, or a small repository of configuration
   that runs a published image? The second needs a release of the office first.
-- One repository first, or three from the start?
-- This moves ahead of greenfield and curated memory in the [roadmap](../vision.md#phases) and replaces the deploy
-  half of phase 7; the table there changes when the plan is approved.
+- D or E next, or greenfield first?
+- This went ahead of greenfield and curated memory in the [roadmap](../vision.md#phases) and replaces the deploy
+  half of phase 7. The table there does not show it yet.
