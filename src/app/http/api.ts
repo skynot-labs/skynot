@@ -10,7 +10,7 @@ import { setPreference } from "../preferences";
 import { registrationProblem, type ProjectsFolder } from "../projects";
 import type { Shop } from "../shop";
 import { issueSession, pairingDesk, sessionIsValid, type OfficeAccess } from "./access";
-import { CONTRACT, MetaSchema, PairingSchema, SessionSchema, commands, type CommandName } from "@skynot/contract";
+import { CONTRACT, MetaSchema, PairingSchema, SessionSchema, commands, type CommandName, type State } from "@skynot/contract";
 import { readState } from "./state";
 
 export interface ApiOptions {
@@ -98,7 +98,8 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   api.get("/api/state", (context) => {
     const project = context.req.query("project");
     if (project && !shop.desk(project)) return context.json({ error: `no project ${project}` }, 404);
-    return context.json({ ...readState(shop, project), simulated: Boolean(options.devTools) });
+    const state: State = { ...readState(shop, project), simulated: Boolean(options.devTools) };
+    return context.json(state);
   });
 
   api.get("/api/events", (context) => {
