@@ -97,6 +97,17 @@ Open http://127.0.0.1:4747 and give the Manager something small for the first or
 log and its clones of your repositories under `data/shop`: that folder is the shop's memory, so back it up
 rather than delete it.
 
+### See how the shop is doing
+
+```bash
+npm run stats
+```
+
+It reads the event log and prints how long each order spent waiting for your signature, being built, in review
+and waiting for your merge, with the rounds of review, the blocks and the cost, and the same per worker and
+model. It writes nothing and is safe to run beside a live office. The numbers describe what happened; with a
+few orders, and workers that did not get the same ones, they do not say which model is better.
+
 ## When something does not work
 
 - **The studio says it and the office are different versions.** One of them is older, and the screen says

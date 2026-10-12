@@ -30,6 +30,7 @@ This spends your `claude` or `codex` subscription quota and writes to a reposito
    `projects`, and set your repository in the project's `project.yaml`. All three are yours and untracked.
 3. `npm run check` verifies the logins and the GitHub access without spending quota or writing anything.
 4. `npm run build:console`, then `npm run start`.
+5. `npm run stats` prints, from the event log, how long each order spent in each stage and what it cost.
 
 The steps in full are in [docs/getting-started.md](docs/getting-started.md), and what each file and variable
 decides in [docs/configuration.md](docs/configuration.md). To keep a shop running on a machine you reach over SSH,
