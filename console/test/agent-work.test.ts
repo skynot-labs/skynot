@@ -76,13 +76,13 @@ describe("where the director's words go", () => {
     expect(reach(orders, agent("manager", "manager"))).toBe("manager");
   });
 
-  it("offers a retry for a blocked order on the bench, and not for one in review or being worked", () => {
-    const retry = (overrides: Partial<Order>) => agentWork(project({ orders: [order("WO-0001", { blocked: "the checks failed", ...overrides })] }), developer).retry?.id ?? null;
+  it("points at the blocked order nobody is working on, whatever its status", () => {
+    const stuck = (overrides: Partial<Order>) => agentWork(project({ orders: [order("WO-0001", { blocked: "the checks failed", ...overrides })] }), developer).stuck?.id ?? null;
 
-    expect(retry({})).toBe("WO-0001");
-    expect(retry({ status: "signed" })).toBe("WO-0001");
-    expect(retry({ status: "in_review" })).toBeNull();
-    expect(retry({ working: true })).toBeNull();
-    expect(retry({ blocked: null })).toBeNull();
+    expect(stuck({})).toBe("WO-0001");
+    expect(stuck({ status: "signed" })).toBe("WO-0001");
+    expect(stuck({ status: "in_review" })).toBe("WO-0001");
+    expect(stuck({ working: true })).toBeNull();
+    expect(stuck({ blocked: null })).toBeNull();
   });
 });

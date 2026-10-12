@@ -79,12 +79,16 @@ dialog:has(.agent-desk) {
 }
 .agent-now .agent-blocked {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 14px;
   margin: 12px 0 0;
   font-size: 11px;
   color: #d6969c;
+}
+.agent-now .agent-blocked .primary-button {
+  flex-shrink: 0;
+  padding: 9px 13px;
 }
 .agent-compose .chat-compose {
   margin-top: 0;

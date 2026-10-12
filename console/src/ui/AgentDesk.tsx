@@ -5,6 +5,7 @@ import { agentWork, type Reach } from "../application/agent-work";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
 import { RichLine } from "./RichText";
+import { unblocking } from "./order-actions";
 import { ago, agentStatus, dayTime, orderStatus, runOutcome, usd } from "./format";
 import "./agent-desk.css";
 
@@ -124,6 +125,7 @@ function Work({
 }) {
   const work = agentWork(project, agent);
   const lastRun = work.runs[0];
+  const unblock = work.stuck && unblocking(work.stuck);
   return (
     <div class="agent-work">
       <section class="agent-now">
@@ -146,22 +148,18 @@ function Work({
             <Icon name="arrow" />
           </button>
         ))}
-        {work.retry && (
+        {work.stuck && (
           <p class="agent-blocked">
-            {work.retry.id} is blocked: {work.retry.blocked}
-            <button
-              class="text-button"
-              disabled={busy}
-              onClick={() =>
-                void send({
-                  name: "retry-order",
-                  payload: { orderId: work.retry!.id },
-                })
-              }
-            >
-              Retry
-              <Icon name="arrow" />
-            </button>
+            {work.stuck.id} is blocked: {work.stuck.blocked}
+            {unblock && (
+              <button
+                class="primary-button"
+                disabled={busy}
+                onClick={() => void send(unblock.command)}
+              >
+                {unblock.label}
+              </button>
+            )}
           </p>
         )}
       </section>
@@ -271,7 +269,7 @@ const composeCopy = (reach: Reach, agent: Agent) =>
             label: "ASK THROUGH THE MANAGER",
             placeholder: `What do you want from ${agent.role}?`,
             button: "Send to the Manager",
-            note: `Nothing here is addressed to ${agent.role} directly right now: the Manager takes it and decides whether to consult, ask or write an order.`,
+            note: `Nothing here is addressed to ${agent.role} directly right now: the Manager takes it and decides whether to consult, ask or write an order. The answer comes in the chat with the Manager.`,
           };
 
 function Compose({

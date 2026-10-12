@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import type {
   Answered,
@@ -13,6 +13,7 @@ import type {
 import { Icon } from "./Icon";
 import { RichLine } from "./RichText";
 import { plansToSign } from "../application/plans";
+import { unblocking } from "./order-actions";
 import { ago, dayTime } from "./format";
 import "./decisions.css";
 
@@ -301,17 +302,24 @@ export function DecisionInbox({
     project.teamChanges.length +
     project.briefingChanges.length;
   const blocked = project.orders.filter((order) => order.blocked !== null);
-  const [tab, setTab] = useState<
-    "questions" | "signatures" | "blocked" | "answered"
-  >(() =>
-    project.inbox.length > 0
-      ? "questions"
-      : signatures > 0
-        ? "signatures"
-        : blocked.length > 0
-          ? "blocked"
-          : "questions",
-  );
+  const waiting = [
+    ["questions", "to decide", project.inbox.length],
+    ["signatures", "to sign", signatures],
+    ["blocked", "blocked", blocked.length],
+  ] as const;
+  // Until the director picks a tab the desk follows what waits, and only leaves a tab once it is empty.
+  const [chosen, setTab] = useState<
+    "questions" | "signatures" | "blocked" | "answered" | null
+  >(null);
+  const followed = useRef<(typeof waiting)[number][0]>("questions");
+  if (!waiting.some(([id, , count]) => id === followed.current && count > 0))
+    followed.current =
+      waiting.find(([, , count]) => count > 0)?.[0] ?? followed.current;
+  const tab = chosen ?? followed.current;
+  const summary = waiting
+    .filter(([, , count]) => count > 0)
+    .map(([, name, count]) => `${count} ${name}`)
+    .join(" · ");
   const tabId = `director-${project.id}`;
   const askerName = (item: { from: string }) =>
     project.agents.find((agent) => agent.id === item.from)?.name ?? item.from;
@@ -329,10 +337,14 @@ export function DecisionInbox({
           <Icon name="chat" />
         </span>
         <div>
-          <span class="eyebrow">YOUR SEAT IN THE STUDIO</span>
+          <span class="eyebrow">
+            {summary ? summary.toUpperCase() : "YOUR SEAT IN THE STUDIO"}
+          </span>
           <h2>Decision desk</h2>
         </div>
-        <span class="inbox-counter">{project.needsYou}</span>
+        <span class={`inbox-counter ${project.needsYou > 0 ? "waiting" : ""}`}>
+          {project.needsYou}
+        </span>
         {onToggle && <Icon name="chevron" />}
       </Heading>
       <p class="inbox-intro">
@@ -529,21 +541,36 @@ export function DecisionInbox({
         aria-labelledby={`${tabId}-blocked`}
         hidden={tab !== "blocked"}
       >
-        {blocked.map((order) => (
-          <article class="inbox-proposal" key={order.id}>
-            <span class="eyebrow">{`BLOCKED · ${order.id}`}</span>
-            <h3>{order.title}</h3>
-            <p>{order.blocked}</p>
-            <button
-              type="button"
-              class="proposal-link"
-              onClick={() => onOrder(order)}
-            >
-              Open detail
-              <Icon name="arrow" />
-            </button>
-          </article>
-        ))}
+        {blocked.map((order) => {
+          const unblock = unblocking(order);
+          return (
+            <article class="inbox-proposal" key={order.id}>
+              <span class="eyebrow">{`BLOCKED · ${order.id}`}</span>
+              <h3>{order.title}</h3>
+              <p>{order.blocked}</p>
+              {unblock && (
+                <div class="proposal-actions">
+                  <button
+                    type="button"
+                    class="primary-button"
+                    disabled={busy}
+                    onClick={() => void send(unblock.command)}
+                  >
+                    {unblock.label}
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                class="proposal-link"
+                onClick={() => onOrder(order)}
+              >
+                Open detail
+                <Icon name="arrow" />
+              </button>
+            </article>
+          );
+        })}
         {blocked.length === 0 && (
           <div class="inbox-empty">
             <Icon name="check" />
