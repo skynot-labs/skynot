@@ -1,24 +1,26 @@
 import { useState } from "preact/hooks";
 import { Brand } from "../design/Brand";
+import { publicUrls } from "../github/links";
 import "./connection.css";
+
+const CONNECTING_GUIDE = `${publicUrls.repository}/blob/main/docs/connecting-a-studio.md`;
 
 export function ConnectionScreen({
   address,
+  secret,
   problem,
   onConnect,
 }: {
   address: string;
+  secret: string;
   problem: string | null;
   onConnect: (address: string, secret: string) => Promise<void>;
 }) {
   const [office, setOffice] = useState(address);
-  const [secret, setSecret] = useState("");
-  const [pairing, setPairing] = useState(false);
-  async function submit(event: Event) {
+  const [typedSecret, setTypedSecret] = useState(secret);
+  function submit(event: Event) {
     event.preventDefault();
-    setPairing(true);
-    await onConnect(office, secret);
-    setPairing(false);
+    void onConnect(office, typedSecret);
   }
   return (
     <main class="connection-screen">
@@ -27,10 +29,16 @@ export function ConnectionScreen({
         <div class="eyebrow">STUDIO · NOT CONNECTED</div>
         <h1>Connect to your office.</h1>
         <p class="form-note">
-          The office prints a pairing link when it starts. Opening that link
-          fills this in and connects by itself.
+          The office is the part of skynot you run yourself: the Manager, the
+          workers and the log. Started with an address, it prints a pairing
+          link; opening that link fills this in and connects by itself. The
+          secret is also kept in the file <code>pairing.secret</code> in the
+          office's data folder.{" "}
+          <a href={CONNECTING_GUIDE} target="_blank" rel="noreferrer">
+            How to connect a studio
+          </a>
         </p>
-        {problem && !pairing && (
+        {problem && (
           <div class="error-banner" role="alert">
             <p>{problem}</p>
           </div>
@@ -56,21 +64,30 @@ export function ConnectionScreen({
           id="pairingSecret"
           type="password"
           autocomplete="off"
-          value={secret}
-          onInput={(event) => setSecret(event.currentTarget.value)}
+          value={typedSecret}
+          onInput={(event) => setTypedSecret(event.currentTarget.value)}
           required
         />
         <div class="modal-actions">
-          <button class="primary-button" type="submit" disabled={pairing}>
-            {pairing ? "Connecting…" : "Connect"}
+          <button class="primary-button" type="submit">
+            Connect
           </button>
         </div>
-        <p class="form-note">
-          Your browser may ask once for permission to reach devices on your
-          local network. That is expected when the office is on a private
-          network.
-        </p>
       </form>
+    </main>
+  );
+}
+
+export function Connecting({ address }: { address: string | null }) {
+  return (
+    <main class="connection-screen">
+      <div class="connection-card" role="status">
+        <Brand />
+        <div class="eyebrow">STUDIO · CONNECTING</div>
+        <h1>
+          {address ? `Connecting to ${new URL(address).host}…` : "Connecting…"}
+        </h1>
+      </div>
     </main>
   );
 }
@@ -86,26 +103,55 @@ export function ContractMismatch({
   officeContract: number;
   onLeave: () => void;
 }) {
+  const servedByThisOffice = address === location.origin;
+  const studioIsOlder = studioContract < officeContract;
   return (
     <main class="connection-screen">
       <div class="connection-card">
         <Brand />
-        <div class="eyebrow">STUDIO · DIFFERENT VERSION</div>
-        <h1>This studio and the office do not match.</h1>
+        <div class="eyebrow">STUDIO · DIFFERENT VERSIONS</div>
+        <h1>This studio and the office are different versions.</h1>
         <p class="form-note">
-          This studio speaks contract {studioContract}; the office at{" "}
-          {new URL(address).host} speaks contract {officeContract}. The console
-          the office serves itself always matches it.
+          This studio is version {studioContract}; the office at{" "}
+          {new URL(address).host} is version {officeContract}.{" "}
+          {studioIsOlder ? "The studio is the older one." : "The office is the older one."}
         </p>
+        <p class="form-note">{remedy(servedByThisOffice, studioIsOlder)}</p>
         <div class="modal-actions">
-          <button class="text-button" type="button" onClick={onLeave}>
-            Use another office
-          </button>
-          <a class="primary-button" href={address}>
-            Open the office's own console
-          </a>
+          {servedByThisOffice ? (
+            <button class="primary-button" type="button" onClick={() => location.reload()}>
+              Reload
+            </button>
+          ) : (
+            <>
+              <button class="text-button" type="button" onClick={onLeave}>
+                Use another office
+              </button>
+              <a class="primary-button" href={address}>
+                Open the office's own console
+              </a>
+            </>
+          )}
         </div>
       </div>
     </main>
+  );
+}
+
+function remedy(servedByThisOffice: boolean, studioIsOlder: boolean) {
+  if (servedByThisOffice && studioIsOlder) {
+    return (
+      <>
+        The office serves this studio from its last build. Run <code>npm run build:console</code>, restart the office
+        and reload this page.
+      </>
+    );
+  }
+  if (servedByThisOffice) return "The office has been running since before this studio was rebuilt. Restart it and reload this page.";
+  if (studioIsOlder) return "Reload this page to get the studio's latest build. If they still differ, open the console the office serves itself.";
+  return (
+    <>
+      Update the office: <code>git pull</code>, <code>npm ci</code>, and start it again.
+    </>
   );
 }

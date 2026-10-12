@@ -3,7 +3,11 @@ import type { Agent, Command, Order } from "./contracts";
 import type { HttpGateway } from "./adapters/http-gateway";
 import { useConsole } from "./application/use-console";
 import { useOffice } from "./application/use-office";
-import { ConnectionScreen, ContractMismatch } from "./ui/Connection";
+import {
+  Connecting,
+  ConnectionScreen,
+  ContractMismatch,
+} from "./ui/Connection";
 import { paths } from "./paths";
 import {
   agentAppearance,
@@ -85,11 +89,13 @@ const sidebarKey = "skynot.sidebar";
 
 export function App() {
   const { office, connect, disconnect } = useOffice();
-  if (office.stage === "starting") return null;
+  if (office.stage === "starting")
+    return <Connecting address={office.address} />;
   if (office.stage === "asking")
     return (
       <ConnectionScreen
         address={office.address}
+        secret={office.secret}
         problem={office.problem}
         onConnect={connect}
       />

@@ -99,9 +99,10 @@ rather than delete it.
 
 ## When something does not work
 
-- **The studio says it and the office are different versions.** One of them is older. With the console the
-  office serves itself, the office was started before the console was rebuilt: run `npm run build:console` and
-  restart it. With the public studio, update the office: `git pull`, `npm ci`, and start it again.
+- **The studio says it and the office are different versions.** One of them is older, and the screen says
+  which. With the console the office serves itself, the office was started before the console was rebuilt: run
+  `npm run build:console` and restart it. With the public studio, update the office: `git pull`, `npm ci`, and
+  start it again.
 - **The service refuses to start.** A typo in `policy.yaml`, `team.yaml` or a `project.yaml` stops it before
   anything runs, and the message says what is wrong.
 - **An order is blocked.** Its detail says why and offers what can be done: retry, approve a protected path,
