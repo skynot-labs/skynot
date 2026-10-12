@@ -45,6 +45,7 @@ export function StudioHero({
   onDock,
   send,
   busy,
+  covered = false,
 }: {
   project: Project;
   paused: Snapshot["paused"];
@@ -62,6 +63,7 @@ export function StudioHero({
   onDock: (card: DockCard) => void;
   send: Send;
   busy: boolean;
+  covered?: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const office = useRef<Office | null>(null);
@@ -75,6 +77,8 @@ export function StudioHero({
   const stageHandlers = useRef<StageHandlers | null>(null);
   const [live, setLive] = useState(false);
   const scene = studioScene(project, appearance, settings, paused !== null);
+  const latestCovered = useRef(covered);
+  latestCovered.current = covered;
   const latestScene = useRef(scene);
   latestScene.current = scene;
   // The still frame is what shows until the stage is up, and what stays if the browser cannot run it.
@@ -85,17 +89,26 @@ export function StudioHero({
     renderer.draw(latestScene.current);
     stage.current?.show(latestScene.current);
   }, [project, appearance, settings, paused]);
+  useEffect(() => stage.current?.rest(covered), [covered]);
   useEffect(() => {
     let gone = false;
     void import("../stage/office-stage")
-      .then(({ OfficeStage }) => OfficeStage.mount(stageHost.current!, () => stageHandlers.current!))
+      .then(({ OfficeStage }) =>
+        OfficeStage.mount(stageHost.current!, () => stageHandlers.current!),
+      )
       .then((mounted) => {
         if (gone) return mounted.destroy();
         stage.current = mounted;
+        mounted.rest(latestCovered.current);
         mounted.show(latestScene.current);
         setLive(true);
       })
-      .catch((error: unknown) => console.warn("The live office could not start; the still frame stays.", error));
+      .catch((error: unknown) =>
+        console.warn(
+          "The live office could not start; the still frame stays.",
+          error,
+        ),
+      );
     return () => {
       gone = true;
       stage.current?.destroy();
@@ -134,7 +147,8 @@ export function StudioHero({
     if (agent.kind === "manager") onManager();
     else onAgent(agent);
   }
-  const agentOf = (id: string) => project.agents.find((member) => member.id === id);
+  const agentOf = (id: string) =>
+    project.agents.find((member) => member.id === id);
   stageHandlers.current = {
     onAgent: (id) => {
       const agent = agentOf(id);
@@ -159,10 +173,7 @@ export function StudioHero({
     else openAgent(agent);
   }
   return (
-    <section
-      class="studio-hero panel"
-      aria-label={`${project.name} studio`}
-    >
+    <section class="studio-hero panel" aria-label={`${project.name} studio`}>
       <div class="studio-hero-stage">
         <div class={`studio-canvas-room ${live ? "live" : ""}`}>
           <canvas
@@ -198,14 +209,22 @@ export function StudioHero({
             aria-label={live ? officeLabel : undefined}
             aria-hidden={live ? undefined : true}
           />
-          <button
-            class="studio-activity-button"
-            onClick={onActivity}
-            aria-label="Open the activity log"
-            title="Activity log"
-          >
-            <Icon name="activity" />
-          </button>
+          <div class="studio-shortcuts">
+            <button
+              onClick={onActivity}
+              aria-label="Open the activity log"
+              title="Activity log"
+            >
+              <Icon name="activity" />
+            </button>
+            <button
+              onClick={onTeam}
+              aria-label="Open the team"
+              title="The team"
+            >
+              <Icon name="team" />
+            </button>
+          </div>
         </div>
         <div class="studio-inbox-dock" ref={inbox}>
           <DecisionInbox
@@ -240,8 +259,8 @@ export function StudioHero({
             {paused && (
               <div class="studio-pause-label">
                 <Icon name="pause" />
-                The shop is paused: nothing new starts, what is running
-                finishes · {paused.reason}
+                The shop is paused: nothing new starts, what is running finishes
+                · {paused.reason}
               </div>
             )}
           </div>
@@ -365,9 +384,7 @@ export function Studio({
         <div class="panel-heading">
           <span class="panel-title">The team in the studio</span>
           <span class="pill">
-            {outside > 0
-              ? `${outside} MORE ON THE TEAM`
-              : "PRESENCE"}
+            {outside > 0 ? `${outside} MORE ON THE TEAM` : "PRESENCE"}
           </span>
         </div>
         <div class="studio-team-members">

@@ -71,4 +71,29 @@ test.describe("the live office", () => {
     await page.goBack();
     await expect(dialog(page)).toBeHidden();
   });
+
+  test("the sidebar jumps from one panel to another without leaving the office", async ({ page }) => {
+    await openProject(page, "alpha");
+    await page.getByRole("button", { name: "Open the team" }).click();
+    await expect(dialog(page).getByRole("heading", { name: "The right team." })).toBeVisible();
+    await expect(page).toHaveURL(/#agents$/);
+
+    const views = page.getByRole("navigation", { name: "Project views" });
+    await views.getByRole("button", { name: "Work orders" }).click();
+    await expect(dialog(page).getByRole("heading", { name: "Work orders." })).toBeVisible();
+    await expect(dialog(page)).toHaveCount(1);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeHidden();
+    await expect(views.getByRole("button", { name: "The studio" })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(".studio-canvas-room.live")).toBeVisible();
+  });
+
+  test("a notice floats over the office until the director dismisses it", async ({ page }) => {
+    await openProject(page, "alpha");
+    const notice = page.getByRole("status").filter({ hasText: "SIMULATED ENGINES" });
+    await expect(notice).toBeVisible();
+    await notice.getByRole("button", { name: "Dismiss this notice" }).click();
+    await expect(notice).toHaveCount(0);
+  });
 });

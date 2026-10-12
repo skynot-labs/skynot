@@ -212,6 +212,12 @@ export class OfficeStage {
     this.react(scene);
   }
 
+  // Nothing moves while something covers the office: the frames would be paid for and never seen.
+  rest(covered: boolean): void {
+    if (covered) this.app.ticker.stop();
+    else this.app.ticker.start();
+  }
+
   destroy(): void {
     this.unbind.forEach((off) => off());
     this.app.destroy({ removeView: true }, { children: true, texture: true, textureSource: true });

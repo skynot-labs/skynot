@@ -1,5 +1,6 @@
 .skynot-shell {
-  grid-template-columns: 215px 1fr;
+  --side: 215px;
+  grid-template-columns: var(--side) 1fr;
 }
 .skynot-shell main {
   padding-top: 24px;
@@ -818,9 +819,19 @@ td small {
   color: #74647f;
   margin-top: 8px;
 }
+.panel-backdrop {
+  position: fixed;
+  inset: 0 0 0 var(--side);
+  z-index: 20;
+  background: #0b0b10b3;
+}
 .modal-full {
-  width: min(1320px, calc(100vw - 28px));
+  position: fixed;
+  inset: 20px 14px 20px calc(var(--side) + 14px);
+  z-index: 21;
+  width: min(1320px, calc(100vw - var(--side) - 28px));
   height: calc(100dvh - 40px);
+  margin: auto;
 }
 .modal-wide {
   width: 660px;
@@ -1031,7 +1042,7 @@ textarea {
 }
 @media (max-width: 1250px) {
   .skynot-shell {
-    grid-template-columns: 190px 1fr;
+    --side: 190px;
   }
   .skynot-shell .bottom-layout {
     grid-template-columns: minmax(0, 1fr) 285px;
@@ -1082,7 +1093,7 @@ textarea {
 }
 @media (max-width: 1020px) {
   .skynot-shell {
-    grid-template-columns: 170px 1fr;
+    --side: 170px;
   }
   .skynot-shell main {
     padding-left: 20px;
@@ -1156,6 +1167,7 @@ textarea {
 }
 @media (max-width: 760px) {
   .skynot-shell {
+    --side: 0px;
     display: block;
   }
   .skynot-shell .topbar {

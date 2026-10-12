@@ -72,10 +72,14 @@
   height: auto;
   touch-action: pan-y;
 }
-.studio-activity-button {
+.studio-shortcuts {
   position: absolute;
   left: 18px;
   bottom: 18px;
+  display: flex;
+  gap: 8px;
+}
+.studio-shortcuts button {
   width: 38px;
   height: 38px;
   display: grid;
@@ -85,8 +89,8 @@
   border: 1px solid var(--border);
   border-radius: 8px;
 }
-.studio-activity-button:hover,
-.studio-activity-button:focus-visible {
+.studio-shortcuts button:hover,
+.studio-shortcuts button:focus-visible {
   color: var(--text);
   border-color: var(--text);
 }
