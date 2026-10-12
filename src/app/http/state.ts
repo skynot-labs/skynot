@@ -9,6 +9,7 @@ import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
 const RUNS_LIMIT = 50;
+const COST_DAYS = 14;
 const LIVE: readonly string[] = ["signed", "on_bench", "in_review"];
 
 export function readState(shop: Shop, projectId?: string) {
@@ -64,6 +65,7 @@ export function readState(shop: Shop, projectId?: string) {
     projectPaused: shop.control.projectPaused(project.id),
     costs: {
       today: shop.runs.spentOn(new Date().toISOString().slice(0, 10)),
+      days: shop.runs.spentPerDay(new Date().toISOString().slice(0, 10), COST_DAYS),
       total: shop.runs.spentTotal(),
       cap: shop.maxUsdPerDay ?? null,
       project: shop.runs.spentByProject(project.id),

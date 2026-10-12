@@ -40,7 +40,7 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     projects,
     paused: state.paused,
     readiness: state.readiness,
-    costs: { today: state.costs.today, total: state.costs.total, cap: state.costs.cap },
+    costs: { today: state.costs.today, total: state.costs.total, cap: state.costs.cap, days: state.costs.days ?? [] },
     preferences: state.preferences,
     cursor: state.cursor,
     simulated: state.simulated,

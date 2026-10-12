@@ -207,6 +207,12 @@ describe("costs", () => {
     expect(runs.spentOnOrder("WO-0002")).toBeCloseTo(1);
     expect(runs.spentOnOrder("WO-9999")).toBe(0);
     expect(runs.spentTotal()).toBeCloseTo(1.85);
+    expect(runs.spentPerDay("2026-10-12", 4)).toEqual([
+      { day: "2026-10-09", usd: 0 },
+      { day: "2026-10-10", usd: 0.5 },
+      { day: "2026-10-11", usd: 1.35 },
+      { day: "2026-10-12", usd: 0 },
+    ]);
   });
 
   it("counts what a failed run reports it spent", async () => {

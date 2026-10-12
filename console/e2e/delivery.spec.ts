@@ -9,6 +9,7 @@ const deskTab = (page: Page, title: "To decide" | "To sign" | "Answered") => des
 const metrics = (page: Page) => page.getByRole("region", { name: "Project metrics" });
 
 // The board columns and the cost panels are unnamed <section>s: the innermost one holding the text is the only handle.
+const costTab = (page: Page, name: string) => dialog(page).getByRole("tab", { name });
 const sectionWith = (page: Page, text: string | RegExp) => page.locator("section").filter({ hasText: text }).last();
 const boardColumn = (page: Page, stage: string) =>
   page.locator("section").filter({ has: page.getByRole("heading", { name: stage, level: 3 }) }).last();
@@ -137,6 +138,8 @@ test.describe.serial("an order's life in alpha", () => {
     await openProject(page, PROJECT);
 
     await openView(page, "Costs");
+    await expect(dialog(page).getByRole("list", { name: "Spent per day, last 14 days" }).getByRole("listitem")).toHaveCount(14);
+    await costTab(page, "Run history").click();
     const runs = page.getByRole("row");
     const developerRun = runs.filter({ hasText: orderId }).filter({ hasText: "codex" });
     await expect(developerRun).toHaveCount(1);
@@ -154,7 +157,10 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(totals).toContainText(/Input tokens\s*248\.8k/);
     await expect(totals).toContainText(/of which cached\s*217\.2k/);
     await expect(totals).toContainText(/Output tokens\s*7\.4k/);
-    await expect(sectionWith(page, "Spent per work order").getByRole("row").filter({ hasText: orderId })).toContainText("$0.31");
+    await costTab(page, "Per work order").click();
+    await expect(dialog(page).getByRole("row").filter({ hasText: orderId })).toContainText("$0.31");
+    await costTab(page, "Per agent").click();
+    await expect(dialog(page).getByRole("row").filter({ hasText: "developer" })).toContainText("$0.31");
 
     await openView(page, "Activity");
     const trail = page.getByRole("article").filter({ hasText: orderId });
@@ -218,6 +224,7 @@ test("a discarded order leaves the signing queue and never reaches a developer",
   await expect(trail.filter({ hasText: /run/ })).toHaveCount(0);
 
   await openView(page, "Costs");
+  await costTab(page, "Run history").click();
   await expect(page.getByRole("row").filter({ hasText: "codex" }).first()).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: orderId })).toHaveCount(0);
 

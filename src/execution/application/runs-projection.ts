@@ -61,6 +61,15 @@ export class RunsProjection implements Projection {
     return sum(this.list().filter((run) => run.finishedAt?.startsWith(day)));
   }
 
+  // The `count` days that end on `until`, oldest first; a day nobody worked is there with zero.
+  spentPerDay(until: string, count: number): Array<{ day: string; usd: number }> {
+    const last = Date.parse(`${until}T00:00:00.000Z`);
+    return Array.from({ length: count }, (_, index) => {
+      const day = new Date(last - (count - 1 - index) * 86_400_000).toISOString().slice(0, 10);
+      return { day, usd: this.spentOn(day) };
+    });
+  }
+
   spentByProject(projectId: string): number {
     return sum(this.list().filter((run) => run.projectId === projectId));
   }

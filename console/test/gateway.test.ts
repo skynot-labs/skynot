@@ -84,7 +84,7 @@ function shopState(overrides: Partial<ShopState> = {}): ShopState {
     briefing: null,
     hireable: [],
     paused: null,
-    costs: { today: 1.5, total: 20, cap: 5, project: 7.25, tokens: null },
+    costs: { today: 1.5, total: 20, days: [{ day: "2026-10-12", usd: 1.5 }], cap: 5, project: 7.25, tokens: null },
     projectPaused: null,
     runs: [],
     agents: [],
@@ -178,7 +178,7 @@ describe("mapState", () => {
     const snapshot = mapState(shopState(), ACCENTS);
 
     expect(snapshot.project.spentUsd).toBe(7.25);
-    expect(snapshot.costs).toEqual({ today: 1.5, total: 20, cap: 5 });
+    expect(snapshot.costs).toEqual({ today: 1.5, total: 20, cap: 5, days: [{ day: "2026-10-12", usd: 1.5 }] });
     expect(snapshot.cursor).toBe(42);
     expect(snapshot.simulated).toBe(true);
   });

@@ -73,7 +73,7 @@ export type Snapshot = {
   projects: ProjectSummary[];
   paused: ShopState["paused"];
   readiness: readonly Finding[];
-  costs: { today: number; total: number; cap: number | null };
+  costs: { today: number; total: number; cap: number | null; days: Array<{ day: string; usd: number }> };
   preferences: Record<string, unknown>;
   cursor: number;
   simulated: boolean;
