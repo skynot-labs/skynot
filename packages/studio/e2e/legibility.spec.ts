@@ -182,6 +182,10 @@ for (const width of [1440, 390]) {
     await expect(roster(page).locator(".status-chip").first()).toBeVisible();
     await expect(page.getByRole("complementary").getByText("PAUSED")).toBeVisible();
     await expectCaptionOrLarger(page.locator(STATE_LABELS));
+    const switchTo = page.getByRole("complementary").getByRole("button", { name: PROJECT });
+    await expect(switchTo).toHaveAccessibleName(/4 waiting for you/);
+    await expect(switchTo).not.toContainText("WAITING");
+    expect(await typeSizes(switchTo.getByRole("img", { name: "4 waiting for you" }))).toEqual([{ label: "nav-counter: 4", px: CAPTION }]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
 
     await openView(page, "Work orders");

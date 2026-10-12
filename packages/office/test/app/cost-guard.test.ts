@@ -94,7 +94,7 @@ describe("cost guard", () => {
 
   it("still pauses the whole shop at the cap while one project is paused", async () => {
     const { control, spend } = await openGuard(1);
-    await control.pauseProject("alpha", "waiting for the client");
+    await control.pauseProject("alpha", "waiting for the client", "director");
 
     await spend(1.5);
 

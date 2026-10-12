@@ -6,6 +6,7 @@ import { expect, tellTheManager, test } from "./support";
 declare global {
   interface Window {
     connectingCards: number;
+    reconnectingSaid: number;
   }
 }
 
@@ -169,6 +170,30 @@ test("the console's own office shows no connecting card when it answers at once,
   await expect(page.getByRole("heading", { name: "Connecting…" })).toBeVisible();
   answer();
   await expect(studioOf(page, "alpha")).toBeVisible();
+});
+
+test("a fresh load never says it is reconnecting, and does not say it is live before the event stream answers", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.reconnectingSaid = 0;
+    new MutationObserver(() => {
+      if (/reconnecting/i.test(document.body?.textContent ?? "")) window.reconnectingSaid++;
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  });
+  let answer = () => {};
+  const held = new Promise<void>((resolve) => (answer = resolve));
+  await page.route("**/api/events*", async (route) => {
+    await held;
+    await route.continue();
+  });
+
+  await page.goto("/");
+  await expect(page.getByRole("region", { name: "alpha studio" })).toBeVisible();
+  await expect(page.locator(".main-footer")).toContainText("HUMAN IN THE LOOP");
+  await expect(live(page)).toHaveCount(0);
+
+  answer();
+  await expect(live(page)).toBeVisible();
+  expect(await page.evaluate(() => window.reconnectingSaid)).toBe(0);
 });
 
 test("disconnecting falls back to the office that serves this console", async ({ page }) => {

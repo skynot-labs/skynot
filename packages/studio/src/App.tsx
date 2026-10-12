@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import type { Agent, Command, Order } from "./contracts";
 import type { HttpGateway } from "./adapters/http-gateway";
+import { pausedByDirector } from "./application/pause";
 import { useConsole } from "./application/use-console";
 import { useOffice } from "./application/use-office";
 import {
@@ -88,7 +89,6 @@ const tabs: Array<{ id: Tab; name: string; icon: string }> = [
 const projectKey = "skynot.project";
 const sidebarKey = "skynot.sidebar";
 const simulatedNoticeKey = "skynot.simulated-notice";
-const DIRECTORS_PAUSE = "paused by the director";
 // A failure is announced where it first shows; shown again somewhere else it is the same notice, not a second alert.
 type Failure = {
   id: number;
@@ -131,7 +131,7 @@ function Console({
   onDisconnect: () => void;
 }) {
   const [projectId, setProjectId] = useState(rememberedProject);
-  const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
+  const { snapshot, error, stream, reload } = useConsole(gateway, projectId);
   const [dialog, setDialog] = useState<Dialog>(panelInAddress);
   const [behind, setBehind] = useState<Panel | null>(null);
   const panel = panelOf(dialog) ?? behind;
@@ -319,7 +319,7 @@ function Console({
           },
         ]
       : []),
-    ...(snapshot?.paused && snapshot.paused.reason !== DIRECTORS_PAUSE
+    ...(snapshot?.paused && !pausedByDirector(snapshot.paused)
       ? [
           {
             key: `shop-paused:${snapshot.paused.reason}`,
@@ -642,15 +642,19 @@ function Console({
                     {p.paused && <em class="project-paused">PAUSED</em>}
                   </strong>
                   <small>
-                    {p.needsYou > 0
-                      ? `${p.needsYou} WAITING FOR YOU`
-                      : studioAppearance[p.id]
-                        ? studioSummary(projectStudio(studioAppearance, p.id))
-                        : p.repo}
+                    {studioAppearance[p.id]
+                      ? studioSummary(projectStudio(studioAppearance, p.id))
+                      : p.repo}
                   </small>
                 </span>
                 {p.needsYou > 0 && (
-                  <b class="nav-counter">{p.needsYou}</b>
+                  <b
+                    class="nav-counter"
+                    role="img"
+                    aria-label={`${p.needsYou} waiting for you`}
+                  >
+                    {p.needsYou}
+                  </b>
                 )}
               </button>
             ))}
@@ -773,7 +777,7 @@ function Console({
               onDockUse={() => setDock("manager")}
               unread={unread}
               covered={dialog !== null}
-              connected={connected}
+              reconnecting={stream === "reconnecting"}
               send={send}
               busy={busy}
             />
@@ -802,8 +806,14 @@ function Console({
                     </button>
                   </span>
                 )}
-                <span class={`tiny-led ${connected ? "" : "disconnected"}`} />
-                <span>{connected ? "LIVE" : "RECONNECTING"}</span>
+                {stream !== "connecting" && (
+                  <>
+                    <span
+                      class={`tiny-led ${stream === "live" ? "" : "disconnected"}`}
+                    />
+                    <span>{stream === "live" ? "LIVE" : "RECONNECTING"}</span>
+                  </>
+                )}
               </span>
             </footer>
           </>

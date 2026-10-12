@@ -33,7 +33,7 @@ describe("shop control", () => {
     const { control } = await open();
     expect(control.paused()).toBeNull();
 
-    const paused = await control.pause("daily cap reached");
+    const paused = await control.pause("daily cap reached", "director");
     expect(paused).toMatchObject({ ok: true, value: { reason: "daily cap reached" } });
     expect(control.paused()).toMatchObject({ reason: "daily cap reached" });
 
@@ -45,14 +45,14 @@ describe("shop control", () => {
     const { control } = await open();
 
     expect(await control.resume()).toMatchObject({ ok: false });
-    await control.pause("first");
-    expect(await control.pause("second")).toMatchObject({ ok: false });
+    await control.pause("first", "director");
+    expect(await control.pause("second", "director")).toMatchObject({ ok: false });
     expect(control.paused()?.reason).toBe("first");
   });
 
   it("stays paused after a restart", async () => {
     const first = await open();
-    await first.control.pause("going home");
+    await first.control.pause("going home", "director");
 
     const restarted = await open(first.store);
 
@@ -64,7 +64,7 @@ describe("pausing one project", () => {
   it("pauses and resumes a project without pausing the shop or another project", async () => {
     const { control } = await open();
 
-    expect(await control.pauseProject("alpha", "waiting for the client")).toMatchObject({ ok: true, value: { reason: "waiting for the client", since: "2026-10-11T12:00:00.000Z" } });
+    expect(await control.pauseProject("alpha", "waiting for the client", "director")).toMatchObject({ ok: true, value: { reason: "waiting for the client", since: "2026-10-11T12:00:00.000Z" } });
 
     expect(control.projectPaused("alpha")).toMatchObject({ reason: "waiting for the client" });
     expect(control.pausedFor("alpha")).toMatchObject({ reason: "waiting for the client" });
@@ -78,16 +78,16 @@ describe("pausing one project", () => {
     const { control } = await open();
 
     expect(await control.resumeProject("alpha")).toMatchObject({ ok: false });
-    await control.pauseProject("alpha", "first");
-    expect(await control.pauseProject("alpha", "second")).toMatchObject({ ok: false });
+    await control.pauseProject("alpha", "first", "director");
+    expect(await control.pauseProject("alpha", "second", "director")).toMatchObject({ ok: false });
     expect(await control.resumeProject("beta")).toMatchObject({ ok: false });
     expect(control.projectPaused("alpha")?.reason).toBe("first");
   });
 
   it("answers with the shop pause first, and keeps the project paused when the shop resumes", async () => {
     const { control } = await open();
-    await control.pauseProject("alpha", "waiting for the client");
-    await control.pause("lunch");
+    await control.pauseProject("alpha", "waiting for the client", "director");
+    await control.pause("lunch", "director");
 
     expect(control.pausedFor("alpha")?.reason).toBe("lunch");
     expect(control.pausedFor("beta")?.reason).toBe("lunch");
@@ -102,8 +102,8 @@ describe("pausing one project", () => {
 
   it("keeps a project paused after a restart, and resumed once it was resumed", async () => {
     const first = await open();
-    await first.control.pauseProject("alpha", "waiting for the client");
-    await first.control.pauseProject("beta", "budget");
+    await first.control.pauseProject("alpha", "waiting for the client", "director");
+    await first.control.pauseProject("beta", "budget", "director");
     await first.control.resumeProject("beta");
 
     const restarted = await open(first.store);
@@ -125,7 +125,7 @@ describe("a scheduler with one project paused", () => {
 
   it("holds the paused project's run and starts another project's run queued behind it", async () => {
     const { control, runs, engine, scheduler } = await shop();
-    await control.pauseProject("alpha", "waiting for the client");
+    await control.pauseProject("alpha", "waiting for the client", "director");
 
     const held = scheduler.submit(submission("WO-0001", "alpha"));
     const behind = scheduler.submit(submission("WO-0002", "beta"));
@@ -143,8 +143,8 @@ describe("a scheduler with one project paused", () => {
 
   it("does not start the held run when a different project resumes", async () => {
     const { control, runs, engine, scheduler } = await shop();
-    await control.pauseProject("alpha", "waiting for the client");
-    await control.pauseProject("beta", "budget");
+    await control.pauseProject("alpha", "waiting for the client", "director");
+    await control.pauseProject("beta", "budget", "director");
     void scheduler.submit(submission("WO-0001", "alpha"));
     const other = scheduler.submit(submission("WO-0002", "beta"));
     await waitFor(() => runs.list().length === 2);
@@ -159,8 +159,8 @@ describe("a scheduler with one project paused", () => {
 
   it("holds every project while the shop is paused, and only the paused project once the shop resumes", async () => {
     const { control, runs, engine, scheduler } = await shop(2);
-    await control.pauseProject("alpha", "waiting for the client");
-    await control.pause("lunch");
+    await control.pauseProject("alpha", "waiting for the client", "director");
+    await control.pause("lunch", "director");
     void scheduler.submit(submission("WO-0001", "alpha"));
     const other = scheduler.submit(submission("WO-0002", "beta"));
     await waitFor(() => runs.list().length === 2);
@@ -183,7 +183,7 @@ describe("a scheduler with one project paused", () => {
 
     const started = scheduler.submit(submission("WO-0001", "alpha"));
     await waitFor(() => engine.requests.length === 1);
-    await control.pauseProject("alpha", "waiting for the client");
+    await control.pauseProject("alpha", "waiting for the client", "director");
     release();
 
     expect(await started).toMatchObject({ ok: true });
@@ -200,7 +200,7 @@ describe("a paused scheduler", () => {
 
   it("holds new runs in the queue and starts them when the shop resumes", async () => {
     const { control, runs, engine, scheduler } = await paused();
-    await control.pause("lunch");
+    await control.pause("lunch", "director");
 
     const outcome = scheduler.submit(submission("WO-0001"));
     await waitFor(() => runs.list().length === 1);
@@ -223,7 +223,7 @@ describe("a paused scheduler", () => {
 
     const first = scheduler.submit(submission("WO-0001"));
     await waitFor(() => engine.requests.length === 1);
-    await control.pause("lunch");
+    await control.pause("lunch", "director");
     const second = scheduler.submit(submission("WO-0002"));
     release();
 

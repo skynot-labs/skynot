@@ -27,7 +27,7 @@ export class CostGuard {
     if (spent < maxUsdPerDay || control.paused() || control.capDay() === day) return;
 
     void control
-      .pause(`the daily cost cap of $${maxUsdPerDay.toFixed(2)} was reached ($${spent.toFixed(2)} spent)`, day)
+      .pause(`the daily cost cap of $${maxUsdPerDay.toFixed(2)} was reached ($${spent.toFixed(2)} spent)`, "cost_cap", day)
       .catch((error) => this.deps.onError?.(error, event));
   }
 }

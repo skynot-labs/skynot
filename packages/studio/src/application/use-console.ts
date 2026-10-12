@@ -2,12 +2,15 @@ import { useEffect, useState } from "preact/hooks";
 import type { HttpGateway } from "../adapters/http-gateway";
 import type { Snapshot } from "../contracts";
 
+export type StreamState = "connecting" | "live" | "reconnecting";
+
 export function useConsole(gateway: HttpGateway, projectId?: string) {
   const [read, setRead] = useState<{ projectId: string | undefined; snapshot: Snapshot } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [connected, setConnected] = useState(false);
+  const [stream, setStream] = useState<StreamState>("connecting");
   const [revision, setRevision] = useState(0);
   useEffect(() => {
+    const dropped = () => setStream((was) => (was === "connecting" ? was : "reconnecting"));
     let active = true;
     let request = 0;
     let unwatch: (() => void) | undefined;
@@ -22,7 +25,7 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
       } catch (cause) {
         if (active && current === request) {
           setError(cause instanceof Error ? cause.message : "Could not read the shop's state.");
-          setConnected(false);
+          dropped();
         }
       }
     };
@@ -30,8 +33,10 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
       if (active)
         unwatch = gateway.watch(
           () => void refresh(),
-          (value) => {
-            if (active) setConnected(value);
+          (connected) => {
+            if (!active) return;
+            if (connected) setStream("live");
+            else setStream("reconnecting");
           },
         );
     });
@@ -42,5 +47,5 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
   }, [gateway, projectId, revision]);
   // A click on the project just left would act on it, so its state is not shown while the next one loads.
   const snapshot = read && read.projectId === projectId ? read.snapshot : null;
-  return { snapshot, error, connected, reload: () => setRevision((value) => value + 1) };
+  return { snapshot, error, stream, reload: () => setRevision((value) => value + 1) };
 }

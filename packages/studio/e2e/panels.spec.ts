@@ -75,10 +75,23 @@ test.describe("an agent's look", () => {
     const darkest = dialog(page).getByRole("button", { name: "Pants 8", exact: true });
     await expect(darkest).toHaveAttribute("aria-pressed", "false");
     const edge = await darkest.evaluate((swatch) => {
+      const rgba = (value: string) => {
+        const [r = 0, g = 0, b = 0, a = 1] = (value.match(/[\d.]+/g) ?? []).map(Number);
+        return { r, g, b, a };
+      };
+      const luminance = (value: string) => {
+        const { r, g, b } = rgba(value);
+        const [red = 0, green = 0, blue = 0] = [r, g, b].map((channel) => (channel / 255 <= 0.04045 ? channel / 255 / 12.92 : ((channel / 255 + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+      };
+      let behind = swatch.parentElement;
+      while (behind?.parentElement && rgba(getComputedStyle(behind).backgroundColor).a < 1) behind = behind.parentElement;
       const style = getComputedStyle(swatch);
-      return { width: style.borderTopWidth, differs: style.borderTopColor !== style.backgroundColor, opaque: !style.borderTopColor.includes(", 0)") };
+      const [lighter = 0, darker = 0] = [luminance(style.borderTopColor), luminance(getComputedStyle(behind ?? swatch).backgroundColor)].sort((a, b) => b - a);
+      return { width: style.borderTopWidth, opaque: rgba(style.borderTopColor).a === 1, againstTheDialog: (lighter + 0.05) / (darker + 0.05) };
     });
-    expect(edge).toEqual({ width: "1px", differs: true, opaque: true });
+    expect(edge).toMatchObject({ width: "1px", opaque: true });
+    expect(edge.againstTheDialog).toBeGreaterThanOrEqual(3);
   });
 });
 

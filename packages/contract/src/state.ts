@@ -207,7 +207,11 @@ export type BriefingChange = z.infer<typeof BriefingChangeSchema>;
 export const HireableSchema = z.object({ name: z.string(), description: z.string() });
 export type Hireable = z.infer<typeof HireableSchema>;
 
-export const PauseStateSchema = z.object({ since: timestamp, reason: z.string() });
+export const PausedBySchema = z.enum(["director", "cost_cap"]);
+export type PausedBy = z.infer<typeof PausedBySchema>;
+
+// `by` is absent for a pause recorded before the office said who paused.
+export const PauseStateSchema = z.object({ since: timestamp, reason: z.string(), by: PausedBySchema.optional() });
 export type PauseState = z.infer<typeof PauseStateSchema>;
 
 // inputTokens is the whole input, cached part included.

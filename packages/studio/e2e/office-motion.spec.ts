@@ -203,23 +203,23 @@ test.describe("around the office", () => {
     expect(edge).toContain("rgb(147, 183, 213)");
   });
 
-  test("says it is reconnecting over the office while the event stream is down, and stops when it is back", async ({ page }) => {
+  test("says it is reconnecting over the office once a live event stream drops, and stops when it is back", async ({ page, browserErrors }) => {
     await liveOffice(page, "alpha");
-    const hero = page.getByRole("region", { name: "alpha studio" });
-    await expect(page.locator(".main-footer").getByText("LIVE", { exact: true })).toBeVisible();
-    await expect(hero.getByText("Reconnecting…")).toHaveCount(0);
+    const footer = page.locator(".main-footer");
+    await expect(footer.getByText("LIVE", { exact: true })).toBeVisible();
+    await expect(page.getByText("Reconnecting…")).toHaveCount(0);
 
-    let restore = () => {};
-    const down = new Promise<void>((resolve) => (restore = resolve));
-    await page.route("**/api/events*", async (route) => {
-      await down;
-      await route.continue();
-    });
-    await liveOffice(page, "alpha");
+    // A stream already open cannot be cut from here: the next project asks for its own, and that one is refused.
+    await page.route("**/api/events*", (route) => route.abort());
+    await page.getByRole("complementary").getByRole("button", { name: "beta" }).click();
+    const hero = page.getByRole("region", { name: "beta studio" });
     await expect(hero.getByText("Reconnecting…")).toBeVisible();
-    await expect(page.locator(".main-footer").getByText("RECONNECTING", { exact: true })).toBeVisible();
+    await expect(footer.getByText("RECONNECTING", { exact: true })).toBeVisible();
 
-    restore();
+    await page.unroute("**/api/events*");
     await expect(hero.getByText("Reconnecting…")).toHaveCount(0);
+    await expect(footer.getByText("LIVE", { exact: true })).toBeVisible();
+    const refused = browserErrors.splice(0);
+    expect(refused.filter((error) => !error.includes("/api/events"))).toEqual([]);
   });
 });

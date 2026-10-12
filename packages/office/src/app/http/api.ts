@@ -205,7 +205,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   api.post("/api/commands/pause-shop", async (context) => {
-    const paused = await shop.control.pause("paused by the director");
+    const paused = await shop.control.pause("paused by the director", "director");
     return paused.ok ? context.json({ paused: true }) : context.json({ error: paused.error }, 409);
   });
   api.post("/api/commands/resume-shop", async (context) => {
@@ -214,7 +214,7 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   });
 
   for (const [path, run, paused] of [
-    ["pause-project", (id: string) => shop.control.pauseProject(id, "paused by the director"), true],
+    ["pause-project", (id: string) => shop.control.pauseProject(id, "paused by the director", "director"), true],
     ["resume-project", (id: string) => shop.control.resumeProject(id), false],
   ] as const) {
     api.post(`/api/commands/${path}`, async (context) => {
