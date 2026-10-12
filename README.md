@@ -49,6 +49,10 @@ npm run test:e2e       # builds the console and walks it in a browser against a 
 npm run dev:console    # the console with hot reload on :5173, against the shop on :4747
 ```
 
+The code is three packages under `packages/`: `office` is the service, `studio` the console in the browser, and
+`contract` what the two exchange ([why](docs/adr/0002-studio-office-and-a-contract.md)). Every command runs from
+the repository root.
+
 The console is the studio: its look comes from `packages/studio/src/design/tokens.json`, shown at `/design`. How
 to add a place, a season or a wardrobe look is in [docs/studio-themes.md](docs/studio-themes.md). The public pages
 served at `/github/` and how to publish them are in [docs/github-kit.md](docs/github-kit.md); the GitHub App in
