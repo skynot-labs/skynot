@@ -293,7 +293,8 @@
   outline: 1px solid #bcabe640;
 }
 .timeline-entry small button {
-  padding: 0;
+  padding: 9px 8px;
+  margin: -9px -8px;
   background: none;
   font: inherit;
   color: #b3a2c2;

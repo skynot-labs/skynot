@@ -30,15 +30,17 @@ button:disabled {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--mint);
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--sk-focus);
   outline-offset: 4px;
 }
 button {
   transition:
-    background 0.16s,
-    transform 0.16s,
-    color 0.16s;
+    background-color var(--sk-motion-fast),
+    border-color var(--sk-motion-fast),
+    color var(--sk-motion-fast),
+    transform var(--sk-motion-fast);
 }
 button:active:not(:disabled) {
   transform: translateY(1px);
@@ -176,7 +178,7 @@ button span[data-icon] {
 }
 .side-footer {
   font-size: 9px;
-  color: #737081;
+  color: var(--muted);
   display: block;
   padding: 12px 13px;
 }
@@ -220,7 +222,7 @@ h1 span {
   padding: 13px 18px;
   border-radius: 7px;
   background: var(--mint);
-  color: #25312c;
+  color: var(--sk-on-action);
   display: inline-flex;
   justify-content: center;
   align-items: center;
@@ -232,7 +234,6 @@ h1 span {
 }
 .primary-button:hover {
   background: #bee9ce;
-  transform: translateY(-1px);
 }
 .primary-button svg {
   width: 15px;
@@ -323,7 +324,6 @@ h1 span {
 }
 .view.active {
   display: block;
-  animation: fade-in 0.25s ease;
 }
 .panel {
   border: 1px solid var(--border);
@@ -357,10 +357,13 @@ h1 span {
   font: 8px var(--mono);
   letter-spacing: 0.6px;
   color: var(--muted);
-  background: #353240;
+  background: #322f3d;
   padding: 5px 6px;
   border-radius: 3px;
   white-space: nowrap;
+}
+.pill.state {
+  font-size: var(--sk-type-caption);
 }
 .pill.working {
   color: var(--mint);
@@ -376,9 +379,10 @@ h1 span {
   background: var(--lavender);
   height: 100%;
   border-radius: 3px;
-  transition: width 0.35s ease;
 }
 .text-button {
+  padding: 8px 6px;
+  margin: -8px 0;
   font-size: 9px;
   background: none;
   color: var(--muted);
@@ -439,7 +443,7 @@ h1 span {
 .activity-item small {
   display: block;
   font: 8px var(--mono);
-  color: #7f7a90;
+  color: var(--muted);
   margin-top: 3px;
 }
 .main-footer {
@@ -448,10 +452,11 @@ h1 span {
   gap: 15px;
   padding: 28px 0 20px;
   font: 7px var(--mono);
-  color: #787385;
+  color: var(--muted);
   letter-spacing: 1px;
 }
 .main-footer > span:last-child {
+  font-size: var(--sk-type-caption);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -562,6 +567,7 @@ label.form-label {
   margin: 22px 0 10px;
 }
 input[type="text"],
+input[type="password"],
 select {
   width: 100%;
   padding: 13px 14px;
@@ -571,8 +577,8 @@ select {
   border-radius: 6px;
   font-size: 13px;
 }
-input[type="text"]::placeholder {
-  color: #7e758c;
+::placeholder {
+  color: var(--muted);
 }
 .choice-options {
   display: flex;
@@ -752,6 +758,8 @@ input[type="text"]::placeholder {
 }
 #toast .toast-close {
   display: flex;
+  padding: 6px;
+  margin: -6px 0;
   color: inherit;
   background: transparent;
 }
@@ -761,16 +769,6 @@ input[type="text"]::placeholder {
 }
 [hidden] {
   display: none !important;
-}
-@keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 @media (min-width: 1450px) {
   main {

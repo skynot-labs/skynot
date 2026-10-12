@@ -317,7 +317,7 @@ export function AgentsView({
               <Icon name="shield" />
               The team changes with your signature
             </span>
-            <span class="pill">{project.teamChanges.length} TO SIGN</span>
+            <span class="pill state">{project.teamChanges.length} TO SIGN</span>
           </div>
           {project.teamChanges.map((change) => (
             <TeamChangeProposal
@@ -780,7 +780,7 @@ function PauseCard({
     <section class="panel pause-card">
       <div class="panel-heading">
         <span class="panel-title">This project's work</span>
-        {paused && <span class="pill">PAUSED</span>}
+        {paused && <span class="pill state">PAUSED</span>}
       </div>
       {paused && (
         <p class="pause-reason">
@@ -839,7 +839,7 @@ export function ContextView({
                 <Icon name="shield" />
                 Proposed: new briefing
               </span>
-              <span class="pill">TO SIGN</span>
+              <span class="pill state">TO SIGN</span>
             </div>
             <BriefingChangeProposal change={change} send={send} busy={busy} />
           </section>
