@@ -110,17 +110,37 @@ No secrets in memory. Each important note links its source (issue, PR or directo
 | Phase | Outcome | Done when |
 | --- | --- | --- |
 | 0 (done) | Vertical slice: idea, card, signature, issue, PR, minutes | Works with mocks and real git |
-| 1 | Web console: chat with the Manager, work orders, logbook, decisions, over an event log | The whole flow runs without the terminal |
-| 2 | Role library, team roster, per-role engine and model, hiring, advisors in parallel | The Manager proposes a team and consults advisors at once |
-| 3 | Parallel workers, dependency graph, merge queue, independent reviewer | Two developers deliver two orders at the same time, reviewed by someone else |
-| 4 | Several projects, each with its own team, work taken from GitHub, and an inbox of what waits for the director | Two projects run at once, and a labelled issue becomes an order the director signs |
-| 5 | Greenfield: organization, machine account, the Manager creates the repo with CI, lint and tests | The todo app is built from an empty repository, then extended and fixed |
-| 6 | Curated memory, heartbeat, daily report | The Manager applies an earlier answer to a similar order without asking again |
-| 7 | Deploy on the KVM VM behind Tailscale, and Telegram | It runs without the director's laptop |
+| 1 (done) | Web console: chat with the Manager, work orders, logbook, decisions, over an event log | The whole flow runs without the terminal |
+| 2 (done) | Role library, team roster, per-role engine and model, hiring, advisors in parallel | The Manager proposes a team and consults advisors at once |
+| 3 (done) | Parallel workers, dependency graph, merge queue, independent reviewer | Two developers deliver two orders at the same time, reviewed by someone else |
+| 4 (done) | Several projects, each with its own team, work taken from GitHub, and an inbox of what waits for the director | Two projects run at once, and a labelled issue becomes an order the director signs |
+| 5 (in progress) | A public studio and an office anyone can run: a contract between the two, pairing, one setup command, a demo in the browser | A newcomer goes from the README to a shop answering in under ten minutes |
+| 6 | Greenfield: organization, machine account, the Manager creates the repo with CI, lint and tests | The todo app is built from an empty repository, then extended and fixed |
+| 7 | Curated memory, heartbeat, daily report | The Manager applies an earlier answer to a similar order without asking again |
+| 8 | Telegram | The director runs the shop without opening the console |
+
+Phase 5 has the contract, the session and the published studio ([ADR 0002](adr/0002-studio-office-and-a-contract.md)); the setup command and the demo are open issues. It also took the place of a deploy phase: an office already runs on a [server](running-on-a-server.md).
 
 ## Not included for now
 
 Autonomy levels per task type, voice notes, local models, and any framework for multi-agent orchestration.
+
+Sprints, story points, estimation sessions, daily stand-ups and burndown charts are absent on purpose: no pain asks for them.
+
+Parts of a dev shop that were considered and left out, each with what would bring it back:
+
+| Area | Not built | Trigger |
+| --- | --- | --- |
+| Revert | An operation to undo a merge | The first merged order that has to be reverted |
+| Release and deploy | Versions, changelog, staging, rollback | The first project that ships to someone |
+| Dependencies and security | Scheduled updates, audit, secret scanning | A vulnerable or stale dependency found by hand |
+| Quality beyond tests | Coverage, browser tests, accessibility | A web project whose bugs the unit tests miss |
+| Architecture records | The architect's answer written to `docs/` | An architectural question asked twice |
+| Flow metrics | Lead time, review rounds, rework per order | Wanting to compare two workers on the same orders; the data is already in the log |
+| Operations | Error tracking, uptime, incidents | A project in production |
+| Rate limits | Backing off when a subscription says no | The first occurrence |
+| Queue | Priorities and reordering | A queue deeper than `max_parallel` |
+| Per-project daily cap | A cap read from `project.yaml` | One project spending another's day |
 
 ## Open questions
 
