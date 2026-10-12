@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { StreamEventSchema } from "@skynot/contract";
 import { createApi } from "../../src/app/http/api";
 import type { readState } from "../../src/app/http/state";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
@@ -486,7 +487,10 @@ describe("event stream", () => {
       for (const block of buffer.split("\n\n").slice(0, -1)) {
         const id = /^id: (.*)$/m.exec(block)?.[1];
         const data = /^data: (.*)$/m.exec(block)?.[1];
-        if (id && data) received.push({ id, event: (JSON.parse(data) as { type: string }).type });
+        if (!id || !data) continue;
+        const event = StreamEventSchema.parse(JSON.parse(data));
+        expect(String(event.sequence)).toBe(id);
+        received.push({ id, event: event.type });
       }
       buffer = buffer.slice(buffer.lastIndexOf("\n\n") + 2);
     }

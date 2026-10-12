@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MAX_TEXT, commandPath, commands, simulatedCommands, type CommandName } from "@skynot/contract";
+import { RefusalSchema, commandPath, commands, simulatedCommands, type CommandName } from "@skynot/contract";
 import { createApi } from "../../src/app/http/api";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createShop, type Shop } from "../../src/app/shop";
@@ -65,8 +65,8 @@ describe("the commands of the contract and the routes of the office", () => {
     const project = shop.desks[0]!.project.id;
     const cases: Array<[CommandName, unknown]> = [
       ["send-message", { text: "Export the inventory to CSV" }],
-      ["send-message", { text: `  ${"x".repeat(MAX_TEXT)}  `, project }],
-      ["send-message", { text: "x".repeat(MAX_TEXT + 1) }],
+      ["send-message", { text: `  ${"x".repeat(4000)}  `, project }],
+      ["send-message", { text: "x".repeat(4001) }],
       ["send-message", { text: "   " }],
       ["send-message", { text: "hello", project: "Not A Project" }],
       ["answer-decision", { decisionId: "dec_unknown", answer: "Keep it small" }],
@@ -104,6 +104,7 @@ describe("the commands of the contract and the routes of the office", () => {
       const accepted = commands[name].safeParse(payload).success;
 
       expect([name, payload, response.status !== 400]).toEqual([name, payload, accepted]);
+      if (!response.ok) expect([name, payload, RefusalSchema.safeParse(await response.json()).success]).toEqual([name, payload, true]);
       outcomes[accepted ? "accepted" : "refused"] += 1;
     }
     expect(outcomes).toEqual({ accepted: 15, refused: 17 });
