@@ -14,6 +14,7 @@ import {
   studioLayouts,
   assignStudioSeats,
   officeLayout,
+  seatSpots,
 } from "../src/ui/office-layout";
 import type { Agent, Project } from "../src/contracts";
 import { resolveAvatar } from "../src/avatars/model";
@@ -287,8 +288,10 @@ describe("project studio presentation preferences", () => {
       for (const seat of placed) {
         expect(seat.u).toBeGreaterThanOrEqual(0);
         expect(seat.v).toBeGreaterThanOrEqual(0);
-        expect(seat.u + 1.94).toBeLessThanOrEqual(officeLayout.room.width);
-        expect(seat.v + 2.1).toBeLessThanOrEqual(officeLayout.room.depth);
+        const taken = seatSpots(seat).footprint;
+        expect(taken.v).toBeGreaterThanOrEqual(0);
+        expect(taken.u + taken.width).toBeLessThanOrEqual(officeLayout.room.width);
+        expect(taken.v + taken.depth).toBeLessThanOrEqual(officeLayout.room.depth);
       }
     }
   });

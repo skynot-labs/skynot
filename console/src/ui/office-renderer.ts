@@ -4,10 +4,20 @@ import {
   avatarBounds,
 } from "./avatar-renderer";
 import {
+  COFFEE_COUNTER,
+  DECISION_SIGN,
+  DECISION_TABLE,
+  DESK,
   officeLayout,
   assignStudioSeats,
+  deskKit,
+  deskScreens,
   getStudioLayout,
   floorPoint,
+  roomGrowth,
+  SEAT_LABEL_DROP,
+  seatSpots,
+  type DeskKit,
 } from "./office-layout";
 
 import {
@@ -56,8 +66,10 @@ export const BUBBLE_FILL: Record<BubbleTone, string> = {
   wait: "#c9c6d4",
 };
 export const BUBBLE_STEP_MS = 300;
-const DECISION_TABLE = { u: 8.7, v: 7.85, width: 3.5, depth: 2.15 };
-const COFFEE_COUNTER = { u: 0.65, v: 9.6, width: 2.2, depth: 0.55 };
+// Canvas pixels from the floor under a chair to the top of the sprite of whoever sits on it.
+export const SEATED_TOP = 90;
+/** Heights of a screen's bottom and top edge above the floor. */
+export const SCREEN = { bottom: 62, top: 90 };
 /** One cut of the scene on its own transparent canvas, placed at (x, y) of the office canvas. */
 export type Piece = {
   kind: "base" | "prop" | "labels" | "front" | "board";
@@ -252,11 +264,10 @@ class Office {
       u: number,
       v: number,
       active: boolean,
-      upgraded = false,
+      w: number,
     ) => {
-      const y = 64,
-        h = upgraded ? 32 : 28,
-        w = upgraded ? 0.9 : 0.75;
+      const y = SCREEN.bottom,
+        h = SCREEN.top - SCREEN.bottom;
       // The foot and the neck stand under the middle of the screen and reach into it, or the screen reads as floating.
       block(u + w / 2 - 0.15, v - 0.03, 0.3, 0.16, 2, "#667886", 47);
       block(u + w / 2 - 0.045, v + 0.01, 0.09, 0.07, y - 45, "#697986", 49);
@@ -277,7 +288,7 @@ class Office {
         const z = y + h - 9 - j * 3;
         line(
           p(u + 0.12, v - 0.025, z),
-          p(u + 0.12 + (j % 2 ? 0.3 : 0.43), v - 0.025, z),
+          p(u + 0.12 + (j % 2 ? 0.3 : 0.43) * Math.min(1, w / 0.9), v - 0.025, z),
           j % 2 ? "#d2debd" : "#596f91",
           1.6,
         );
@@ -289,15 +300,68 @@ class Office {
         1,
       );
     };
+    const mug = (u: number, v: number) => block(u, v, 0.14, 0.14, 9, "#eedcc0", 49);
+    // What a desk carries besides its screens, by whose desk it is. Everything stands on the top, 49 above the floor.
+    const deskThings: Record<DeskKit, (u: number, v: number) => void> = {
+      plain: (u, v) => mug(u + 1.7, v + 0.5),
+      lead: (u, v) => {
+        block(u + 1.2, v + 0.62, 0.5, 0.08, 7, "#d9c7a0", 49);
+        block(u + 1.72, v + 0.1, 0.16, 0.16, 8, "#b9876d", 49);
+        const [x, y] = p(u + 1.8, v + 0.18, 57);
+        line([x, y], [x - 4, y - 12], "#5f8f78", 3);
+        line([x, y], [x + 5, y - 10], "#7fae8f", 3);
+      },
+      dual: (u, v) => {
+        block(u + 1.45, v + 0.5, 0.42, 0.1, 6, "#9cc0d6", 49);
+        block(u + 1.45, v + 0.62, 0.42, 0.1, 6, "#c4dbe8", 49);
+        mug(u + 1.72, v + 0.12);
+      },
+      dev: (u, v) => {
+        block(u + 1.3, v + 0.5, 0.5, 0.3, 2, "#59606e", 49);
+        poly([p(u + 1.3, v + 0.5, 51), p(u + 1.8, v + 0.5, 51), p(u + 1.8, v + 0.44, 70), p(u + 1.3, v + 0.44, 70)], "#3a4250");
+        poly([p(u + 1.34, v + 0.49, 54), p(u + 1.76, v + 0.49, 54), p(u + 1.76, v + 0.445, 67), p(u + 1.34, v + 0.445, 67)], "#8fb4bd");
+        const [x, y] = p(u + 0.14, v + 0.62, 51);
+        ctx.strokeStyle = "#3d4250";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(x, y - 3, 7, Math.PI, 0);
+        ctx.stroke();
+        ctx.fillStyle = "#6d8f86";
+        ctx.fillRect(x - 10, y - 5, 5, 8);
+        ctx.fillRect(x + 5, y - 5, 5, 8);
+      },
+      tablet: (u, v) => {
+        block(u + 1.25, v + 0.45, 0.55, 0.36, 2, "#3f4552", 49);
+        block(u + 1.3, v + 0.49, 0.45, 0.28, 1, "#d9c9ea", 51);
+        ["#e36077", "#f3c15a", "#59b6a4"].forEach((swatch, index) => block(u + 0.08 + index * 0.13, v + 0.62, 0.11, 0.16, 2, swatch, 49));
+      },
+      papers: (u, v) => {
+        block(u + 1.3, v + 0.46, 0.44, 0.34, 6, "#f1ead9", 49);
+        block(u + 1.34, v + 0.5, 0.44, 0.34, 2, "#fffaf0", 55);
+        line(p(u + 1.42, v + 0.6, 58), p(u + 1.7, v + 0.6, 58), "#c8574f", 2);
+        mug(u + 1.74, v + 0.1);
+      },
+    };
     ctx.fillStyle = palette.backdrop;
     ctx.fillRect(0, 0, W, H);
-    for (let row = 0; row < 18; row++) {
-      for (let col = 0; col < 26; col++) {
+    for (let row = 0; row * 45 < H; row++) {
+      for (let col = 0; col * 57 < W; col++) {
         ctx.fillStyle = "#8e83951b";
         ctx.fillRect(24 + col * 57 + (row % 2 ? 28 : 0), 28 + row * 45, 2, 2);
       }
     }
-    drawStudioSurroundings({ ctx, p, poly, line, block }, theme);
+    // The theme scenery was drawn for a smaller room: what it pinned to the far walls moves out with them.
+    const east = (u: number) => (u > 7 ? u + roomGrowth.east : u);
+    const south = (v: number) => (v > 5.2 ? v + roomGrowth.south : v);
+    const pinned = {
+      ctx,
+      poly,
+      line,
+      p: (u: number, v: number, z?: number) => p(east(u), south(v), z),
+      block: (u: number, v: number, w: number, d: number, h: number, fill: string, z?: number) =>
+        block(east(u), south(v), w, d, h, fill, z),
+    };
+    drawStudioSurroundings(pinned, theme);
     const { width: rw, depth: rd, wallHeight: wh } = officeLayout.room;
     poly(
       [
@@ -328,8 +392,8 @@ class Office {
     line(p(0, 0, wh), p(rw, 0, wh), palette.trim, 6);
     line(p(0, 0, 8), p(0, rd, 8), "#b1a08b", 5);
     line(p(0, 0, 8), p(rw, 0, 8), "#aaa097", 5);
-    drawPlaceArchitecture({ ctx, p, poly, line, block }, theme);
-    for (let i = 0; i < 5; i++) {
+    drawPlaceArchitecture(pinned, theme);
+    for (let i = 0; 0.6 + i * 1.85 + 1.5 < rd; i++) {
       const v = 0.6 + i * 1.85;
       poly(
         [
@@ -412,9 +476,9 @@ class Office {
       ctx.restore();
     };
     if (settings.place === "studio") {
-      wallBoard(7.1, "IDEAS / DESIGN", "#767486");
-      wallBoard(10.4, "VISION / SCOPE", "#718980");
-    } else drawPlaceWallArt({ ctx, p, poly, line, block }, theme);
+      wallBoard(9.2, "IDEAS / DESIGN", "#767486");
+      wallBoard(13.2, "VISION / SCOPE", "#718980");
+    } else drawPlaceWallArt(pinned, theme);
     for (const zone of layout.zones) {
       poly(
         [
@@ -502,30 +566,34 @@ class Office {
     if (
       !theme.decor.some((id) => ["cactus", "bonsai", "marigolds"].includes(id))
     )
-      add(13.8, () => plant(13.0, 0.7, 1.05));
+      add(rw - 0.2, () => plant(rw - 1, 0.7, 1.05));
     if (
       !theme.decor.some((id) =>
         ["parasol", "tree", "pumpkins", "ofrenda"].includes(id),
       )
     )
-      add(10.5, () => plant(0.5, 9.7, 1.1));
-    add(21.9, () => plant(13.1, 8.8, 1.1));
+      add(rd + 0.1, () => plant(0.5, rd - 0.7, 1.1));
+    add(rw + rd - 2.5, () => plant(rw - 0.9, rd - 1.6, 1.1));
     if (!theme.decor.includes("ofrenda"))
-      add(16.0, () => {
-        block(0.65, 9.6, 2.2, 0.55, 40, "#c8b49b");
-        block(0.65, 9.6, 2.2, 0.55, 4, "#ecdac0", 40);
-        block(0.9, 9.67, 0.33, 0.32, 25, "#647581", 44);
-        block(1.55, 9.68, 0.19, 0.2, 10, "#b79172", 44);
-        block(1.88, 9.68, 0.17, 0.17, 8, "#f0e0c6", 44);
-      }, { footprint: COFFEE_COUNTER, haunt: { u: 3.3, v: 9.9, doing: "coffee" } });
-    drawStudioDecor({ ctx, p, poly, line, block, add }, theme);
+      add(COFFEE_COUNTER.u + COFFEE_COUNTER.v + 1.4, () => {
+        const { u, v } = COFFEE_COUNTER;
+        block(u, v, 2.2, 0.55, 40, "#c8b49b");
+        block(u, v, 2.2, 0.55, 4, "#ecdac0", 40);
+        block(u + 0.25, v + 0.07, 0.33, 0.32, 25, "#647581", 44);
+        block(u + 0.9, v + 0.08, 0.19, 0.2, 10, "#b79172", 44);
+        block(u + 1.23, v + 0.08, 0.17, 0.17, 8, "#f0e0c6", 44);
+      }, {
+        footprint: COFFEE_COUNTER,
+        haunt: { u: COFFEE_COUNTER.u + 2.9, v: COFFEE_COUNTER.v + 0.2, doing: "coffee" },
+      });
+    drawStudioDecor({ ...pinned, add }, theme);
     const seats = assignStudioSeats(state.agents, layout);
     const tag = (
       member: SceneAgent,
       x: number,
       top: number,
       bottom: number,
-      labelTop: number,
+      [labelX, labelTop]: Point,
     ) => {
       const bounds = avatarBounds(member.avatar);
       this.hits.push({ id: member.id, kind: "agent", x, y: (top + bottom) / 2, r: 44 });
@@ -586,10 +654,10 @@ class Office {
         const name = member.name.slice(0, 17),
           width = Math.max(60, name.length * 7 + 16);
         ctx.fillStyle = "#31363fe8";
-        ctx.fillRect(x - width / 2, labelTop, width, 23);
+        ctx.fillRect(labelX - width / 2, labelTop, width, 23);
         text(
           name,
-          x,
+          labelX,
           labelTop + 16,
           "12px monospace",
           member.status === "working" ? "#d2c3ed" : "#d7e6d8",
@@ -597,23 +665,21 @@ class Office {
         );
       });
     };
-    for (const { u, v, agent: member, zone } of seats) {
+    for (const seat of seats) {
+      const { u, v, agent: member, zone } = seat;
       const active = member?.status === "working";
-      const [x, y] = p(u + 0.9, v + 1.1);
-      add(u + v + 0.98, () => {
-        line([x, y - 17], [x, y + 9], "#484957", 3);
-        line([x - 14, y + 7], [x + 14, y + 7], "#484957", 3);
-        poly(
-          [
-            [x - 18, y - 76],
-            [x + 13, y - 76],
-            [x + 13, y - 20],
-            [x - 18, y - 20],
-          ],
-          zone === "manager" ? "#617e70" : "#677488",
-        );
+      const spots = seatSpots(seat);
+      const kit = deskKit(member);
+      const [x, y] = p(spots.chair.u, spots.chair.v);
+      const upholstery = zone === "manager" ? "#617e70" : "#677488";
+      add(u + v + 0.15, () => {
+        const { u: cu, v: cv } = spots.chair;
+        line([x, y - 16], [x, y + 3], "#484957", 3);
+        line([x - 12, y + 2], [x + 12, y + 2], "#484957", 3);
+        block(cu - 0.27, cv - 0.36, 0.54, 0.1, 34, upholstery, 22);
+        block(cu - 0.27, cv - 0.26, 0.54, 0.46, 5, upholstery, 17);
         if (member && !live)
-          avatar(ctx, member.avatar, x - 25, y - 122, 3.2, true, active ? Math.floor(time / 500) % 2 : 0);
+          avatar(ctx, member.avatar, x - 25, y - SEATED_TOP, 3.2, true, active ? Math.floor(time / 500) % 2 : 0);
       });
       add(u + v + 1, () => {
         for (const [du, dv] of [
@@ -623,66 +689,47 @@ class Office {
           [1.7, 0.68],
         ] as const)
           block(u + du, v + dv, 0.08, 0.09, 43, "#8a7b70");
-        block(
-          u,
-          v,
-          1.94,
-          0.88,
-          5,
-          zone === "manager" ? color(palette.wood, -12) : palette.wood,
-          43,
-        );
-        monitor(u + 0.5, v + 0.25, active && !live, true);
-        block(u + 0.45, v + 0.72, 0.69, 0.15, 2, "#e5d6c4", 49);
+        const wood = zone === "manager" ? color(palette.wood, -12) : palette.wood;
+        // The front panel is what makes someone behind the desk read as sitting at it: only chest and head show.
+        block(u + 0.14, v + 0.1, DESK.width - 0.28, 0.06, 37, color(wood, -22), 6);
+        block(u, v, DESK.width, DESK.depth, 5, wood, 43);
+        block(u + 0.86, v + 0.08, 0.6, 0.15, 2, "#e5d6c4", 49);
         for (let k = 0; k < 5; k++)
-          line(
-            p(u + 0.5 + k * 0.12, v + 0.73, 51),
-            p(u + 0.5 + k * 0.12, v + 0.84, 51),
-            "#9c95a5",
-          );
-        block(u + 1.55, v + 0.43, 0.14, 0.14, 9, "#eedcc0", 49);
-        block(
-          u + 0.13,
-          v + 0.47,
-          0.19,
-          0.2,
-          2,
-          zone === "design" ? "#b797c9" : "#9eb8a8",
-          49,
-        );
+          line(p(u + 0.91 + k * 0.11, v + 0.09, 51), p(u + 0.91 + k * 0.11, v + 0.2, 51), "#9c95a5");
+        for (const screen of deskScreens(seat, kit)) monitor(screen.u, screen.v, active && !live, screen.width);
+        deskThings[kit](u, v);
+        const [lx, ly] = [x, y + SEAT_LABEL_DROP];
         if (member && !live) {
-          const top = y - 122 + avatarBounds(member.avatar).top * 3.2;
-          tag(member, x, top, y - 31, y + 15);
+          const top = y - SEATED_TOP + avatarBounds(member.avatar).top * 3.2;
+          tag(member, x, top, y - 40, [lx, ly]);
         } else if (!member) {
-          labels.push(() =>
-            text("OPEN SEAT", x, y + 30, "10px monospace", "#615969", "center"),
-          );
+          labels.push(() => text("OPEN SEAT", lx, ly + 15, "10px monospace", "#615969", "center"));
         }
-      }, { footprint: { u, v, width: 1.94, depth: 1.5 } });
+      }, {
+        footprint: spots.footprint,
+        ...(member ? { haunt: { ...spots.visitor, doing: `with ${member.name.slice(0, 12)}`, owner: member.id } } : {}),
+      });
     }
     // A shared decision table belongs to the director, not to a worker run.
-    add(19.0, () => {
+    add(DECISION_TABLE.u + DECISION_TABLE.v + 2.45, () => {
+      const { u: tu, v: tv } = DECISION_TABLE;
       // Legs first: painted after the top, the far ones showed through it.
-      for (const [u, v] of [
-        [8.85, 8],
-        [11.95, 8],
-        [8.85, 9.1],
-        [11.95, 9.1],
+      for (const [du, dv] of [
+        [0.15, 0.15],
+        [3.25, 0.15],
+        [0.15, 1.25],
+        [3.25, 1.25],
       ] as const)
-        block(u, v, 0.12, 0.12, 41, "#88776c");
-      block(8.7, 7.85, 3.5, 1.4, 5, "#bd9a81", 41);
-      for (const [u, v] of [
-        [9.0, 9.45],
-        [10.3, 9.45],
-        [11.55, 9.45],
-      ] as const) {
-        block(u, v, 0.6, 0.52, 21, "#83918d");
-        block(u, v + 0.47, 0.6, 0.09, 30, "#92a49b");
+        block(tu + du, tv + dv, 0.12, 0.12, 41, "#88776c");
+      block(tu, tv, 3.5, 1.4, 5, "#bd9a81", 41);
+      for (const du of [0.3, 1.6, 2.85]) {
+        block(tu + du, tv + 1.6, 0.6, 0.52, 21, "#83918d");
+        block(tu + du, tv + 2.07, 0.6, 0.09, 30, "#92a49b");
       }
-      block(9.1, 8.3, 0.45, 0.42, 2, "#d7c7e2", 47);
-      block(10.0, 8.1, 0.6, 0.42, 2, "#e6ddc3", 47);
-      block(11.25, 8.4, 0.2, 0.2, 8, "#c2e1c7", 47);
-      const [x, y] = p(10.3, 8.5, 140);
+      block(tu + 0.4, tv + 0.45, 0.45, 0.42, 2, "#d7c7e2", 47);
+      block(tu + 1.3, tv + 0.25, 0.6, 0.42, 2, "#e6ddc3", 47);
+      block(tu + 2.55, tv + 0.55, 0.2, 0.2, 8, "#c2e1c7", 47);
+      const [x, y] = p(DECISION_SIGN.u, DECISION_SIGN.v, DECISION_SIGN.z);
       this.hits.unshift({ id: "decisions", kind: "zone", x, y: y + 12, r: 70 });
       if (!live) labels.push(() => {
         const lit = state.pending > 0;

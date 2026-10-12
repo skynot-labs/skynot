@@ -24,7 +24,7 @@ export type PlateLook = {
 /** A filled rectangle with centered text, its origin at the middle of its top edge. */
 export class Plate extends Container {
   private readonly back = new Graphics();
-  private readonly caption: Text;
+  readonly caption: Text;
   private shown = "";
   constructor(private readonly look: PlateLook) {
     super();

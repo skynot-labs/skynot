@@ -48,7 +48,7 @@
 .studio-canvas-room {
   width: 100%;
   overflow: hidden;
-  aspect-ratio: 1440 / 850;
+  aspect-ratio: 1800 / 1062;
 }
 .studio-canvas-room #officeCanvas {
   display: block;
@@ -710,7 +710,7 @@ button.inbox-heading:hover h2 {
     max-height: 420px;
   }
   .studio-canvas-room {
-    aspect-ratio: 1120 / 850;
+    aspect-ratio: 1400 / 1062;
   }
   .studio-canvas-room #officeCanvas,
   .office-stage canvas {

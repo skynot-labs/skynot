@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { floorPoint, officeLayout } from "../src/ui/office-layout";
+import { floorPoint, officeLayout, seatSpots } from "../src/ui/office-layout";
 import { closeDialog, dialog, expect, openProject, test } from "./support";
 
 // With reduced motion nobody leaves their desk, so a seat is where its agent is.
@@ -17,8 +17,9 @@ test.describe("the live office", () => {
   test("a click on an agent at its desk opens that agent's desk", async ({ page }) => {
     await openProject(page, "beta");
     const seat = officeLayout.seats.find((candidate) => candidate.zone === "development")!;
-    const [x, y] = floorPoint(seat.u + 0.9, seat.v + 1.1);
-    await clickOffice(page, [x, y - 80]);
+    const chair = seatSpots(seat).chair;
+    const [x, y] = floorPoint(chair.u, chair.v);
+    await clickOffice(page, [x, y - 70]);
     await expect(dialog(page).getByRole("tab", { name: "Soul" })).toBeVisible();
     await expect(dialog(page)).toContainText("developer");
   });

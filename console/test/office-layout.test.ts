@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  COFFEE_COUNTER,
+  DECISION_SIGN,
+  DECISION_TABLE,
+  DESK,
+  deskScreens,
+  roomGrowth,
+  SEAT_LABEL_DROP,
+  seatSpots,
+  type DeskKit,
   assignStudioSeats,
   floorPoint,
   officeLayout,
@@ -7,7 +16,7 @@ import {
   unseatedAgents,
   type StudioLayout,
 } from "../src/ui/office-layout";
-import { Office, type SceneAgent } from "../src/ui/office-renderer";
+import { Office, SCREEN, SEATED_TOP, type SceneAgent } from "../src/ui/office-renderer";
 import { resolveAvatar } from "../src/avatars/model";
 import { defaultStudioPreferences } from "../src/studio/model";
 import type { LayoutId } from "../src/studio/catalog";
@@ -43,34 +52,34 @@ const everyoneSeated = [1, 8, 9, 12, 15];
 
 const seatsBeforeDenseRows: Record<LayoutId, Array<[string, number, number]>> = {
   zones: [
-    ["manager", 2, 1.65],
-    ["design", 7, 1.65],
-    ["design", 10.3, 1.65],
-    ["development", 1.3, 5.45],
-    ["development", 4.5, 5.45],
-    ["development", 1.3, 7.9],
-    ["development", 4.5, 7.9],
-    ["decisions", 10.7, 5.45],
+    ["manager", 2.6, 2.7],
+    ["design", 8.8, 2.7],
+    ["design", 13.4, 2.7],
+    ["development", 1.6, 8],
+    ["development", 5.6, 8],
+    ["development", 1.6, 10.7],
+    ["development", 5.6, 10.7],
+    ["decisions", 13.6, 7.6],
   ],
   open: [
-    ["manager", 1.2, 1.2],
-    ["design", 5, 1.2],
-    ["design", 8.3, 1.2],
-    ["development", 1.3, 4.7],
-    ["development", 4.5, 4.7],
-    ["development", 1.3, 7.3],
-    ["development", 4.5, 7.3],
-    ["decisions", 10.7, 5.45],
+    ["manager", 1.8, 2.4],
+    ["design", 7, 2.4],
+    ["design", 11.2, 2.4],
+    ["development", 1.6, 7.2],
+    ["development", 5.6, 7.2],
+    ["development", 1.6, 10.2],
+    ["development", 5.6, 10.2],
+    ["decisions", 13.6, 7.6],
   ],
   pods: [
-    ["manager", 10, 1.65],
-    ["design", 1.3, 1.65],
-    ["design", 4.7, 1.65],
-    ["development", 1.3, 5.45],
-    ["development", 4.5, 5.45],
-    ["development", 1.3, 7.9],
-    ["development", 4.5, 7.9],
-    ["decisions", 10.7, 5.45],
+    ["manager", 12.8, 2.7],
+    ["design", 1.8, 2.7],
+    ["design", 6, 2.7],
+    ["development", 1.6, 8],
+    ["development", 5.6, 8],
+    ["development", 1.6, 10.7],
+    ["development", 5.6, 10.7],
+    ["decisions", 13.6, 7.6],
   ],
 };
 const occupantsOfEight = ["m", "a2", "a3", "w1", "w2", "w3", "w4", "a1"];
@@ -81,34 +90,33 @@ const intersects = (a: Rect, b: Rect) =>
   b.u < a.u + a.width &&
   a.v < b.v + b.depth &&
   b.v < a.v + a.depth;
-const footprint = (seat: { u: number; v: number }): Rect[] => [
-  { u: seat.u, v: seat.v, width: 1.94, depth: 0.88 },
-  { u: seat.u + 0.55, v: seat.v + 0.88, width: 0.7, depth: 0.52 },
-];
+const footprint = (seat: { u: number; v: number }): Rect[] => [seatSpots(seat).footprint];
 const plant = (u: number, v: number): Rect => ({
   u: u - 0.3,
   v: v - 0.3,
   width: 0.6,
   depth: 0.6,
 });
+const { width: roomWidth, depth: roomDepth } = officeLayout.room;
 const props: Record<string, Rect> = {
   bookshelf: { u: 0.6, v: 0.3, width: 1.2, depth: 0.55 },
-  counterOrOfrenda: { u: 0.55, v: 9.46, width: 2.6, depth: 0.76 },
-  treePlanter: { u: 0.35, v: 9.05, width: 0.4, depth: 0.4 },
-  cornerPlanter: { u: 12.6, v: 0.65, width: 1.05, depth: 0.7 },
-  decisionTable: { u: 8.7, v: 7.85, width: 3.5, depth: 1.4 },
-  decisionChairs: { u: 9, v: 9.45, width: 3.15, depth: 0.61 },
+  counterOrOfrenda: { u: 0.55, v: COFFEE_COUNTER.v - 0.14, width: 2.6, depth: 0.76 },
+  treePlanter: { u: 0.35, v: 9.05 + roomGrowth.south, width: 0.4, depth: 0.4 },
+  cornerPlanter: { u: 12.6 + roomGrowth.east, v: 0.65, width: 1.05, depth: 0.7 },
+  decisionTable: DECISION_TABLE,
   plantByManager: plant(0.65, 3.7),
-  plantBackCorner: plant(13, 0.7),
-  plantFrontLeft: plant(0.5, 9.7),
-  plantFrontRight: plant(13.1, 8.8),
+  plantBackCorner: plant(roomWidth - 1, 0.7),
+  plantFrontLeft: plant(0.5, roomDepth - 0.7),
+  plantFrontRight: plant(roomWidth - 0.9, roomDepth - 1.6),
 };
 
 type Box = { left: number; right: number; top: number; bottom: number };
 const overlap = (a: Box, b: Box) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
-const chair = (seat: { u: number; v: number }) =>
-  floorPoint(seat.u + 0.9, seat.v + 1.1);
+const chair = (seat: { u: number; v: number }) => {
+  const spot = seatSpots(seat).chair;
+  return floorPoint(spot.u, spot.v);
+};
 const around = (
   seat: { u: number; v: number },
   left: number,
@@ -119,15 +127,30 @@ const around = (
   const [x, y] = chair(seat);
   return { left: x + left, right: x + right, top: y + top, bottom: y + bottom };
 };
+// What shows of someone at their desk: the desk's front panel hides them from the chest down.
 const avatarBox = (seat: { u: number; v: number }) =>
-  around(seat, -25, 26, -122, -36);
+  around(seat, -25, 26, -SEATED_TOP, -40);
 const headBox = (seat: { u: number; v: number }) =>
-  around(seat, -25, 26, -122, -70);
-const monitorBox = (seat: { u: number; v: number }) =>
-  around(seat, 18, 54, -121, -71);
+  around(seat, -25, 26, -SEATED_TOP, -56);
+const kits: DeskKit[] = ["plain", "lead", "dual", "dev", "tablet", "papers"];
+// The widest any desk's screens reach, whoever owns it.
+const monitorBox = (seat: { u: number; v: number }): Box => {
+  const corners = kits.flatMap((kit) =>
+    deskScreens(seat, kit).flatMap((screen) => [
+      floorPoint(screen.u, screen.v, SCREEN.top),
+      floorPoint(screen.u + screen.width, screen.v, SCREEN.top),
+      floorPoint(screen.u, screen.v, SCREEN.bottom),
+      floorPoint(screen.u + screen.width, screen.v, SCREEN.bottom),
+    ]),
+  );
+  const xs = corners.map(([x]) => x);
+  const ys = corners.map(([, y]) => y);
+  return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+};
 const shortNameLabel = (seat: { u: number; v: number }) =>
-  around(seat, -30, 30, 15, 38);
-const decisionBubble: Box = { left: 496, right: 648, top: 411, bottom: 453 };
+  around(seat, -30, 30, SEAT_LABEL_DROP, SEAT_LABEL_DROP + 23);
+const [signX, signY] = floorPoint(DECISION_SIGN.u, DECISION_SIGN.v, DECISION_SIGN.z);
+const decisionBubble: Box = { left: signX - 95, right: signX + 95, top: signY - 27, bottom: signY + 25 };
 const paintOrder = (seat: { u: number; v: number }) => seat.u + seat.v;
 const isOriginal = (id: LayoutId, seat: { u: number; v: number }) =>
   seatsBeforeDenseRows[id].some(([, u, v]) => u === seat.u && v === seat.v);
@@ -214,8 +237,9 @@ describe("studio seats", () => {
         for (const seat of placed) {
           expect(seat.u).toBeGreaterThanOrEqual(0);
           expect(seat.v).toBeGreaterThanOrEqual(0);
-          expect(seat.u + 1.94).toBeLessThanOrEqual(officeLayout.room.width);
-          expect(seat.v + 2.1).toBeLessThanOrEqual(officeLayout.room.depth);
+          expect(seat.u + DESK.width).toBeLessThanOrEqual(officeLayout.room.width);
+          expect(seat.v + DESK.depth).toBeLessThanOrEqual(officeLayout.room.depth);
+          expect(seatSpots(seat).footprint.v).toBeGreaterThanOrEqual(0);
           const obstacles = [
             ...layout.partitions.map((wall) => ["partition", wall] as const),
             ...Object.entries(props),
@@ -317,7 +341,7 @@ describe("studio scene", () => {
         for (const seat of assignStudioSeats(team(size), layout)) {
           if (!seat.agent) continue;
           const [x, y] = chair(seat);
-          expect(office.hit(x, y - 79), `${id}/${size}: ${seat.agent.id}`).toEqual(
+          expect(office.hit(x, y - 65), `${id}/${size}: ${seat.agent.id}`).toEqual(
             expect.objectContaining({ kind: "agent", id: seat.agent.id }),
           );
         }
