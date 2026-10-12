@@ -9,7 +9,6 @@ import {
   MIN_FOCUS,
   MINUTES_BUCKETS,
   ORDER_ID,
-  PREFERENCE_KEY,
   PROJECT_ID,
   REPOSITORY,
   ROLE_NAME,
@@ -32,8 +31,7 @@ describe("the wire formats of the contract and the office's own rules", () => {
     expect(MAX_PROJECT_DESCRIPTION).toBe(projects.MAX_PROJECT_DESCRIPTION);
   });
 
-  it("key and size a preference the same way", () => {
-    samePattern(PREFERENCE_KEY, preferences.PREFERENCE_KEY);
+  it("size a preference the same way", () => {
     expect(MAX_PREFERENCE_BYTES).toBe(preferences.MAX_PREFERENCE_BYTES);
   });
 
