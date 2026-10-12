@@ -22,44 +22,63 @@ export function Modal({
   size?: "normal" | "wide" | "full";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // A full panel opens beside the sidebar, which has to stay usable: showModal would make it inert.
+  const beside = size === "full";
   useEffect(() => {
-    ref.current?.showModal();
-    return () => ref.current?.close();
+    const element = ref.current;
+    if (!beside) {
+      element?.showModal();
+      return () => element?.close();
+    }
+    element?.show();
+    element?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      element?.close();
+    };
   }, []);
   return (
-    <dialog
-      ref={ref}
-      class={size === "normal" ? "" : `modal-${size}`}
-      aria-labelledby="dialogTitle"
-      onCancel={onClose}
-      onClick={(event) => {
-        const element = ref.current;
-        if (!element || event.target !== element) return;
-        const rect = element.getBoundingClientRect();
-        if (
-          event.clientX < rect.left ||
-          event.clientX > rect.right ||
-          event.clientY < rect.top ||
-          event.clientY > rect.bottom
-        )
-          onClose();
-      }}
-    >
-      <div class="modal-header">
-        <div>
-          <div class="eyebrow">{eyebrow}</div>
-          <h2 id="dialogTitle">{title}</h2>
+    <>
+      {beside && <div class="panel-backdrop" onClick={onClose} />}
+      <dialog
+        ref={ref}
+        tabIndex={-1}
+        class={size === "normal" ? "" : `modal-${size}`}
+        aria-labelledby="dialogTitle"
+        onCancel={onClose}
+        onClick={(event) => {
+          const element = ref.current;
+          if (!element || event.target !== element) return;
+          const rect = element.getBoundingClientRect();
+          if (
+            event.clientX < rect.left ||
+            event.clientX > rect.right ||
+            event.clientY < rect.top ||
+            event.clientY > rect.bottom
+          )
+            onClose();
+        }}
+      >
+        <div class="modal-header">
+          <div>
+            <div class="eyebrow">{eyebrow}</div>
+            <h2 id="dialogTitle">{title}</h2>
+          </div>
+          <button
+            class="icon-button"
+            onClick={onClose}
+            aria-label="Close dialog"
+          >
+            <Icon name="close" />
+          </button>
         </div>
-        <button
-          class="icon-button"
-          onClick={onClose}
-          aria-label="Close dialog"
-        >
-          <Icon name="close" />
-        </button>
-      </div>
-      {children}
-    </dialog>
+        {children}
+      </dialog>
+    </>
   );
 }
 
@@ -232,8 +251,8 @@ export function RegisterProject({
           <strong>{registered}</strong> was written to the projects folder.
         </p>
         <p class="form-note">
-          It starts with the next restart of the service. Until then it does
-          not appear in the project list.
+          It starts with the next restart of the service. Until then it does not
+          appear in the project list.
         </p>
         <div class="modal-actions">
           <button class="primary-button" onClick={onClose}>
@@ -245,8 +264,8 @@ export function RegisterProject({
   return (
     <form class="register-project" onSubmit={submit}>
       <p class="form-note">
-        For a repository that already exists. This does not create one: it
-        gives the shop a project that works on it.
+        For a repository that already exists. This does not create one: it gives
+        the shop a project that works on it.
       </p>
       <div class="register-project-row">
         <div>
@@ -431,12 +450,16 @@ function ChatPlan({
   onOrder: (order: Order) => void;
 }) {
   const first = orders[0]!;
-  const toSign = orders.filter((order) => order.status === "awaiting_signature");
+  const toSign = orders.filter(
+    (order) => order.status === "awaiting_signature",
+  );
   return (
     <div class="chat-order">
       {orders.length > 1 && (
         <header>
-          <span class="mono muted">PLAN · {orders.length} ORDERS, IN THIS SEQUENCE</span>
+          <span class="mono muted">
+            PLAN · {orders.length} ORDERS, IN THIS SEQUENCE
+          </span>
         </header>
       )}
       <ol class={orders.length > 1 ? "" : "chat-order-single"}>

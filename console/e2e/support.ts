@@ -28,7 +28,8 @@ export async function openProject(page: Page, projectId: string): Promise<void> 
 export async function openView(page: Page, view: ProjectView): Promise<void> {
   const entry = page.getByRole("navigation", { name: "Project views" }).getByRole("button", { name: view });
   await entry.click();
-  await expect(entry).toHaveAttribute("aria-current", "page");
+  // Decisions is the one entry without a panel: it turns the dock to the desk.
+  if (view !== "Decisions") await expect(entry).toHaveAttribute("aria-current", "page");
 }
 
 export function dialog(page: Page): Locator {
@@ -40,10 +41,11 @@ export async function closeDialog(page: Page): Promise<void> {
   await expect(dialog(page)).toBeHidden();
 }
 
-// In the studio the chat is a card beside the office; in any other view it opens over the page.
+// The chat lives beside the office, so whatever panel is open over it closes first.
 export async function openManagerChat(page: Page): Promise<Locator> {
+  if (await dialog(page).isVisible()) await closeDialog(page);
   await page.getByRole("button", { name: "Open the chat with the Manager" }).click();
-  const chat = dialog(page).or(page.getByRole("region", { name: "Your Manager" }));
+  const chat = page.getByRole("region", { name: "Your Manager" });
   await expect(chat.getByRole("textbox", { name: "Message to the Manager" })).toBeVisible();
   return chat;
 }
@@ -55,10 +57,6 @@ export async function tellTheManager(page: Page, message: string): Promise<Locat
   await expect(chat.getByLabel("Message to the Manager")).toHaveValue("");
   await expect(chat.getByRole("article").filter({ hasText: "YOU · DIRECTOR" }).filter({ hasText: message })).toBeVisible();
   return chat;
-}
-
-export async function closeManagerChat(page: Page): Promise<void> {
-  if (await dialog(page).isVisible()) await closeDialog(page);
 }
 
 // The desk shares its dock with the chat, and only one of the two is open.

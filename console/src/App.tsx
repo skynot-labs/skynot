@@ -14,7 +14,6 @@ import {
 } from "./application/appearance";
 import { Icon } from "./ui/Icon";
 import { Studio, StudioHero, type DockCard } from "./ui/Studio";
-import { DecisionInbox } from "./ui/DecisionInbox";
 import {
   ActivityView,
   AgentsView,
@@ -22,12 +21,7 @@ import {
   OrdersView,
   UsageView,
 } from "./ui/ProjectViews";
-import {
-  AvatarEditor,
-  ManagerChat,
-  Modal,
-  RegisterProject,
-} from "./ui/Dialogs";
+import { AvatarEditor, Modal, RegisterProject } from "./ui/Dialogs";
 import { OrderDetail } from "./ui/OrderDetail";
 import { AgentDesk } from "./ui/AgentDesk";
 import { usd } from "./ui/format";
@@ -53,14 +47,23 @@ type Tab =
 type Dialog =
   | { kind: "agent"; id: string }
   | { kind: "order"; id: string }
-  | { kind: "manager" | "studio" | "register" }
+  | { kind: "studio" | "register" }
   | Panel
   | null;
 // The panels have an address: the fragment says which one is open, so a reload or a shared link opens it again.
-const panels = ["activity", "board", "context", "costs"] as const;
+type Alert = {
+  key: string;
+  icon: string;
+  text: string;
+  attention?: boolean;
+  action?: { label: string; icon: string; waits?: boolean; run: () => void };
+};
+const panels = ["activity", "board", "context", "costs", "agents"] as const;
 type Panel = { kind: (typeof panels)[number] };
-const isPanel = (name: string | undefined): name is Panel["kind"] => (panels as readonly string[]).includes(name ?? "");
-const panelOf = (dialog: Dialog): Panel | null => (dialog && isPanel(dialog.kind) ? { kind: dialog.kind } : null);
+const isPanel = (name: string | undefined): name is Panel["kind"] =>
+  (panels as readonly string[]).includes(name ?? "");
+const panelOf = (dialog: Dialog): Panel | null =>
+  dialog && isPanel(dialog.kind) ? { kind: dialog.kind } : null;
 const panelInAddress = (): Panel | null => {
   const named = location.hash.slice(1);
   return isPanel(named) ? { kind: named } : null;
@@ -76,53 +79,42 @@ const tabs: Array<{ id: Tab; name: string; icon: string }> = [
   { id: "context", name: "Context", icon: "context" },
   { id: "costs", name: "Costs", icon: "usage" },
 ];
-const headings: Record<Exclude<Tab, "studio">, [string, string, string]> = {
-  decisions: [
-    "Your judgment",
-    "unblocks the team.",
-    "Questions, conflicts and approvals for this project.",
-  ],
-  orders: [
-    "From a good idea",
-    "to delivered software.",
-    "Every order has a scope, an owner and a decision behind it.",
-  ],
-  agents: [
-    "The right team.",
-    "For this project.",
-    "Different roles and tools. One intent.",
-  ],
-  activity: [
-    "Every step counts.",
-    "Every event stays.",
-    "The history of the work, outside the LLM's memory.",
-  ],
-  context: [
-    "Before the code,",
-    "the intent.",
-    "Briefing, repository and limits. The context that gives the work meaning.",
-  ],
-  costs: [
-    "Building has a cost.",
-    "Keep it visible.",
-    "Spend by project and order, as the CLIs report it.",
-  ],
-};
 const projectKey = "skynot.project";
 const sidebarKey = "skynot.sidebar";
 
 export function App() {
   const { office, connect, disconnect } = useOffice();
   if (office.stage === "starting") return null;
-  if (office.stage === "asking") return <ConnectionScreen address={office.address} problem={office.problem} onConnect={connect} />;
-  if (office.stage === "mismatched") return <ContractMismatch {...office} onLeave={disconnect} />;
-  return <Console gateway={office.gateway} remote={office.remote} onDisconnect={disconnect} />;
+  if (office.stage === "asking")
+    return (
+      <ConnectionScreen
+        address={office.address}
+        problem={office.problem}
+        onConnect={connect}
+      />
+    );
+  if (office.stage === "mismatched")
+    return <ContractMismatch {...office} onLeave={disconnect} />;
+  return (
+    <Console
+      gateway={office.gateway}
+      remote={office.remote}
+      onDisconnect={disconnect}
+    />
+  );
 }
 
-function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remote: string | null; onDisconnect: () => void }) {
+function Console({
+  gateway,
+  remote,
+  onDisconnect,
+}: {
+  gateway: HttpGateway;
+  remote: string | null;
+  onDisconnect: () => void;
+}) {
   const [projectId, setProjectId] = useState(rememberedProject);
   const { snapshot, error, connected, reload } = useConsole(gateway, projectId);
-  const [tab, setTab] = useState<Tab>("studio");
   const [dialog, setDialog] = useState<Dialog>(panelInAddress);
   const [behind, setBehind] = useState<Panel | null>(null);
   const panel = panelOf(dialog) ?? behind;
@@ -141,6 +133,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
     return () => removeEventListener("popstate", follow);
   }, []);
   const [dockChoice, setDock] = useState<DockCard | null>(null);
+  const [dismissed, setDismissed] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
   );
@@ -206,7 +199,6 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
     remember(projectKey, id);
     setBehind(null);
     setDialog(null);
-    setTab("studio");
   }
   async function savePreference(
     command: Command | null,
@@ -254,9 +246,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
     0;
   const blocked = project?.orders.filter((o) => o.blocked !== null).length ?? 0;
   const dock = dockChoice ?? (pending > 0 ? "decisions" : "manager");
-  // In the studio the chat sits beside the office; elsewhere it opens over the page.
   const openManager = () => {
-    if (tab !== "studio") return setDialog({ kind: "manager" });
     setDialog(null);
     setDock("manager");
   };
@@ -264,6 +254,87 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
     snapshot?.readiness.filter((f) => f.level === "fail").length ?? 0;
   const toReview =
     snapshot?.readiness.filter((f) => f.level === "warn").length ?? 0;
+  // A notice is keyed by what it says, so dismissing one does not silence the next.
+  const alerts: Alert[] = [
+    ...(snapshot?.simulated
+      ? [
+          {
+            key: "simulated",
+            icon: "office",
+            text: "SIMULATED ENGINES / The agents are not doing real work.",
+          },
+        ]
+      : []),
+    ...(snapshot?.paused
+      ? [
+          {
+            key: `shop-paused:${snapshot.paused.reason}`,
+            attention: true,
+            icon: "pause",
+            text: `The shop is paused: nothing new starts, and what is running will finish. ${snapshot.paused.reason}.`,
+            action: {
+              label: "Resume the shop",
+              icon: "play",
+              waits: true,
+              run: () => void send({ name: "resume-shop", payload: {} }),
+            },
+          },
+        ]
+      : []),
+    ...(project?.paused
+      ? [
+          {
+            key: `project-paused:${project.id}:${project.paused.reason}`,
+            attention: true,
+            icon: "pause",
+            text: `This project is paused: nothing new starts in ${project.name}. ${project.paused.reason}.`,
+            action: {
+              label: "Resume this project",
+              icon: "play",
+              waits: true,
+              run: () =>
+                void send({
+                  name: "resume-project",
+                  payload: { project: project.id },
+                }),
+            },
+          },
+        ]
+      : []),
+    ...(failing + toReview > 0
+      ? [
+          {
+            key: `setup:${failing}:${toReview}`,
+            attention: true,
+            icon: "shield",
+            text: `SETUP / ${failing} failing, ${toReview} to review.`,
+            action: {
+              label: "Review setup",
+              icon: "arrow",
+              run: () => setDialog({ kind: "context" }),
+            },
+          },
+        ]
+      : []),
+  ];
+  // The sidebar is a set of shortcuts: the office stays where it is and each entry opens over it.
+  const panelOfEntry: Partial<Record<Tab, Panel["kind"]>> = {
+    orders: "board",
+    agents: "agents",
+    activity: "activity",
+    context: "context",
+    costs: "costs",
+  };
+  const shown: Tab =
+    (Object.keys(panelOfEntry) as Tab[]).find(
+      (entry) => panelOfEntry[entry] === panel?.kind,
+    ) ?? "studio";
+  const show = (entry: Tab) => {
+    const opens = panelOfEntry[entry];
+    setBehind(null);
+    setDialog(opens ? { kind: opens } : null);
+    if (entry === "decisions") setDock("decisions");
+  };
   // The numbers of the project at a glance: shown with the costs, in their view and in their panel.
   const stats = project && snapshot && (
     <section class="stats" aria-label="Project metrics">
@@ -289,7 +360,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
       </div>
       <button
         class="stat stat-clickable"
-        onClick={() => setTab("orders")}
+        onClick={() => setDialog({ kind: "board" })}
       >
         <span class="stat-icon mint">
           <Icon name="check" />
@@ -301,18 +372,12 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             <small> in this project</small>
           </strong>
           <span class="stat-detail">
-            {
-              project.orders.filter((o) => o.status === "delivered")
-                .length
-            }{" "}
+            {project.orders.filter((o) => o.status === "delivered").length}{" "}
             delivered · {toSign} to sign
           </span>
         </div>
       </button>
-      <button
-        class="stat stat-clickable"
-        onClick={() => setTab("decisions")}
-      >
+      <button class="stat stat-clickable" onClick={() => show("decisions")}>
         <span class="stat-icon blue">
           <Icon name="chat" />
         </span>
@@ -332,7 +397,7 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
       </button>
       <button
         class="stat stat-clickable"
-        onClick={() => setTab("costs")}
+        onClick={() => setDialog({ kind: "costs" })}
       >
         <span class="stat-icon peach">
           <Icon name="wallet" />
@@ -364,12 +429,13 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
           href="#studio"
           onClick={(event) => {
             event.preventDefault();
-            setTab("studio");
+            setBehind(null);
+            setDialog(null);
           }}
         >
           <Brand />
         </a>
-        {tab === "studio" && project ? (
+        {project ? (
           <div class="topbar-studio">
             <div>
               <h1>
@@ -393,13 +459,17 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
           <div class="workspace-breadcrumb">
             <span>Workspace</span>
             <Icon name="arrow" />
-            <strong>{project?.name ?? "Your dev shop"}</strong>
+            <strong>Your dev shop</strong>
           </div>
         )}
         <div class="top-actions">
-          {tab === "studio" && project && snapshot && (
+          {project && snapshot && (
             <>
-              <div class="studio-pause-controls" role="group" aria-label="Pause">
+              <div
+                class="studio-pause-controls"
+                role="group"
+                aria-label="Pause"
+              >
                 <button
                   class={project.paused ? "paused" : ""}
                   disabled={busy}
@@ -524,9 +594,9 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
           <nav class="nav-group" aria-label="Project views">
             {tabs.map((t) => (
               <button
-                class={`nav-item ${tab === t.id ? "active" : ""}`}
-                onClick={() => setTab(t.id)}
-                aria-current={tab === t.id ? "page" : undefined}
+                class={`nav-item ${shown === t.id ? "active" : ""}`}
+                onClick={() => show(t.id)}
+                aria-current={shown === t.id ? "page" : undefined}
                 title={t.name}
                 key={t.id}
               >
@@ -547,7 +617,11 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             <Icon name="link" />
             <span>GitHub kit</span>
           </a>
-          <a class="brand-guide-link" href={paths.design} title="Identity and design">
+          <a
+            class="brand-guide-link"
+            href={paths.design}
+            title="Identity and design"
+          >
             <Icon name="star" />
             <span>Identity and design</span>
           </a>
@@ -566,64 +640,35 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
       <main>
         {snapshot && (
           <div class="shell-banners">
-            {snapshot.simulated && (
-              <div class="shop-banner">
-                <span>
-                  <Icon name="office" /> SIMULATED ENGINES
-                  <span class="banner-separator">/</span> The agents are not
-                  doing real work.
-                </span>
-              </div>
-            )}
-            {snapshot.paused && (
-              <div class="shop-banner attention" role="status">
-                <span>
-                  <Icon name="pause" /> The shop is paused: nothing new
-                  starts, and what is running will finish.{" "}
-                  {snapshot.paused.reason}.
-                </span>
-                <button
-                  disabled={busy}
-                  onClick={() => void send({ name: "resume-shop", payload: {} })}
+            {alerts
+              .filter((alert) => !dismissed.includes(alert.key))
+              .map((alert) => (
+                <div
+                  class={`shop-banner ${alert.attention ? "attention" : ""}`}
+                  role="status"
+                  key={alert.key}
                 >
-                  Resume the shop
-                  <Icon name="play" />
-                </button>
-              </div>
-            )}
-            {project?.paused && (
-              <div class="shop-banner attention" role="status">
-                <span>
-                  <Icon name="pause" /> This project is paused: nothing new
-                  starts in {project.name}. {project.paused.reason}.
-                </span>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    void send({
-                      name: "resume-project",
-                      payload: { project: project.id },
-                    })
-                  }
-                >
-                  Resume this project
-                  <Icon name="play" />
-                </button>
-              </div>
-            )}
-            {failing + toReview > 0 && (
-              <div class="shop-banner attention">
-                <span>
-                  <Icon name="shield" /> SETUP
-                  <span class="banner-separator">/</span> {failing} failing,{" "}
-                  {toReview} to review.
-                </span>
-                <button onClick={() => setTab("context")}>
-                  Review setup
-                  <Icon name="arrow" />
-                </button>
-              </div>
-            )}
+                  <span>
+                    <Icon name={alert.icon} /> {alert.text}
+                  </span>
+                  {alert.action && (
+                    <button
+                      disabled={alert.action.waits && busy}
+                      onClick={alert.action.run}
+                    >
+                      {alert.action.label}
+                      <Icon name={alert.action.icon} />
+                    </button>
+                  )}
+                  <button
+                    class="toast-close"
+                    aria-label="Dismiss this notice"
+                    onClick={() => setDismissed((keys) => [...keys, alert.key])}
+                  >
+                    <Icon name="close" />
+                  </button>
+                </div>
+              ))}
           </div>
         )}
         {error && (
@@ -642,119 +687,34 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
         )}
         {snapshot && project && (
           <>
-            {tab === "studio" ? (
-              <StudioHero
-                key={project.id}
+            <StudioHero
+              key={project.id}
+              project={project}
+              paused={snapshot.paused}
+              appearance={appearance}
+              settings={studioSettings}
+              onAgent={openAgent}
+              onManager={openManager}
+              onOrder={openOrder}
+              onTeam={() => setDialog({ kind: "agents" })}
+              onOrders={() => setDialog({ kind: "board" })}
+              onActivity={() => setDialog({ kind: "activity" })}
+              onStats={() => setDialog({ kind: "costs" })}
+              onContext={() => setDialog({ kind: "context" })}
+              dock={dock}
+              onDock={setDock}
+              covered={dialog !== null}
+              send={send}
+              busy={busy}
+            />
+            <section class="view active" key={project.id}>
+              <Studio
                 project={project}
-                paused={snapshot.paused}
                 appearance={appearance}
                 settings={studioSettings}
                 onAgent={openAgent}
-                onManager={openManager}
-                onOrder={openOrder}
-                onTeam={() => setTab("agents")}
                 onOrders={() => setDialog({ kind: "board" })}
-                onActivity={() => setDialog({ kind: "activity" })}
-                onStats={() => setDialog({ kind: "costs" })}
-                onContext={() => setDialog({ kind: "context" })}
-                dock={dock}
-                onDock={setDock}
-                send={send}
-                busy={busy}
               />
-            ) : (
-              <section class="page-heading">
-                <div>
-                  <div class="eyebrow">
-                    <span class="tiny-led" /> {project.name.toUpperCase()}
-                    <span class="heading-phase">{project.repo}</span>
-                  </div>
-                  {project.description && (
-                    <p class="heading-description">{project.description}</p>
-                  )}
-                  <h1>
-                    {headings[tab][0]}
-                    <br />
-                    <span>{headings[tab][1]}</span>
-                  </h1>
-                  <p>{headings[tab][2]}</p>
-                </div>
-                <div class="heading-actions">
-                  {pending > 0 && (
-                    <button
-                      class="decisions-button"
-                      onClick={() => setTab("decisions")}
-                    >
-                      <span class="decision-dot" />
-                      {pending} to decide
-                    </button>
-                  )}
-                  <button
-                    class="primary-button"
-                    onClick={openManager}
-                  >
-                    <Icon name="chat" />
-                    Talk to the Manager
-                  </button>
-                </div>
-              </section>
-            )}
-            {tab === "costs" && stats}
-            <section class="view active" key={project.id + "/" + tab}>
-              {tab === "studio" && (
-                <Studio
-                  project={project}
-                  appearance={appearance}
-                  settings={studioSettings}
-                  onAgent={openAgent}
-                  onOrders={() => setTab("orders")}
-                />
-              )}{" "}
-              {tab === "decisions" && (
-                <div class="decision-page">
-                  <DecisionInbox
-                    project={project}
-                    send={send}
-                    busy={busy}
-                    onManager={openManager}
-                    onOrder={openOrder}
-                    onTeam={() => setTab("agents")}
-                  />
-                </div>
-              )}
-              {tab === "orders" && (
-                <OrdersView project={project} onOrder={openOrder} />
-              )}{" "}
-              {tab === "agents" && (
-                <AgentsView
-                  project={project}
-                  appearance={appearance}
-                  settings={studioSettings}
-                  onAgent={openAgent}
-                  send={send}
-                  busy={busy}
-                />
-              )}{" "}
-              {tab === "activity" && (
-                <ActivityView
-                  project={project}
-                  appearance={appearance}
-                  settings={studioSettings}
-                  onAgent={openAgent}
-                  onOrder={openOrder}
-                />
-              )}{" "}
-              {tab === "context" && (
-                <ContextView
-                  project={project}
-                  readiness={snapshot.readiness}
-                  send={send}
-                  busy={busy}
-                />
-              )}{" "}
-              {tab === "costs" && (
-                <UsageView project={project} costs={snapshot.costs} />
-              )}
             </section>
             <footer class="main-footer">
               <span>STATE OUTSIDE THE LLM. HUMAN IN THE LOOP.</span>
@@ -776,21 +736,6 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
               </span>
             </footer>
           </>
-        )}
-        {dialog?.kind === "manager" && project && (
-          <Modal
-            title="Let's talk about the next idea."
-            eyebrow={`MANAGER · ${project.name.toUpperCase()}`}
-            onClose={() => setDialog(null)}
-            size="wide"
-          >
-            <ManagerChat
-              project={project}
-              send={send}
-              busy={busy}
-              onOrder={openOrder}
-            />
-          </Modal>
         )}
         {dialog?.kind === "studio" && project && (
           <Modal
@@ -843,7 +788,29 @@ function Console({ gateway, remote, onDisconnect }: { gateway: HttpGateway; remo
             onClose={() => setDialog(null)}
             size="full"
           >
-            <ContextView project={project} readiness={snapshot.readiness} send={send} busy={busy} />
+            <ContextView
+              project={project}
+              readiness={snapshot.readiness}
+              send={send}
+              busy={busy}
+            />
+          </Modal>
+        )}
+        {dialog?.kind === "agents" && project && (
+          <Modal
+            title="The right team."
+            eyebrow={`${project.name.toUpperCase()} · AGENTS`}
+            onClose={() => setDialog(null)}
+            size="full"
+          >
+            <AgentsView
+              project={project}
+              appearance={appearance}
+              settings={studioSettings}
+              onAgent={openAgent}
+              send={send}
+              busy={busy}
+            />
           </Modal>
         )}
         {dialog?.kind === "costs" && project && snapshot && (

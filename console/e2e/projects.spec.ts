@@ -1,5 +1,5 @@
 import type { Browser, Locator, Page } from "@playwright/test";
-import { closeDialog, closeManagerChat, dialog, expect, openManagerChat, openProject, openView, test } from "./support";
+import { closeDialog, dialog, expect, openManagerChat, openProject, openView, test } from "./support";
 
 const LEGACY_STUDIOS_KEY = "skynot-studios-v1";
 const PAUSE_REASON = "paused by the director";
@@ -143,7 +143,6 @@ test.describe.serial("the director's projects", () => {
     await chat.getByRole("button", { name: "Send" }).click();
     await expect(chat.getByRole("article")).toHaveText(/ping is anything on the bench\?/);
     await expect(chat.getByRole("status")).toHaveText("The Manager's turn is waiting in line.");
-    await closeManagerChat(page);
 
     await openView(page, "Agents");
     await expect(managerCard(page)).toContainText("In line · number 1");
@@ -158,7 +157,6 @@ test.describe.serial("the director's projects", () => {
     const stillWaiting = await openManagerChat(page);
     await expect(stillWaiting.getByRole("article")).toHaveCount(1);
     await expect(stillWaiting).not.toContainText("Nothing on the bench");
-    await closeManagerChat(page);
 
     await projectEntry(page, "alpha").click();
     await expect(studio(page, "alpha")).toBeVisible();
@@ -177,7 +175,6 @@ test.describe.serial("the director's projects", () => {
 
     const answered = await openManagerChat(page);
     await expect(answered.getByRole("article").filter({ hasText: "MANAGER" })).toContainText("Nothing on the bench but the paperwork.", MANAGER_TURN);
-    await closeManagerChat(page);
     await openView(page, "Agents");
     await expect(managerCard(page)).toContainText("Available", MANAGER_TURN);
   });
