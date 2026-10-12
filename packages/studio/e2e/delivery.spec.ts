@@ -72,7 +72,7 @@ test.describe.serial("an order's life in alpha", () => {
     await proposal.getByRole("button", { name: "Open detail" }).click();
 
     const detail = dialog(page);
-    await expect(detail.getByRole("heading", { name: "An order with intent." })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: idea })).toBeVisible();
     orderId = await orderIdOf(detail);
     await expect(proposal).toContainText(`WORK ORDER · ${orderId}`);
     await expect(detail.getByRole("heading", { name: "ACCEPTANCE CRITERIA" })).toBeVisible();

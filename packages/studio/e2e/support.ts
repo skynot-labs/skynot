@@ -73,3 +73,11 @@ export async function openDecisionDesk(page: Page): Promise<void> {
   const heading = page.getByRole("region", { name: "Decision desk" }).getByRole("button", { name: /Decision desk/ });
   if ((await heading.count()) > 0 && (await heading.getAttribute("aria-expanded")) === "false") await heading.click();
 }
+
+// Visible is not enough for a notice: a dialog or a panel can be painted over it.
+export async function paintsOnTop(notice: Locator): Promise<boolean> {
+  return notice.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return element.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+  });
+}
