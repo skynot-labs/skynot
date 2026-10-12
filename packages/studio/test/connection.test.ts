@@ -61,13 +61,9 @@ describe("an address typed into a studio", () => {
     expect(addressProblem("http://localhost:4747", "http:")).toBeNull();
   });
 
-  it("cannot be an office on this machine from a studio served over https, and says what to use instead", () => {
-    const problem = addressProblem("http://127.0.0.1:4747/", "https:");
-
-    expect(problem).toContain("cannot reach an office on this machine at http://127.0.0.1:4747");
-    expect(problem).toContain("Open the console the office serves itself at http://127.0.0.1:4747");
-    expect(problem).toContain("npm run start:shared");
-    expect(addressProblem("http://localhost:4747", "https:")).toContain("cannot reach an office on this machine");
+  it("may be an office on this machine from a studio served over https too: the browser decides, not the studio", () => {
+    expect(addressProblem("http://127.0.0.1:4747/", "https:")).toBeNull();
+    expect(addressProblem("http://localhost:4747", "https:")).toBeNull();
   });
 
   it("is refused when it is not an address a session may travel to", () => {
@@ -106,7 +102,7 @@ describe("pairing with an office", () => {
   it("trades the secret for a session with that office", async () => {
     officeAnswers(200, { token: "a-session-token", expiresAt: "2026-11-11T09:00:00.000Z" });
 
-    expect(await pair(OFFICE, "the-secret")).toEqual({ office: OFFICE, token: "a-session-token" });
+    expect(await pair(OFFICE, "the-secret", "https:")).toEqual({ office: OFFICE, token: "a-session-token" });
 
     expect(calls).toHaveLength(1);
     expect(calls[0]?.url).toBe(`${OFFICE}/api/sessions`);
@@ -119,7 +115,7 @@ describe("pairing with an office", () => {
   it("says where the secret is when the office refuses it", async () => {
     officeAnswers(401, { error: "that is not this office's pairing secret" });
 
-    await expect(pair(OFFICE, "a-secret")).rejects.toThrow(
+    await expect(pair(OFFICE, "a-secret", "https:")).rejects.toThrow(
       "That is not this office's pairing secret. Copy it from the pairing link the office printed when it started, or from the file pairing.secret in the office's data folder.",
     );
   });
@@ -127,7 +123,7 @@ describe("pairing with an office", () => {
   it("says which address the office must be started with when it was reached at another", async () => {
     officeAnswers(403, { error: "unknown host" });
 
-    await expect(pair(OFFICE, "a-secret")).rejects.toThrow(
+    await expect(pair(OFFICE, "a-secret", "https:")).rejects.toThrow(
       `The office was reached at ${OFFICE}, an address it was not started with. Start it with SKYNOT_OFFICE_URL set to exactly that address, scheme included.`,
     );
   });
@@ -135,7 +131,7 @@ describe("pairing with an office", () => {
   it("says how to pair with an office that takes no sessions", async () => {
     officeAnswers(404, { error: "this office takes no sessions: it answers on this machine only" });
 
-    await expect(pair(OFFICE, "a-secret")).rejects.toThrow("start it with its address in SKYNOT_OFFICE_URL");
+    await expect(pair(OFFICE, "a-secret", "https:")).rejects.toThrow("start it with its address in SKYNOT_OFFICE_URL");
   });
 
   it.each([
@@ -145,26 +141,26 @@ describe("pairing with an office", () => {
   ])("fails with the office's own reason on a %i", async (status, error) => {
     officeAnswers(status, { error });
 
-    await expect(pair(OFFICE, "a-secret")).rejects.toThrow(error);
+    await expect(pair(OFFICE, "a-secret", "https:")).rejects.toThrow(error);
   });
 
   it("still fails, and says what to check, when the refusal carries no reason", async () => {
     officeAnswers(502, "<html>Bad Gateway</html>");
 
-    await expect(pair(OFFICE, "a-secret")).rejects.toThrow(`${OFFICE} refused to pair (502), and not in an office's words. Check that it is your office's address and that the office is running.`);
+    await expect(pair(OFFICE, "a-secret", "https:")).rejects.toThrow(`${OFFICE} refused to pair (502), and not in an office's words. Check that it is your office's address and that the office is running.`);
   });
 
   it("fails when the answer holds no session, and says what to check", async () => {
     officeAnswers(200, { expiresAt: "2026-11-11T09:00:00.000Z" });
 
-    await expect(pair(OFFICE, "a-secret")).rejects.toThrow(`${OFFICE} answered, but not with a session. Check that it is your office's address.`);
+    await expect(pair(OFFICE, "a-secret", "https:")).rejects.toThrow(`${OFFICE} answered, but not with a session. Check that it is your office's address.`);
   });
 
   it("gives up on an office that never answers, as one that could not be reached", async () => {
     vi.useFakeTimers();
     vi.stubGlobal("fetch", (_url: string, init?: RequestInit) => new Promise((_resolve, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")))));
 
-    const failure = pair(OFFICE, "the-secret").catch((cause: Error) => cause.message);
+    const failure = pair(OFFICE, "the-secret", "https:").catch((cause: Error) => cause.message);
     await vi.advanceTimersByTimeAsync(OFFICE_PATIENCE_MS);
 
     expect(await failure).toContain(`Could not reach the office at ${OFFICE}`);
@@ -175,7 +171,7 @@ describe("pairing with an office", () => {
       throw new TypeError("Failed to fetch");
     });
 
-    const failure = await pair(OFFICE, "the-secret").catch((cause: Error) => cause.message);
+    const failure = await pair(OFFICE, "the-secret", "https:").catch((cause: Error) => cause.message);
 
     expect(failure).toBe(
       [
@@ -187,6 +183,22 @@ describe("pairing with an office", () => {
       ].join("\n"),
     );
     expect(failure).not.toContain("the-secret");
+  });
+
+  it("says, when an https studio could not reach an office on this machine, that the browser may have blocked it and what to use instead", async () => {
+    vi.stubGlobal("fetch", async () => {
+      throw new TypeError("Failed to fetch");
+    });
+    const local = "http://127.0.0.1:4747";
+
+    const fromHttps = await pair(local, "the-secret", "https:").catch((cause: Error) => cause.message);
+    const fromHttp = await pair(local, "the-secret", "http:").catch((cause: Error) => cause.message);
+
+    expect(fromHttps).toContain(`Could not reach the office at ${local}. Check, in this order:`);
+    expect(fromHttps).toContain(`5. This studio is served over https, and a browser may block it from an office on this machine at ${local}.`);
+    expect(fromHttps).toContain(`open the console the office serves itself at ${local}`);
+    expect(fromHttps).toContain("npm run start:shared");
+    expect(fromHttp).not.toContain("served over https");
   });
 });
 

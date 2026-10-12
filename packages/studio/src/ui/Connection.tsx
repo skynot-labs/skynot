@@ -1,9 +1,11 @@
-import { useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { Brand } from "../design/Brand";
 import { publicUrls } from "../github/links";
 import "./connection.css";
 
 const CONNECTING_GUIDE = `${publicUrls.repository}/blob/main/docs/connecting-a-studio.md`;
+// The office that serves this page answers within a frame or two: a card shown for that long is only a flash.
+const OWN_OFFICE_GRACE_MS = 400;
 
 export function ConnectionScreen({
   address,
@@ -18,9 +20,13 @@ export function ConnectionScreen({
 }) {
   const [office, setOffice] = useState(address);
   const [typedSecret, setTypedSecret] = useState(secret);
-  function submit(event: Event) {
+  const [pairing, setPairing] = useState(false);
+  async function submit(event: Event) {
     event.preventDefault();
-    void onConnect(office, typedSecret);
+    if (pairing) return;
+    setPairing(true);
+    await onConnect(office, typedSecret);
+    setPairing(false);
   }
   return (
     <main class="connection-screen">
@@ -38,7 +44,7 @@ export function ConnectionScreen({
             How to connect a studio
           </a>
         </p>
-        {problem && (
+        {problem && !pairing && (
           <div class="error-banner" role="alert">
             <p>{problem}</p>
           </div>
@@ -69,8 +75,9 @@ export function ConnectionScreen({
           required
         />
         <div class="modal-actions">
-          <button class="primary-button" type="submit">
-            Connect
+          {/* Not the disabled attribute: a browser takes the focus off a button the moment it is disabled. */}
+          <button class="primary-button" type="submit" aria-disabled={pairing}>
+            {pairing ? "Connecting…" : "Connect"}
           </button>
         </div>
       </form>
@@ -79,6 +86,12 @@ export function ConnectionScreen({
 }
 
 export function Connecting({ address }: { address: string | null }) {
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const grace = setTimeout(() => setWaited(true), OWN_OFFICE_GRACE_MS);
+    return () => clearTimeout(grace);
+  }, []);
+  if (!address && !waited) return null;
   return (
     <main class="connection-screen">
       <div class="connection-card" role="status">

@@ -3,6 +3,12 @@ import { CONTRACT } from "@skynot/contract";
 import { LOCAL_OFFICE, PAIRING_SECRET, SESSION_OFFICE } from "./offices";
 import { expect, tellTheManager, test } from "./support";
 
+declare global {
+  interface Window {
+    connectingCards: number;
+  }
+}
+
 const TURN = { timeout: 20_000 };
 const SESSION_HOST = new URL(SESSION_OFFICE).host;
 
@@ -88,9 +94,81 @@ test("an office that never answers ends as one that could not be reached, with w
   await expect(page.getByRole("alert")).toContainText(`Could not reach the office at ${SESSION_OFFICE}. Check, in this order:`);
   await expect(page.getByRole("alert")).toContainText("allow local network access for this site in the site's settings and reload");
   await expect(page.getByRole("alert")).toContainText("SKYNOT_STUDIO");
-  await expect(page.getByText("Your browser may ask once")).toBeHidden();
   await expect(page.getByLabel("Pairing secret")).toHaveValue(PAIRING_SECRET);
   await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("an answer from the page's own office that comes after a pairing link connected changes nothing", async ({ page }) => {
+  let answer = () => {};
+  const held = new Promise<void>((resolve) => (answer = resolve));
+  await page.route(`${LOCAL_OFFICE}/api/meta`, async (route) => {
+    await held;
+    await route.continue();
+  });
+  const asked = page.waitForRequest(`${LOCAL_OFFICE}/api/meta`);
+  await page.goto("/");
+  await asked;
+  await page.goto(pairingLink(LOCAL_OFFICE, PAIRING_SECRET));
+  await expect(disconnect(page)).toBeVisible();
+
+  const answered = page.waitForResponse(`${LOCAL_OFFICE}/api/meta`);
+  answer();
+  await answered;
+  await page.waitForTimeout(1000);
+
+  await expect(disconnect(page)).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("skynot.connection"))).toContain(SESSION_OFFICE);
+});
+
+test("the page's own office never answering does not take the screen back from a pairing link that connected", async ({ page }) => {
+  await page.clock.install();
+  await page.route(`${LOCAL_OFFICE}/api/meta`, () => {});
+  const asked = page.waitForRequest(`${LOCAL_OFFICE}/api/meta`);
+  await page.goto("/");
+  await asked;
+  await page.goto(pairingLink(LOCAL_OFFICE, PAIRING_SECRET));
+  await expect(disconnect(page)).toBeVisible();
+
+  await page.clock.fastForward(15_000);
+  await page.waitForTimeout(500);
+
+  await expect(disconnect(page)).toBeVisible();
+  await expect(connectionScreen(page)).toBeHidden();
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+test("a wrong secret typed into the form keeps the form on screen and the focus in it", async ({ page, browserErrors }) => {
+  await page.goto(`${SESSION_OFFICE}/`);
+  await page.getByLabel("Pairing secret").fill("not-the-secret");
+  await page.getByRole("button", { name: "Connect" }).click();
+
+  await expect(page.getByRole("alert")).toContainText("That is not this office's pairing secret.");
+  await expect(page.getByLabel("Pairing secret")).toHaveValue("not-the-secret");
+  expect(await page.evaluate(() => document.querySelector("form")?.contains(document.activeElement))).toBe(true);
+  expect(browserErrors.splice(0)).toEqual([expect.stringContaining("401")]);
+});
+
+test("the console's own office shows no connecting card when it answers at once, and shows it when it is slow", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.connectingCards = 0;
+    new MutationObserver(() => {
+      if (document.body?.textContent?.includes("STUDIO · CONNECTING")) window.connectingCards++;
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await page.goto("/");
+  await expect(studioOf(page, "alpha")).toBeVisible();
+  expect(await page.evaluate(() => window.connectingCards)).toBe(0);
+
+  let answer = () => {};
+  const held = new Promise<void>((resolve) => (answer = resolve));
+  await page.route(`${LOCAL_OFFICE}/api/meta`, async (route) => {
+    await held;
+    await route.continue();
+  });
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Connecting…" })).toBeVisible();
+  answer();
+  await expect(studioOf(page, "alpha")).toBeVisible();
 });
 
 test("disconnecting falls back to the office that serves this console", async ({ page }) => {

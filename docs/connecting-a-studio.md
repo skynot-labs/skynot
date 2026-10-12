@@ -89,9 +89,10 @@ Five wrong secrets in a minute stop the office from listening to secrets for a m
   gives up after fifteen seconds without an answer.
 - **Chrome never asked, and the studio cannot reach the office.** The permission was refused earlier. Allow
   local network access for the studio in the site's settings and reload.
-- **The public studio cannot reach an office on `http://127.0.0.1`.** Browsers block or gate that call, so a
-  studio served over https refuses that address. Use the console the office serves at http://127.0.0.1:4747
-  instead, or give the office an address as above.
+- **The public studio cannot reach an office on `http://127.0.0.1`.** Browsers block or gate that call from a
+  page served over https. The studio still tries, and when the call does not get through it says so with the
+  other causes. Use the console the office serves at http://127.0.0.1:4747 instead, or give the office an
+  address as above.
 
 ## Your own studio
 

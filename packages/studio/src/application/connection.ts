@@ -35,14 +35,13 @@ export function pairingFrom(hash: string): Pairing | null {
 export const OFFICE_PATIENCE_MS = 15_000;
 
 export function addressProblem(address: string, studioProtocol: string): string | null {
-  const origin = officeOrigin(address);
-  if (studioProtocol !== "https:") return origin ? null : "Use the office's https address. Plain http only works for an office on this machine.";
-  if (!origin) return "Use the office's https address, such as https://office.example.ts.net.";
-  if (!origin.startsWith("http:")) return null;
-  return `This studio is served over https, and from here a browser cannot reach an office on this machine at ${origin}. Open the console the office serves itself at ${origin}, or give the office an https address (with Tailscale, \`npm run start:shared\`) and use that one.`;
+  if (officeOrigin(address)) return null;
+  return studioProtocol === "https:"
+    ? "Use the office's https address, such as https://office.example.ts.net."
+    : "Use the office's https address. Plain http only works for an office on this machine.";
 }
 
-export async function pair(office: string, secret: string): Promise<Connection> {
+export async function pair(office: string, secret: string, studioProtocol: string): Promise<Connection> {
   const patience = new AbortController();
   const givingUp = setTimeout(() => patience.abort(), OFFICE_PATIENCE_MS);
   let response: Response;
@@ -55,7 +54,7 @@ export async function pair(office: string, secret: string): Promise<Connection> 
       signal: patience.signal,
     });
   } catch {
-    throw new Error(unreachable(office));
+    throw new Error(unreachable(office, studioProtocol));
   } finally {
     clearTimeout(givingUp);
   }
@@ -69,13 +68,19 @@ export async function pair(office: string, secret: string): Promise<Connection> 
 }
 
 // A browser reports every one of these as the same failed request.
-function unreachable(office: string): string {
+function unreachable(office: string, studioProtocol: string): string {
+  const mixed = studioProtocol === "https:" && office.startsWith("http:");
   return [
     `Could not reach the office at ${office}. Check, in this order:`,
     "1. The address is the one in the pairing link the office printed when it started.",
     "2. The office is running.",
     "3. The office accepts this studio. It takes calls from the public studio only, unless it was started with this studio's address in SKYNOT_STUDIO.",
     "4. The browser may reach your local network. If it asked and was refused, allow local network access for this site in the site's settings and reload.",
+    ...(mixed
+      ? [
+          `5. This studio is served over https, and a browser may block it from an office on this machine at ${office}. If it does, open the console the office serves itself at ${office}, or give the office an https address (with Tailscale, \`npm run start:shared\`) and use that one.`,
+        ]
+      : []),
   ].join("\n");
 }
 

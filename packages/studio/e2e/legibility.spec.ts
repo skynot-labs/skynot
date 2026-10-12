@@ -1,7 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
-import { CONTRACT, StateSchema, type Order, type State } from "@skynot/contract";
+import { CONTRACT, type Order, type State } from "@skynot/contract";
 import { LOCAL_OFFICE, PAIRING_SECRET, SESSION_OFFICE } from "./offices";
-import { closeDialog, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, test } from "./support";
+import { closeDialog, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, stageState, test } from "./support";
 
 const PROJECT = "beta";
 const AT = "2026-01-05T10:00:00.000Z";
@@ -74,6 +74,7 @@ function everyState(state: State): State {
     ],
     teamChanges: [{ id: "change-1", action: "hire", role: "designer", reason: "The footer needs an eye.", focus: null, status: "pending", proposedAt: AT }],
     briefingChanges: [{ id: "briefing-1", projectId: PROJECT, text: "Invoices first.", reason: "The director said so.", status: "pending", proposedAt: AT }],
+    presence: { working: [{ runId: "run-902", role: "developer", engine: "claude", orderId: "WO-902", since: AT }], waiting: [] },
     paused: PAUSE,
     projectPaused: PAUSE,
     readiness: [],
@@ -85,10 +86,7 @@ function everyState(state: State): State {
 }
 
 async function openStagedStudio(page: Page): Promise<void> {
-  await page.route("**/api/state*", async (route) => {
-    const response = await route.fetch();
-    await route.fulfill({ response, json: StateSchema.parse(everyState(StateSchema.parse(await response.json()))) });
-  });
+  await stageState(page, (state) => void Object.assign(state, everyState(state)));
   await openProject(page, PROJECT);
   await openDecisionDesk(page);
 }

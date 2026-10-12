@@ -105,6 +105,8 @@ rather than delete it.
   start it again.
 - **The service refuses to start.** A typo in `policy.yaml`, `team.yaml` or a `project.yaml` stops it before
   anything runs, and the message says what is wrong.
+- **A button seems to do nothing.** A command the office refuses, or never gets, is said in a notice at the top
+  of the page, or of the dialog that is open; it stays until you dismiss it or the next command goes through.
 - **An order is blocked.** Its detail says why and offers what can be done: retry, approve a protected path,
   send a follow-up or discard it.
 - **The shop paused itself.** It reached the daily cost cap. Resuming the same day is your call, from the

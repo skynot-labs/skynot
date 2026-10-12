@@ -12,19 +12,24 @@ export function Modal({
   title,
   eyebrow,
   children,
+  notice,
   onClose,
   size = "normal",
 }: {
   title: string;
   eyebrow: string;
   children: ComponentChildren;
+  notice?: ComponentChildren;
   onClose: () => void;
   size?: "normal" | "wide" | "full";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  const typed = useRef(false);
+  const typedIn = useRef(new Set<HTMLInputElement | HTMLTextAreaElement>());
   const closeFromBackdrop = () => {
-    if (!typed.current) onClose();
+    const holdsText = [...typedIn.current].some(
+      (field) => field.isConnected && field.value !== "",
+    );
+    if (!holdsText) onClose();
   };
   // A full panel opens beside the sidebar, which has to stay usable: showModal would make it inert.
   const beside = size === "full";
@@ -55,11 +60,12 @@ export function Modal({
         aria-labelledby="dialogTitle"
         onCancel={onClose}
         onInput={(event) => {
+          const field = event.target;
           if (
-            event.target instanceof Element &&
-            event.target.matches("textarea, input[type=text]")
+            field instanceof HTMLTextAreaElement ||
+            (field instanceof HTMLInputElement && field.type === "text")
           )
-            typed.current = true;
+            typedIn.current.add(field);
         }}
         onClick={(event) => {
           const element = ref.current;
@@ -87,6 +93,7 @@ export function Modal({
             <Icon name="close" />
           </button>
         </div>
+        {notice}
         {children}
       </dialog>
     </>

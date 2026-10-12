@@ -9,7 +9,7 @@ Studio styling is presentation data, separate from projects, runs and domain pol
 3. Start from a suggested environment or choose a location, season, celebration and layout independently. The preview uses the same renderer as the main studio.
 4. Optionally enable **Dress the team to match the studio** to layer seasonal clothes on the agents.
 5. Click **Save style**. Closing the window discards the preview. **Reset studio** returns the draft to the original office; save to apply the reset.
-6. Switch projects or reload. Each project's choices stay separate in `skynot-studios-v1` on this browser origin.
+6. Switch projects or reload. Each project's choices stay separate, and the office keeps them, so another browser sees the same studio.
 
 | Dimension     | Initial choices                                                |
 | ------------- | -------------------------------------------------------------- |
@@ -18,6 +18,8 @@ Studio styling is presentation data, separate from projects, runs and domain pol
 | Festival      | None, Halloween, Christmas, Día de Muertos                     |
 | Layout        | By zones, open studio, team islands                            |
 | Team wardrobe | Personal or ambient                                            |
+
+The office moves for as long as the page is open. The pause button under it, beside the shortcuts to the activity log and the team, holds it still and wakes it again; the choice is remembered in this browser, not in the service. When the system asks for less motion the office is held still whatever was chosen, and the button shows as pressed and cannot be changed.
 
 Locations are stylized inspirations. Seasons and festivals are explicit visual choices, even when combined; nothing switches automatically by date. The selected environment is summarized in the studio footer and project list.
 
@@ -73,7 +75,7 @@ Unknown stored catalog IDs fall back one field at a time. Retain stable IDs when
 
 ## Persistence boundary
 
-Preferences live in browser storage, so they belong to one browser. For cross-browser persistence later, replace browser storage with a small presentation-settings port backed by an authenticated Node API. Store scene preferences by stable project ID and avatar participation by project + agent ID. Validate catalog/schema versions at that boundary. Treat visual preference changes as settings events; do not derive operational work status from the scene. Keep personal settings distinguishable from shared project defaults if multiple directors can change them.
+Preferences are kept by the office, in its event log, as `studio/<project>` and `avatar/<project>/<agent>` entries sent with the `set-preference` command; they follow the project to any browser. Choices an earlier version left in browser storage (`skynot-studios-v1`) are uploaded once and then removed. Treat visual preference changes as settings events; do not derive operational work status from the scene. Keep personal settings distinguishable from shared project defaults if multiple directors can change them.
 
 ## Validation
 

@@ -1,5 +1,11 @@
 import type { Browser, Locator, Page } from "@playwright/test";
-import { closeDialog, dialog, expect, openManagerChat, openProject, openView, paintsOnTop, test } from "./support";
+import { closeDialog, dialog, expect, openManagerChat, openProject, openView, paintsOnTop, stageState, test } from "./support";
+
+declare global {
+  interface Window {
+    alertsMounted: number;
+  }
+}
 
 const LEGACY_STUDIOS_KEY = "skynot-studios-v1";
 const PAUSE_REASON = "paused by the director";
@@ -22,6 +28,19 @@ const place = (page: Page, name: string): Locator => page.getByRole("dialog").ge
 const roster = (page: Page): Locator => page.getByRole("region", { name: "Project team" });
 // Panels carry no accessible name, and the view that holds them is a section too: the innermost match is the panel.
 const panel = (page: Page, title: string): Locator => page.locator("section").filter({ has: page.getByText(title, { exact: true }) }).last();
+
+// An alert is spoken when it enters the page, so each one that enters is one announcement.
+async function countAlerts(page: Page): Promise<() => Promise<number>> {
+  await page.evaluate(() => {
+    window.alertsMounted = 0;
+    new MutationObserver((changes) => {
+      for (const change of changes)
+        for (const node of change.addedNodes)
+          if (node instanceof Element && (node.matches("[role=alert]") || node.querySelector("[role=alert]"))) window.alertsMounted++;
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  return () => page.evaluate(() => window.alertsMounted);
+}
 
 async function editProfile(page: Page): Promise<{ name: Locator; description: Locator }> {
   await openView(page, "Context");
@@ -248,6 +267,69 @@ test.describe.serial("the director's projects", () => {
     expect(browserErrors.splice(0)).toEqual([expect.stringContaining("pause-project")]);
   });
 
+  test("a refusal with nothing open takes its own room above the office, and leaves the zone buttons to click", async ({ page, browserErrors }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openProject(page, "beta");
+    await page.route("**/api/commands/pause-project", (route) => route.abort());
+    await pauseControl(page, "Pause this project").click();
+
+    const unsent = failure(page, "The command was not sent.");
+    await expect(unsent).toBeVisible();
+    for (const zone of await page.getByRole("navigation", { name: "Studio zones" }).getByRole("button").all()) {
+      await zone.scrollIntoViewIfNeeded();
+      expect(await paintsOnTop(zone), `${await zone.innerText()} takes the click`).toBe(true);
+    }
+    await page.evaluate(() => scrollTo(0, 0));
+    const [notice, office] = [(await unsent.boundingBox())!, (await studio(page, "beta").boundingBox())!];
+    expect(notice.y + notice.height).toBeLessThanOrEqual(office.y);
+    expect(browserErrors.splice(0)).toEqual([expect.stringContaining("pause-project")]);
+  });
+
+  test("a failure that happens again is announced again, and is gone once the command goes through", async ({ page, browserErrors }) => {
+    await openProject(page, "beta");
+    let reachable = false;
+    await page.route("**/api/commands/pause-project", (route) => (reachable ? route.continue() : route.abort()));
+    const announced = await countAlerts(page);
+    const unsent = failure(page, "The command was not sent.");
+
+    await pauseControl(page, "Pause this project").click();
+    await expect(unsent).toBeVisible();
+    expect(await announced()).toBe(1);
+    await pauseControl(page, "Pause this project").click();
+    await expect.poll(announced).toBe(2);
+    await expect(unsent).toHaveCount(1);
+
+    reachable = true;
+    await pauseControl(page, "Pause this project").click();
+    await expect(pauseControl(page, "Resume this project")).toBeVisible();
+    await expect(unsent).toHaveCount(0);
+    await pauseControl(page, "Resume this project").click();
+    await expect(pauseControl(page, "Pause this project")).toBeVisible();
+    expect(browserErrors.splice(0)).toEqual([expect.stringContaining("pause-project"), expect.stringContaining("pause-project")]);
+  });
+
+  test("a failure is announced once, and follows the director into a dialog and out of it", async ({ page, browserErrors }) => {
+    await openProject(page, "beta");
+    await page.route("**/api/commands/pause-project", (route) => route.abort());
+    const announced = await countAlerts(page);
+    await pauseControl(page, "Pause this project").click();
+    await expect(failure(page, "The command was not sent.")).toBeVisible();
+
+    await page.getByRole("button", { name: "Style the studio" }).click();
+    const inDialog = dialog(page).getByText("The command was not sent.");
+    await expect(inDialog).toBeVisible();
+    expect(await paintsOnTop(inDialog)).toBe(true);
+    await closeDialog(page);
+    const inShell = page.getByText("The command was not sent.");
+    await expect(inShell).toBeVisible();
+    expect(await announced()).toBe(1);
+    await expect(page.getByRole("main").getByText("The command was not sent.")).toBeVisible();
+
+    await dismissal(page.getByRole("main")).first().click();
+    await expect(inShell).toHaveCount(0);
+    expect(browserErrors.splice(0)).toEqual([expect.stringContaining("pause-project")]);
+  });
+
   test("a look the office never got keeps its dialog open with what was chosen", async ({ page, browserErrors }) => {
     await openProject(page, "beta");
     await page.route("**/api/commands/set-preference", (route) => route.abort());
@@ -268,10 +350,8 @@ test.describe.serial("the director's projects", () => {
   });
 
   test("a pause the director did not choose is announced as a whole sentence, with the way out", async ({ page }) => {
-    await page.route("**/api/state*", async (route) => {
-      const response = await route.fetch();
-      const state = await response.json();
-      await route.fulfill({ response, json: { ...state, paused: { since: new Date().toISOString(), reason: CAP_REASON } } });
+    await stageState(page, (state) => {
+      state.paused = { since: new Date().toISOString(), reason: CAP_REASON };
     });
     await openProject(page, "alpha");
 
@@ -287,6 +367,20 @@ test.describe.serial("the director's projects", () => {
     await expect(pauseControl(page, "Pause this project")).toHaveText(/^\s*project\s*$/i, { useInnerText: true });
     await expect(pauseControl(page, "Pause the shop")).toHaveText(/^\s*shop\s*$/i, { useInnerText: true });
   });
+
+  for (const width of [390, 600]) {
+    test(`at ${width}px the header names the project in full, and each pause control still says which pause it is`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      for (const name of ["alpha", "beta"]) {
+        await openProject(page, name);
+        await expect(studioHeading(page)).toHaveText(`The ${name} studio.`);
+        expect(await studioHeading(page).evaluate((heading) => heading.scrollWidth <= heading.clientWidth)).toBe(true);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+        await expect(pauseControl(page, "Pause this project")).toHaveText(/^\s*project\s*$/i, { useInnerText: true });
+        await expect(pauseControl(page, "Pause the shop")).toHaveText(/^\s*shop\s*$/i, { useInnerText: true });
+      }
+    });
+  }
 
   test("keeps a studio's style and an agent's alias in the service, for any browser", async ({ page, browser, baseURL }) => {
     await openProject(page, "beta");
@@ -355,5 +449,51 @@ test.describe.serial("the director's projects", () => {
       await expect(other.getByLabel(/^beta studio: Kyoto · Year-round, By zones/)).toBeVisible();
     });
     expect(elsewhere).toEqual([]);
+  });
+
+  test("a style being saved cannot be sent twice, and its confirmation is spoken by a region that was already there", async ({ page }) => {
+    await openProject(page, "beta");
+    const region = page.locator("[role=status]:empty");
+    await expect(region).toHaveCount(1);
+    expect(await region.evaluate((element) => getComputedStyle(element).display)).not.toBe("none");
+    await region.evaluate((element) => element.setAttribute("data-there-before", ""));
+
+    let answer = () => {};
+    const held = new Promise<void>((resolve) => (answer = resolve));
+    await page.route("**/api/commands/set-preference", async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.getByRole("button", { name: "Style the studio" }).click();
+    await dialog(page).getByRole("button", { name: "Save style" }).click();
+    await expect(dialog(page).getByRole("button", { name: "Save style" })).toBeDisabled();
+
+    answer();
+    const confirmation = page.locator("[data-there-before]");
+    await expect(confirmation).toHaveText("Style saved for this project.");
+    await expect(confirmation).toBeVisible();
+    expect(await confirmation.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe("none");
+  });
+
+  test("a look saved by a slow office does not close the dialog the director opened meanwhile", async ({ page }) => {
+    await openProject(page, "beta");
+    let answer = () => {};
+    const held = new Promise<void>((resolve) => (answer = resolve));
+    await page.route("**/api/commands/set-preference", async (route) => {
+      await held;
+      await route.continue();
+    });
+    await roster(page).getByRole("button", { name: "manager" }).click();
+    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByRole("button", { name: "Save avatar" }).click();
+    await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeHidden();
+
+    await roster(page).getByRole("button").nth(1).click();
+    await expect(dialog(page).getByText("BETA · DEVELOPER")).toBeVisible();
+    answer();
+
+    await expect(toast(page, "Avatar saved for this agent and project.")).toBeVisible();
+    await expect(dialog(page).getByText("BETA · DEVELOPER")).toBeVisible();
   });
 });
