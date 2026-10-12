@@ -1,9 +1,12 @@
 import { err, ok, type Result } from "../../kernel";
 import type { EventLog, Projection, StoredEvent } from "../../kernel/events";
 
+export type PausedBy = "director" | "cost_cap";
+
 export interface PauseState {
   readonly since: string;
   readonly reason: string;
+  readonly by?: PausedBy;
 }
 
 // While paused the shop, or one project, starts no new run; the ones in progress finish. A pause survives a restart.
@@ -16,14 +19,14 @@ export class ShopControl implements Projection {
 
   apply(event: StoredEvent): void {
     if (event.type === "control.paused") {
-      const { reason, capDay } = event.payload as { reason: string; capDay?: string };
-      this.state = { since: event.occurredAt, reason };
+      const { reason, by, capDay } = event.payload as { reason: string; by?: PausedBy; capDay?: string };
+      this.state = { since: event.occurredAt, reason, ...(by && { by }) };
       if (capDay) this.lastCapDay = capDay;
     }
     if (event.type === "control.resumed") this.state = null;
     if (event.type === "control.project_paused") {
-      const { projectId, reason } = event.payload as { projectId: string; reason: string };
-      this.projects.set(projectId, { since: event.occurredAt, reason });
+      const { projectId, reason, by } = event.payload as { projectId: string; reason: string; by?: PausedBy };
+      this.projects.set(projectId, { since: event.occurredAt, reason, ...(by && { by }) });
     }
     if (event.type === "control.project_resumed") this.projects.delete((event.payload as { projectId: string }).projectId);
   }
@@ -46,9 +49,9 @@ export class ShopControl implements Projection {
     return this.lastCapDay;
   }
 
-  async pause(reason: string, capDay?: string): Promise<Result<PauseState, string>> {
+  async pause(reason: string, by: PausedBy, capDay?: string): Promise<Result<PauseState, string>> {
     if (this.state) return err("the shop is already paused");
-    await this.log.record([{ type: "control.paused", payload: { reason, ...(capDay && { capDay }) } }]);
+    await this.log.record([{ type: "control.paused", payload: { reason, by, ...(capDay && { capDay }) } }]);
     return ok(this.state!);
   }
 
@@ -58,9 +61,9 @@ export class ShopControl implements Projection {
     return ok(null);
   }
 
-  async pauseProject(projectId: string, reason: string): Promise<Result<PauseState, string>> {
+  async pauseProject(projectId: string, reason: string, by: PausedBy): Promise<Result<PauseState, string>> {
     if (this.projects.has(projectId)) return err("the project is already paused");
-    await this.log.record([{ type: "control.project_paused", payload: { projectId, reason } }]);
+    await this.log.record([{ type: "control.project_paused", payload: { projectId, reason, by } }]);
     return ok(this.projects.get(projectId)!);
   }
 

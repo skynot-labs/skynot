@@ -688,7 +688,7 @@ select {
   width: 27px;
   height: 27px;
   background: var(--swatch);
-  border: 1px solid var(--border);
+  border: 1px solid var(--muted);
   border-radius: 5px;
   position: relative;
 }

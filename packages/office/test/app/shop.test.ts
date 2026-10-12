@@ -477,7 +477,7 @@ describe("activity", () => {
     it("holds the Manager's turn while paused and answers when the shop resumes", async () => {
       const manager = recording(createMockManager());
       const { shop } = await openShop(new FakeVcs(), defaultTeam, { claude: manager.recorded, codex: createMockDeveloper() });
-      await shop.control.pause("lunch");
+      await shop.control.pause("lunch", "director");
 
       const turn = shop.manager.handleMessage("Export the inventory to CSV");
       await vi.waitFor(() => expect(shop.runs.list()).toHaveLength(1));
@@ -496,7 +496,7 @@ describe("activity", () => {
 
     it("is still paused after a restart", async () => {
       const first = await openShop();
-      await first.shop.control.pause("overnight");
+      await first.shop.control.pause("overnight", "director");
       first.shop.stop();
 
       const { shop } = await openShop();

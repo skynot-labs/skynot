@@ -1,9 +1,9 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { Hono } from "hono";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { StreamEventSchema } from "@skynot/contract";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PauseStateSchema, StreamEventSchema } from "@skynot/contract";
 import { createApi } from "../../src/app/http/api";
 import type { readState } from "../../src/app/http/state";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
@@ -21,11 +21,10 @@ let shop: Shop;
 let api: Hono;
 let vcs: FakeVcs;
 
-beforeEach(async () => {
-  dataDir = await mkdtemp(path.join(tmpdir(), "skynot-api-"));
+async function openShop(policy = examplePolicy()) {
   vcs = new FakeVcs();
   shop = await createShop({
-    policy: examplePolicy(),
+    policy,
     dataDir,
     team: { version: 1, roles: { manager: { engine: "claude" }, developer: { engine: "codex" } }, advisors: {}, library: { designer: { engine: "claude", description: "screens", soul: "You design." } } },
     engines: { claude: createMockManager(), codex: createMockDeveloper() },
@@ -33,6 +32,11 @@ beforeEach(async () => {
     workspace: new FakeWorkspace(),
   });
   api = createApi(shop, { allowedHosts: [HOST] });
+}
+
+beforeEach(async () => {
+  dataDir = await mkdtemp(path.join(tmpdir(), "skynot-api-"));
+  await openShop();
 });
 
 afterEach(async () => {
@@ -220,12 +224,37 @@ describe("console api", () => {
     expect((await getState()).paused).toBeNull();
 
     expect((await post("/api/commands/pause-shop", {})).status).toBe(200);
-    expect((await getState()).paused).toMatchObject({ reason: "paused by the director" });
+    expect((await getState()).paused).toMatchObject({ reason: "paused by the director", by: "director" });
     expect((await post("/api/commands/pause-shop", {})).status).toBe(409);
 
     expect((await post("/api/commands/resume-shop", {})).status).toBe(200);
     expect((await getState()).paused).toBeNull();
     expect((await post("/api/commands/resume-shop", {})).status).toBe(409);
+  });
+
+  it("says the cost cap paused the shop when the day's spending reached it", async () => {
+    shop.stop();
+    const policy = examplePolicy();
+    await openShop({ ...policy, run_budget: { ...policy.run_budget, max_usd_per_day: 0.3 } });
+    const id = await fileAnOrder();
+
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+
+    await vi.waitFor(async () => expect((await getState()).paused).toMatchObject({ reason: "the daily cost cap of $0.30 was reached ($0.31 spent)", by: "cost_cap" }));
+  });
+
+  it("keeps reporting a pause recorded before the office said who paused, without naming anyone", async () => {
+    shop.stop();
+    const recorded = { sequence: 1, id: "evt_00000001", occurredAt: "2026-10-01T09:00:00.000Z", type: "control.paused", payload: { reason: "paused by the director" } };
+    await writeFile(path.join(dataDir, "events.jsonl"), `${JSON.stringify(recorded)}\n`);
+    await openShop();
+
+    const { paused } = await getState();
+
+    expect(paused).toMatchObject({ reason: "paused by the director" });
+    expect(paused).not.toHaveProperty("by");
+    expect(PauseStateSchema.safeParse(paused).success).toBe(true);
   });
 
   it("rejects malformed commands without changing anything", async () => {

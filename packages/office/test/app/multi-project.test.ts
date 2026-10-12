@@ -435,7 +435,7 @@ describe("pausing one project", () => {
 
     expect(shop.desk("blog")!.chat.messages().map((message) => message.author)).toEqual(["director", "manager"]);
     expect(liveRuns(shop, "shop")).toEqual([["manager", "queued"]]);
-    expect(await state("shop")).toMatchObject({ paused: null, projectPaused: { reason: "paused by the director" }, presence: { working: [], waiting: [{ role: "manager" }] } });
+    expect(await state("shop")).toMatchObject({ paused: null, projectPaused: { reason: "paused by the director", by: "director" }, presence: { working: [], waiting: [{ role: "manager" }] } });
     expect((await state("blog")).projectPaused).toBeNull();
     expect((await state("blog")).projects.map((entry) => [entry.id, entry.paused])).toEqual([["blog", false], ["shop", true]]);
 
@@ -478,7 +478,7 @@ describe("pausing one project", () => {
 
   it("holds every kind of run of the first project: its Manager, an advisor, a worker and the reviewer", async () => {
     let shop!: Shop;
-    const pauseBlog = () => shop.control.pauseProject("blog", "test");
+    const pauseBlog = () => shop.control.pauseProject("blog", "test", "director");
     let turns = 0;
     const claude = new FakeEngine(async (request) => {
       if (!request.schema) return { text: "architect: one module" };

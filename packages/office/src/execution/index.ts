@@ -1,6 +1,6 @@
 export * from "./domain";
 export { RunScheduler, type RunSubmission } from "./application/run-scheduler";
-export { ShopControl, type PauseState } from "./application/shop-control";
+export { ShopControl, type PauseState, type PausedBy } from "./application/shop-control";
 export { closeOrphanedRuns } from "./application/close-orphaned-runs";
 export { RunsProjection, type RoleUsage } from "./application/runs-projection";
 export { ClaudeEngine, claudeArgs, parseClaude } from "./adapters/claude-engine";

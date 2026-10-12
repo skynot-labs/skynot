@@ -35,7 +35,7 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(chat.getByRole("article").filter({ hasText: "MANAGER" }).getByText(questionAbout(idea))).toBeVisible(TURN);
     await openView(page, "Costs");
 
-    await expect(page.getByRole("complementary").getByRole("button", { name: PROJECT })).toContainText("1 WAITING FOR YOU");
+    await expect(page.getByRole("complementary").getByRole("button", { name: PROJECT })).toHaveAccessibleName(/1 waiting for you/);
     await expect(metrics(page).getByRole("button", { name: /WAITING FOR YOU/ })).toContainText("1 to decide");
     await expect(metrics(page)).toContainText("1 question ·");
     await expect(page.getByRole("navigation", { name: "Project views" }).getByRole("button", { name: "Decisions" })).toContainText("1");

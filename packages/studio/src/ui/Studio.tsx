@@ -62,7 +62,7 @@ export function StudioHero({
   send,
   busy,
   covered = false,
-  connected,
+  reconnecting,
 }: {
   project: Project;
   paused: Snapshot["paused"];
@@ -85,7 +85,7 @@ export function StudioHero({
   send: Send;
   busy: boolean;
   covered?: boolean;
-  connected: boolean;
+  reconnecting: boolean;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const office = useRef<Office | null>(null);
@@ -322,9 +322,9 @@ export function StudioHero({
             onOrder={onOrder}
           />
         </div>
-        {(paused || project.paused || !connected) && (
+        {(paused || project.paused || reconnecting) && (
           <div class="studio-pause-labels" role="status">
-            {!connected && (
+            {reconnecting && (
               <div class="studio-pause-label">
                 <Icon name="link" />
                 Reconnecting…

@@ -214,10 +214,10 @@ describe("the state an office reports", () => {
     expect(waiting.inbox.map((item) => item.kind)).toEqual(["ticket_doubt", "worker_question"]);
     expect(at("the Manager asks before it writes anything").decisions).toHaveLength(2);
     expect(at("a worker is on the bench")).toMatchObject({ orders: [{}, {}, {}, {}, {}, { status: "on_bench", working: true }], presence: { working: [{ role: "developer" }] } });
-    expect(at("a paused project holds its Manager in the queue")).toMatchObject({ projectPaused: { reason: "paused by the director" }, presence: { waiting: [{ role: "manager", position: 1 }] } });
+    expect(at("a paused project holds its Manager in the queue")).toMatchObject({ projectPaused: { reason: "paused by the director", by: "director" }, presence: { waiting: [{ role: "manager", position: 1 }] } });
     expect(everything).toMatchObject({
       simulated: true,
-      paused: { reason: "paused by the director" },
+      paused: { reason: "paused by the director", by: "director" },
       teamChanges: [{ action: "hire", status: "pending" }],
       briefingChanges: [{ text: "Marta reads Spanish and English." }],
       briefing: "Marta reads only Spanish (es-MX).",
