@@ -24,6 +24,7 @@ import { DecisionInbox } from "./DecisionInbox";
 import { announceArrival } from "./arrival";
 import { ManagerChat } from "./Dialogs";
 import { Icon } from "./Icon";
+import { OrderChip } from "./OrderDetail";
 import { AvatarCanvas } from "./AvatarCanvas";
 import { ago, agentStatus } from "./format";
 
@@ -398,12 +399,14 @@ export function Studio({
   appearance,
   settings = defaultStudioPreferences,
   onAgent,
+  onOrder,
   onOrders,
 }: {
   project: Project;
   appearance: Appearance;
   settings?: StudioPreferences;
   onAgent: (agent: Agent) => void;
+  onOrder: (order: Order) => void;
   onOrders: () => void;
 }) {
   const outside =
@@ -416,9 +419,9 @@ export function Studio({
       <section class="panel studio-team-strip" aria-label="Project team">
         <div class="panel-heading">
           <span class="panel-title">The team in the studio</span>
-          <span class="pill">
-            {outside > 0 ? `${outside} MORE ON THE TEAM` : "PRESENCE"}
-          </span>
+          {outside > 0 && (
+            <span class="pill">{outside} MORE ON THE TEAM</span>
+          )}
         </div>
         <div class="studio-team-members">
           {project.agents.map((agent) => {
@@ -467,12 +470,13 @@ export function Studio({
             .map((order) => (
               <button
                 class="work-preview-row"
-                onClick={onOrders}
+                onClick={() => onOrder(order)}
                 key={order.id}
               >
                 <span class={`order-marker ${order.status}`} />
                 <span class="mono muted">{order.id}</span>
                 <span>{order.title}</span>
+                <OrderChip order={order} />
                 <Icon name="arrow" />
               </button>
             ))}
@@ -487,8 +491,12 @@ export function Studio({
         <section class="panel activity-panel">
           <div class="panel-heading">
             <span class="panel-title">In the studio</span>
-            <span class="activity-dot" />
           </div>
+          {project.activity.length === 0 && (
+            <div class="empty-state">
+              What the team does will land here as it happens.
+            </div>
+          )}
           {project.activity.slice(0, 3).map((activity) => (
             <div class="activity-item" key={activity.sequence}>
               <span class="log-icon">

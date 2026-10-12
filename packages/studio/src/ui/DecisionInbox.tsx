@@ -2,6 +2,7 @@ import { useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import type {
   Answered,
+  BriefingChange,
   Command,
   Decision,
   InboxItem,
@@ -262,7 +263,7 @@ function Proposal({
         {discarding && (
           <button
             type="button"
-            class="secondary-button"
+            class="danger-button"
             disabled={busy}
             onClick={() => void send(discarding)}
           >
@@ -271,6 +272,64 @@ function Proposal({
         )}
       </div>
     </article>
+  );
+}
+
+export function TeamChangeProposal({
+  change,
+  send,
+  busy,
+  onTeam,
+}: {
+  change: TeamChange;
+  send: Send;
+  busy: boolean;
+  onTeam?: () => void;
+}) {
+  const payload = { changeId: change.id };
+  return (
+    <Proposal
+      eyebrow="TEAM CHANGE"
+      title={`${TEAM_ACTION[change.action]} ${change.role}`}
+      signing={{ name: "sign-team-change", payload }}
+      discarding={{ name: "discard-team-change", payload }}
+      send={send}
+      busy={busy}
+    >
+      <p>{change.reason}</p>
+      {change.focus && <p>New focus: {change.focus}</p>}
+      {onTeam && (
+        <button type="button" class="proposal-link" onClick={onTeam}>
+          See the team
+          <Icon name="arrow" />
+        </button>
+      )}
+    </Proposal>
+  );
+}
+
+export function BriefingChangeProposal({
+  change,
+  send,
+  busy,
+}: {
+  change: BriefingChange;
+  send: Send;
+  busy: boolean;
+}) {
+  const payload = { changeId: change.id };
+  return (
+    <Proposal
+      eyebrow="BRIEFING CHANGE"
+      title="New briefing"
+      signing={{ name: "sign-briefing-change", payload }}
+      discarding={{ name: "discard-briefing-change", payload }}
+      send={send}
+      busy={busy}
+    >
+      <p>{change.reason}</p>
+      <pre class="proposal-briefing">{change.text}</pre>
+    </Proposal>
   );
 }
 
@@ -480,48 +539,21 @@ export function DecisionInbox({
           );
         })}
         {project.teamChanges.map((change) => (
-          <Proposal
+          <TeamChangeProposal
             key={change.id}
-            eyebrow="TEAM CHANGE"
-            title={`${TEAM_ACTION[change.action]} ${change.role}`}
-            signing={{
-              name: "sign-team-change",
-              payload: { changeId: change.id },
-            }}
-            discarding={{
-              name: "discard-team-change",
-              payload: { changeId: change.id },
-            }}
+            change={change}
             send={send}
             busy={busy}
-          >
-            <p>{change.reason}</p>
-            {change.focus && <p>New focus: {change.focus}</p>}
-            <button type="button" class="proposal-link" onClick={onTeam}>
-              See the team
-              <Icon name="arrow" />
-            </button>
-          </Proposal>
+            onTeam={onTeam}
+          />
         ))}
         {project.briefingChanges.map((change) => (
-          <Proposal
+          <BriefingChangeProposal
             key={change.id}
-            eyebrow="BRIEFING CHANGE"
-            title="New briefing"
-            signing={{
-              name: "sign-briefing-change",
-              payload: { changeId: change.id },
-            }}
-            discarding={{
-              name: "discard-briefing-change",
-              payload: { changeId: change.id },
-            }}
+            change={change}
             send={send}
             busy={busy}
-          >
-            <p>{change.reason}</p>
-            <pre class="proposal-briefing">{change.text}</pre>
-          </Proposal>
+          />
         ))}
         {signatures === 0 && (
           <div class="inbox-empty">

@@ -61,6 +61,13 @@ export async function tellTheManager(page: Page, message: string): Promise<Locat
   return chat;
 }
 
+// An option only fills the answer: the director sends it, in the chat as at the desk.
+export async function answerInChat(chat: Locator, option: string, turn: { timeout: number }): Promise<void> {
+  const question = chat.locator(".chat-question").filter({ has: chat.page().getByRole("button", { name: option }) });
+  await question.getByRole("button", { name: option }).click(turn);
+  await question.getByRole("button", { name: "Answer", exact: true }).click();
+}
+
 // The desk shares its dock with the chat, and only one of the two is open.
 export async function openDecisionDesk(page: Page): Promise<void> {
   const heading = page.getByRole("region", { name: "Decision desk" }).getByRole("button", { name: /Decision desk/ });

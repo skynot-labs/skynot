@@ -51,6 +51,9 @@ code {
 }
 .chat-order {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  overflow-wrap: anywhere;
   gap: 9px;
   margin-top: 12px;
   padding: 12px;

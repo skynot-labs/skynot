@@ -6,7 +6,8 @@ import { AvatarCanvas } from "./AvatarCanvas";
 import { Icon } from "./Icon";
 import { RichLine } from "./RichText";
 import { unblocking } from "./order-actions";
-import { ago, agentStatus, dayTime, orderStatus, runOutcome, usd } from "./format";
+import { ago, agentStatus, dayTime, runOutcome, usd } from "./format";
+import { OrderChip } from "./OrderDetail";
 import "./agent-desk.css";
 
 type DeskTab = "work" | "soul" | "look";
@@ -142,9 +143,7 @@ function Work({
             <span class={`order-marker ${order.status}`} />
             <span class="mono muted">{order.id}</span>
             <span>{order.title}</span>
-            <span class={`status-chip ${order.blocked ? "blocked" : order.status}`}>
-              {order.blocked ? "Blocked" : orderStatus[order.status]}
-            </span>
+            <OrderChip order={order} />
             <Icon name="arrow" />
           </button>
         ))}

@@ -486,6 +486,7 @@ button.inbox-heading:hover h2 {
   line-height: 1.5;
   font-weight: 450;
   margin: 10px 0;
+  overflow-wrap: anywhere;
 }
 .inbox-proposal p {
   font-size: 11px;

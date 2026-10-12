@@ -71,12 +71,6 @@ dialog:has(.agent-desk) {
   padding-left: 2px;
   padding-right: 2px;
 }
-.agent-now .work-preview-row > .status-chip {
-  margin-left: auto;
-}
-.agent-now .work-preview-row > svg {
-  margin-left: 0;
-}
 .agent-now .agent-blocked {
   display: flex;
   align-items: center;

@@ -17,7 +17,9 @@ import {
   type StudioPreferences,
 } from "../studio/model";
 import { AvatarCanvas } from "./AvatarCanvas";
+import { BriefingChangeProposal, TeamChangeProposal } from "./DecisionInbox";
 import { Icon } from "./Icon";
+import { OrderChip } from "./OrderDetail";
 import { RichLine, RichText } from "./RichText";
 import {
   agentStatus,
@@ -36,7 +38,7 @@ const STAGES: Array<{
   color: string;
 }> = [
   {
-    name: "Needs your signature",
+    name: "To sign",
     statuses: ["awaiting_signature"],
     color: "var(--peach)",
   },
@@ -106,6 +108,19 @@ export function OrdersView({
             No work orders yet. They appear here when the Manager files one.
           </div>
         </section>
+      ) : search.trim() && orders.length === 0 ? (
+        <section class="panel">
+          <div class="empty-state">
+            <p>No work order matches “{search.trim()}”.</p>
+            <button
+              type="button"
+              class="secondary-button"
+              onClick={() => setSearch("")}
+            >
+              Clear the search
+            </button>
+          </div>
+        </section>
       ) : (
         <div class={`kanban ${discarded ? "with-discarded" : ""}`}>
           {stages.map((stage) => {
@@ -149,9 +164,7 @@ function OrderCard({
           {order.id}
           {order.ticket !== null && ` · ticket #${order.ticket}`}
         </span>
-        <span class={`status-chip ${order.blocked ? "blocked" : order.status}`}>
-          {order.blocked ? "Blocked" : orderStatus[order.status]}
-        </span>
+        <OrderChip order={order} />
       </div>
       <h3>{order.title}</h3>
       {order.blocked && <span class="order-blocked">{order.blocked}</span>}
@@ -189,8 +202,6 @@ const KIND_LABEL: Record<Agent["kind"], string> = {
   worker: "Worker",
   advisor: "Advisor",
 };
-
-const TEAM_ACTION = { hire: "Hire", dismiss: "Dismiss", refocus: "Refocus" };
 
 const NOT_REPORTED = "not reported";
 
@@ -315,42 +326,12 @@ export function AgentsView({
             <span class="pill">{project.teamChanges.length} TO SIGN</span>
           </div>
           {project.teamChanges.map((change) => (
-            <div class="team-proposal" key={change.id}>
-              <div>
-                <h3>
-                  {TEAM_ACTION[change.action]} {change.role}
-                </h3>
-                <p>{change.reason}</p>
-                {change.focus && <p>New focus: {change.focus}</p>}
-              </div>
-              <div class="proposal-actions">
-                <button
-                  class="secondary-button"
-                  disabled={busy}
-                  onClick={() =>
-                    void send({
-                      name: "discard-team-change",
-                      payload: { changeId: change.id },
-                    })
-                  }
-                >
-                  Discard
-                </button>
-                <button
-                  class="primary-button"
-                  disabled={busy}
-                  onClick={() =>
-                    void send({
-                      name: "sign-team-change",
-                      payload: { changeId: change.id },
-                    })
-                  }
-                >
-                  Sign
-                  <Icon name="check" />
-                </button>
-              </div>
-            </div>
+            <TeamChangeProposal
+              key={change.id}
+              change={change}
+              send={send}
+              busy={busy}
+            />
           ))}
         </section>
       )}
@@ -866,37 +847,7 @@ export function ContextView({
               </span>
               <span class="pill">TO SIGN</span>
             </div>
-            <div class="briefing-change">
-              <p>{change.reason}</p>
-              <pre class="briefing-text">{change.text}</pre>
-              <div class="proposal-actions">
-                <button
-                  class="secondary-button"
-                  disabled={busy}
-                  onClick={() =>
-                    void send({
-                      name: "discard-briefing-change",
-                      payload: { changeId: change.id },
-                    })
-                  }
-                >
-                  Discard
-                </button>
-                <button
-                  class="primary-button"
-                  disabled={busy}
-                  onClick={() =>
-                    void send({
-                      name: "sign-briefing-change",
-                      payload: { changeId: change.id },
-                    })
-                  }
-                >
-                  Sign
-                  <Icon name="check" />
-                </button>
-              </div>
-            </div>
+            <BriefingChangeProposal change={change} send={send} busy={busy} />
           </section>
         ))}
         <section class="panel vision-card">
