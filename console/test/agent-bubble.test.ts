@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Agent, Order, Project } from "../src/contracts";
-import { agentBubble } from "../src/studio/presentation";
+import { agentBubble, agentErrand } from "../src/studio/presentation";
 
 const order = (id: string, overrides: Partial<Order> = {}) =>
   ({ id, status: "on_bench", working: false, worker: null, blocked: null, question: null, pullRequest: null, issue: null, ready: false, ...overrides }) as Order;
@@ -59,5 +59,26 @@ describe("the bubble over an agent's desk", () => {
     expect(shown({ inbox: [question, question] }, manager)?.[0]).toBe("? 2 QUESTIONS");
     expect(shown({ orders: toSign, teamChanges: [{}] as Project["teamChanges"] }, manager)).toEqual(["2 TO SIGN", { kind: "desk", tab: "signatures" }]);
     expect(shown({ inbox: [fromWorker] }, manager)).toBeNull();
+  });
+});
+
+describe("where an agent's work takes it", () => {
+  const working = (id: string, kind: Agent["kind"], role: string, orderId: string | null = null) =>
+    ({ ...agent(id, kind, "working"), role, orderId }) as Agent;
+  const team = (who: Agent) => project({ agents: [manager, developer, who], orders: [inReview()] } as Partial<Project>);
+  const errand = (who: Agent) => agentErrand(team(who), who);
+
+  it("takes an advisor being consulted to the Manager", () => {
+    expect(errand(working("architect", "advisor", "Architect"))).toEqual({ beside: "manager", doing: "advising" });
+  });
+
+  it("takes a reviewer to whoever holds the order under review", () => {
+    expect(errand(working("code_reviewer", "advisor", "Code reviewer", "WO-0001"))).toEqual({ beside: "developer", doing: "reviewing WO-0001" });
+  });
+
+  it("leaves at their desk whoever is not working, works alone, or reviews an order nobody on the floor holds", () => {
+    expect(errand({ ...working("architect", "advisor", "Architect"), status: "idle" } as Agent)).toBeNull();
+    expect(errand(working("careful", "worker", "Developer", "WO-0001"))).toBeNull();
+    expect(errand(working("code_reviewer", "advisor", "Code reviewer", "WO-0099"))).toBeNull();
   });
 });

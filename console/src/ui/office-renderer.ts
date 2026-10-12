@@ -47,6 +47,8 @@ export type SceneAgent = {
   bubble: { tone: BubbleTone; text: string } | null;
   role: string;
   kind: "manager" | "worker" | "advisor";
+  // Work that happens beside someone else: advising the Manager, reviewing a developer's order.
+  errand?: { beside: string; doing: string } | null;
 };
 export type SceneState = {
   name: string;
@@ -55,6 +57,7 @@ export type SceneState = {
   agents: SceneAgent[];
   pending: number;
   openOrders: number;
+  delivered?: number;
   settings?: StudioPreferences;
 };
 export type BubbleTone = "ask" | "alert" | "done" | "busy" | "wait";

@@ -64,6 +64,22 @@ export function agentBubble(project: Project, agent: Agent): Bubble | null {
     };
   return null;
 }
+// Where an agent's work takes it, when that work is done beside someone else.
+export function agentErrand(project: Project, agent: Agent): { beside: string; doing: string } | null {
+  if (agent.status !== "working") return null;
+  if (agent.orderId && /review/i.test(agent.role)) {
+    const author = project.agents.find(
+      (other) =>
+        other.id !== agent.id &&
+        other.kind === "worker" &&
+        agentWork(project, other).open.some((order) => order.id === agent.orderId),
+    );
+    return author ? { beside: author.id, doing: `reviewing ${agent.orderId}` } : null;
+  }
+  if (agent.kind !== "advisor" || agent.orderId) return null;
+  const manager = project.agents.find((other) => other.kind === "manager");
+  return manager ? { beside: manager.id, doing: "advising" } : null;
+}
 export function studioAgentAppearance(
   projectId: string,
   agent: Agent,
@@ -93,6 +109,7 @@ export function studioScene(
     openOrders: project.orders.filter(
       (order) => !CLOSED.includes(order.status),
     ).length,
+    delivered: project.orders.filter((order) => order.status === "delivered").length,
     settings,
     agents: project.agents.map((agent) => ({
       id: agent.id,
@@ -100,6 +117,7 @@ export function studioScene(
       kind: agent.kind,
       status: agent.status,
       bubble: agentBubble(project, agent),
+      errand: agentErrand(project, agent),
       ...studioAgentAppearance(project.id, agent, appearance, settings),
     })),
   };
