@@ -92,7 +92,8 @@ export function deskKit(owner: { role: string; kind: "manager" | "worker" | "adv
   if (/review|qa|security|audit/i.test(owner.role)) return "papers";
   return owner.kind === "worker" ? "dev" : "plain";
 }
-const SCREEN_PLANE = 0.3;
+// Toward the room side of the desk, an arm's length from whoever sits at it.
+const SCREEN_PLANE = 0.56;
 /** The screens of a desk as tile spans along its width; they share one plane and one height, and face the chair. */
 export const deskScreens = (seat: Spot, kit: DeskKit): Array<{ u: number; v: number; width: number }> =>
   (kit === "dual" ? [[0.2, 0.58], [0.82, 0.58]] : kit === "lead" ? [[0.4, 0.95]] : [[0.55, 0.8]]).map(([du, width]) => ({

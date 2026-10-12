@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { idlePose, route, type Floor, type Haunt } from "../src/studio/idle-life";
+import { apart, idlePose, route, type Floor, type Haunt } from "../src/studio/idle-life";
 
 const desk = { u: 4, v: 4, width: 2, depth: 1.5 };
 const floor: Floor = { width: 14, depth: 10, blocked: [desk] };
@@ -53,6 +53,18 @@ describe("an idle agent's life in the studio", () => {
     const at = (id: string) => everySecond(5).map((time) => JSON.stringify(idlePose(id, home, floor, haunts, time)));
     expect(at("developer")).toEqual(at("developer"));
     expect(at("developer")).not.toEqual(at("reviewer"));
+  });
+
+  it("keeps two people on their feet from sharing a spot, and leaves alone whoever is seated or far", () => {
+    const here = { u: 5, v: 5, doing: "coffee" };
+    const [first, seated, second, near, far] = apart([here, null, { ...here }, { u: 5.3, v: 5, doing: null }, { u: 9, v: 9, doing: null }]);
+    const gap = (a: { u: number; v: number }, b: { u: number; v: number }) => Math.hypot(a.u - b.u, a.v - b.v);
+    expect(first).toEqual(here);
+    expect(seated).toBeNull();
+    expect(far).toEqual({ u: 9, v: 9, doing: null });
+    expect(gap(first!, second!)).toBeCloseTo(0.9);
+    expect(gap(first!, near!)).toBeGreaterThanOrEqual(0.9);
+    expect(second!.doing).toBe("coffee");
   });
 
   it("stays at the desk in a still frame and when there is nowhere to go", () => {

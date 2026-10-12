@@ -4,7 +4,7 @@ import { Application, Container, Rectangle, Sprite, Texture, type FederatedPoint
 import { avatarBounds, drawPixelAvatar } from "../ui/avatar-renderer";
 import { assignStudioSeats, DECISION_SIGN, deskKit, floorPoint, getStudioLayout, officeLayout, seatSpots } from "../ui/office-layout";
 import { Office, type Piece, type SceneAgent, type SceneState } from "../ui/office-renderer";
-import { along, idlePose, pathLength, route, TILES_PER_SECOND, type Floor, type Haunt, type IdlePose, type Spot } from "../studio/idle-life";
+import { along, apart, idlePose, pathLength, route, TILES_PER_SECOND, type Floor, type Haunt, type IdlePose, type Spot } from "../studio/idle-life";
 import { Ambient } from "./ambient";
 import { Reactions } from "./reactions";
 import { normalizeStudioPreferences } from "../studio/model";
@@ -249,6 +249,8 @@ export class OfficeStage {
           (roams ? idlePose(agent.id, seatSpots(seat).standsUp, this.floor, haunts, time) : null),
       );
     }
+    const ids = [...poses.keys()];
+    apart(ids.map((id) => poses.get(id) ?? null)).forEach((pose, index) => poses.set(ids[index]!, pose));
     // A visit is a conversation only while its host is at the desk to have it.
     const heard = new Set<string>();
     for (const pose of poses.values()) if (pose?.beside && poses.get(pose.beside) === null) heard.add(pose.beside);
