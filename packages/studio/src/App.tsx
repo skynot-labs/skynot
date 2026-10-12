@@ -86,6 +86,7 @@ const tabs: Array<{ id: Tab; name: string; icon: string }> = [
   { id: "context", name: "Context", icon: "context" },
   { id: "costs", name: "Costs", icon: "usage" },
 ];
+const NARROW = "(max-width: 760px)";
 const projectKey = "skynot.project";
 const sidebarKey = "skynot.sidebar";
 const simulatedNoticeKey = "skynot.simulated-notice";
@@ -149,6 +150,13 @@ function Console({
     addEventListener("popstate", follow);
     return () => removeEventListener("popstate", follow);
   }, []);
+  const [narrow, setNarrow] = useState(() => matchMedia(NARROW).matches);
+  useEffect(() => {
+    const width = matchMedia(NARROW);
+    const follow = () => setNarrow(width.matches);
+    width.addEventListener("change", follow);
+    return () => width.removeEventListener("change", follow);
+  }, []);
   const [dockChoice, setDock] = useState<DockCard | null>(null);
   const [dockCalls, setDockCalls] = useState(0);
   const callDock = (card: DockCard) => {
@@ -165,6 +173,8 @@ function Console({
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
   );
+  // Under this width the sidebar lies across the top and a panel covers it with everything else.
+  const sidebarCovered = panel !== null && narrow;
   const [unsaved, setUnsaved] = useState(nothingUnsaved);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
@@ -283,6 +293,11 @@ function Console({
     setDialog(behind);
     setBehind(null);
   };
+  const closePanel = () => {
+    setBehind(null);
+    setDialog(null);
+  };
+  const underDialog = Boolean(selectedAgent ?? selectedOrder);
   const openAgent = (agent: Agent) => openOver({ kind: "agent", id: agent.id });
   const openOrder = (order: Order) => openOver({ kind: "order", id: order.id });
   const active =
@@ -356,12 +371,12 @@ function Console({
     dialog?.kind === "register" ||
     Boolean(
       project &&
-        dialog &&
-        (dialog.kind === "agent"
-          ? selectedAgent
-          : dialog.kind === "order"
-            ? selectedOrder
-            : true),
+      dialog &&
+      (dialog.kind === "agent"
+        ? selectedAgent
+        : dialog.kind === "order"
+          ? selectedOrder
+          : true),
     );
   const failureNotice = failure && (
     <FailureNotice
@@ -372,6 +387,7 @@ function Console({
       onDismiss={() => setFailure(null)}
     />
   );
+  const panelNotice = !underDialog && failureNotice;
   // The sidebar is a set of shortcuts: the office stays where it is and each entry opens over it.
   const panelOfEntry: Partial<Record<Tab, Panel["kind"]>> = {
     orders: "board",
@@ -478,20 +494,23 @@ function Console({
     <div
       class={`app-shell skynot-shell ${collapsed ? "sidebar-collapsed" : ""}`}
     >
+      <a class="skip-link" href="#studio" inert={panel !== null}>
+        Skip to the studio
+      </a>
       <header class="topbar">
         <a
           class="brand"
           href="#studio"
+          inert={sidebarCovered || (panel !== null && collapsed)}
           onClick={(event) => {
             event.preventDefault();
-            setBehind(null);
-            setDialog(null);
+            closePanel();
           }}
         >
           <Brand />
         </a>
         {project ? (
-          <div class="topbar-studio">
+          <div class="topbar-studio" inert={panel !== null}>
             <div>
               <h1>
                 The{" "}
@@ -517,7 +536,7 @@ function Console({
             <strong>Your dev shop</strong>
           </div>
         )}
-        <div class="top-actions">
+        <div class="top-actions" inert={panel !== null}>
           {project && snapshot && (
             <>
               <div
@@ -600,7 +619,7 @@ function Console({
           </button>
         </div>
       </header>
-      <aside class="sidebar">
+      <aside class="sidebar" inert={sidebarCovered}>
         <div>
           <button
             class="sidebar-toggle"
@@ -627,6 +646,7 @@ function Console({
               <button
                 class={`project-switch ${p.id === project?.id ? "selected" : ""}`}
                 key={p.id}
+                aria-current={p.id === project?.id ? "true" : undefined}
                 title={p.paused ? `${p.repo} · paused` : p.repo}
                 onClick={() => chooseProject(p.id)}
               >
@@ -706,7 +726,7 @@ function Console({
           <span class="side-footer">YOU DIRECT. AGENTS BUILD.</span>
         </div>
       </aside>
-      <main>
+      <main id="studio" tabIndex={-1} inert={panel !== null}>
         {(snapshot || failure) && (
           <div class="shell-banners">
             {!dialogShown && failureNotice}
@@ -818,194 +838,198 @@ function Console({
             </footer>
           </>
         )}
-        {dialog?.kind === "studio" && project && (
-          <Modal
-            notice={failureNotice}
-            title="A place for this project."
-            eyebrow={`${project.name.toUpperCase()} · STUDIO STYLE`}
-            onClose={() => setDialog(null)}
-            size="wide"
-          >
-            <StudioCustomizer
-              project={project}
-              appearance={appearance}
-              settings={studioSettings}
-              busy={busy}
-              onSave={(value) =>
-                void savePreference(
-                  studioPreference(project.id, value),
-                  { studio: { [project.id]: value } },
-                  "Style saved for this project.",
-                )
-              }
-            />
-          </Modal>
-        )}
-        {dialog?.kind === "register" && (
-          <Modal
-            notice={failureNotice}
-            title="Bring a repository in."
-            eyebrow="WORKSPACE · NEW PROJECT"
-            onClose={() => setDialog(null)}
-          >
-            <RegisterProject
-              send={send}
-              busy={busy}
-              onClose={() => setDialog(null)}
-            />
-          </Modal>
-        )}
-        {dialog?.kind === "board" && project && (
-          <Modal
-            notice={failureNotice}
-            title="Work orders."
-            eyebrow={`${project.name.toUpperCase()} · THE BOARD`}
-            onClose={() => setDialog(null)}
-            size="full"
-          >
-            <OrdersView project={project} onOrder={openOrder} />
-          </Modal>
-        )}
-        {dialog?.kind === "context" && project && snapshot && (
-          <Modal
-            notice={failureNotice}
-            title="What the team knows."
-            eyebrow={`${project.name.toUpperCase()} · CONTEXT`}
-            onClose={() => setDialog(null)}
-            size="full"
-          >
-            <ContextView
-              project={project}
-              readiness={snapshot.readiness}
-              send={send}
-              busy={busy}
-            />
-          </Modal>
-        )}
-        {dialog?.kind === "agents" && project && (
-          <Modal
-            notice={failureNotice}
-            title="The right team."
-            eyebrow={`${project.name.toUpperCase()} · AGENTS`}
-            onClose={() => setDialog(null)}
-            size="full"
-          >
-            <AgentsView
-              project={project}
-              appearance={appearance}
-              settings={studioSettings}
-              onAgent={openAgent}
-              send={send}
-              busy={busy}
-            />
-          </Modal>
-        )}
-        {dialog?.kind === "costs" && project && snapshot && (
-          <Modal
-            notice={failureNotice}
-            title="What it takes."
-            eyebrow={`${project.name.toUpperCase()} · STATS AND COSTS`}
-            onClose={() => setDialog(null)}
-            size="full"
-          >
-            {stats}
-            <UsageView project={project} costs={snapshot.costs} />
-          </Modal>
-        )}
-        {dialog?.kind === "activity" && project && (
-          <Modal
-            notice={failureNotice}
-            title="What happened."
-            eyebrow={`${project.name.toUpperCase()} · ACTIVITY`}
-            onClose={() => setDialog(null)}
-            size="full"
-          >
-            <ActivityView
-              project={project}
-              appearance={appearance}
-              settings={studioSettings}
-              onAgent={openAgent}
-              onOrder={openOrder}
-            />
-          </Modal>
-        )}
-        {selectedAgent && project && (
-          <Modal
-            notice={failureNotice}
-            title="At their desk."
-            eyebrow={`${project.name.toUpperCase()} · ${selectedAgent.role.toUpperCase()}`}
-            onClose={closeOver}
-            size="wide"
-          >
-            <AgentDesk
-              key={selectedAgent.id}
-              project={project}
-              agent={selectedAgent}
-              {...studioAgentAppearance(
-                project.id,
-                selectedAgent,
-                appearance,
-                studioSettings,
-              )}
-              send={send}
-              busy={busy}
-              onOrder={openOrder}
-              onManager={openManager}
-              look={
-                <AvatarEditor
-                  agent={selectedAgent}
-                  avatar={
-                    agentAppearance(project.id, selectedAgent, appearance)
-                      .avatar
-                  }
-                  alias={
-                    appearance[`${project.id}/${selectedAgent.id}`]?.alias ?? ""
-                  }
-                  settings={studioSettings}
-                  followStudioLook={
-                    appearance[`${project.id}/${selectedAgent.id}`]
-                      ?.followStudioLook ?? true
-                  }
-                  busy={busy}
-                  onSave={(avatar, alias, followStudioLook) => {
-                    const look = {
-                      avatar,
-                      alias: alias.trim(),
-                      followStudioLook,
-                    };
-                    void savePreference(
-                      avatarPreference(project.id, selectedAgent.id, look),
-                      {
-                        appearance: {
-                          [`${project.id}/${selectedAgent.id}`]: look,
-                        },
-                      },
-                      "Avatar saved for this agent and project.",
-                    );
-                  }}
-                />
-              }
-            />
-          </Modal>
-        )}
-        {selectedOrder && snapshot && project && (
-          <Modal
-            notice={failureNotice}
-            title={selectedOrder.title}
-            eyebrow={`${project.name.toUpperCase()} · ${selectedOrder.id}`}
-            onClose={closeOver}
-            size="wide"
-          >
-            <OrderDetail
-              project={project}
-              order={selectedOrder}
-              simulated={snapshot.simulated}
-              send={send}
-              busy={busy}
-            />
-          </Modal>
-        )}
       </main>
+      {dialog?.kind === "studio" && project && (
+        <Modal
+          notice={failureNotice}
+          title="A place for this project."
+          eyebrow={`${project.name.toUpperCase()} · STUDIO STYLE`}
+          onClose={() => setDialog(null)}
+          size="wide"
+        >
+          <StudioCustomizer
+            project={project}
+            appearance={appearance}
+            settings={studioSettings}
+            busy={busy}
+            onSave={(value) =>
+              void savePreference(
+                studioPreference(project.id, value),
+                { studio: { [project.id]: value } },
+                "Style saved for this project.",
+              )
+            }
+          />
+        </Modal>
+      )}
+      {dialog?.kind === "register" && (
+        <Modal
+          notice={failureNotice}
+          title="Bring a repository in."
+          eyebrow="WORKSPACE · NEW PROJECT"
+          onClose={() => setDialog(null)}
+        >
+          <RegisterProject
+            send={send}
+            busy={busy}
+            onClose={() => setDialog(null)}
+          />
+        </Modal>
+      )}
+      {panel?.kind === "board" && project && (
+        <Modal
+          notice={panelNotice}
+          title="Work orders."
+          eyebrow={`${project.name.toUpperCase()} · THE BOARD`}
+          onClose={closePanel}
+          size="full"
+          covered={underDialog}
+        >
+          <OrdersView project={project} onOrder={openOrder} />
+        </Modal>
+      )}
+      {panel?.kind === "context" && project && snapshot && (
+        <Modal
+          notice={panelNotice}
+          title="What the team knows."
+          eyebrow={`${project.name.toUpperCase()} · CONTEXT`}
+          onClose={closePanel}
+          size="full"
+          covered={underDialog}
+        >
+          <ContextView
+            project={project}
+            readiness={snapshot.readiness}
+            send={send}
+            busy={busy}
+          />
+        </Modal>
+      )}
+      {panel?.kind === "agents" && project && (
+        <Modal
+          notice={panelNotice}
+          title="The right team."
+          eyebrow={`${project.name.toUpperCase()} · AGENTS`}
+          onClose={closePanel}
+          size="full"
+          covered={underDialog}
+        >
+          <AgentsView
+            project={project}
+            appearance={appearance}
+            settings={studioSettings}
+            onAgent={openAgent}
+            send={send}
+            busy={busy}
+          />
+        </Modal>
+      )}
+      {panel?.kind === "costs" && project && snapshot && (
+        <Modal
+          notice={panelNotice}
+          title="What it takes."
+          eyebrow={`${project.name.toUpperCase()} · STATS AND COSTS`}
+          onClose={closePanel}
+          size="full"
+          covered={underDialog}
+        >
+          {stats}
+          <UsageView project={project} costs={snapshot.costs} />
+        </Modal>
+      )}
+      {panel?.kind === "activity" && project && (
+        <Modal
+          notice={panelNotice}
+          title="What happened."
+          eyebrow={`${project.name.toUpperCase()} · ACTIVITY`}
+          onClose={closePanel}
+          size="full"
+          covered={underDialog}
+        >
+          <ActivityView
+            project={project}
+            appearance={appearance}
+            settings={studioSettings}
+            onAgent={openAgent}
+            onOrder={openOrder}
+          />
+        </Modal>
+      )}
+      {selectedAgent && project && (
+        <Modal
+          notice={failureNotice}
+          title="At their desk."
+          eyebrow={`${project.name.toUpperCase()} · ${selectedAgent.role.toUpperCase()}`}
+          onClose={closeOver}
+          size="wide"
+        >
+          <AgentDesk
+            key={selectedAgent.id}
+            project={project}
+            agent={selectedAgent}
+            {...studioAgentAppearance(
+              project.id,
+              selectedAgent,
+              appearance,
+              studioSettings,
+            )}
+            send={send}
+            busy={busy}
+            onOrder={openOrder}
+            onManager={openManager}
+            look={
+              <AvatarEditor
+                agent={selectedAgent}
+                avatar={
+                  agentAppearance(project.id, selectedAgent, appearance).avatar
+                }
+                alias={
+                  appearance[`${project.id}/${selectedAgent.id}`]?.alias ?? ""
+                }
+                settings={studioSettings}
+                followStudioLook={
+                  appearance[`${project.id}/${selectedAgent.id}`]
+                    ?.followStudioLook ?? true
+                }
+                busy={busy}
+                onSave={(avatar, alias, followStudioLook) => {
+                  const look = {
+                    avatar,
+                    alias: alias.trim(),
+                    followStudioLook,
+                  };
+                  void savePreference(
+                    avatarPreference(project.id, selectedAgent.id, look),
+                    {
+                      appearance: {
+                        [`${project.id}/${selectedAgent.id}`]: look,
+                      },
+                    },
+                    "Avatar saved for this agent and project.",
+                  );
+                }}
+              />
+            }
+          />
+        </Modal>
+      )}
+      {selectedOrder && snapshot && project && (
+        <Modal
+          notice={failureNotice}
+          title={selectedOrder.title}
+          eyebrow={`${project.name.toUpperCase()} · ${selectedOrder.id}`}
+          onClose={closeOver}
+          size="wide"
+        >
+          <OrderDetail
+            project={project}
+            order={selectedOrder}
+            simulated={snapshot.simulated}
+            send={send}
+            busy={busy}
+          />
+        </Modal>
+      )}
       <div id="toast" ref={toastRef} popover="manual" role="status">
         {confirmation || null}
       </div>
