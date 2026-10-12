@@ -11,6 +11,7 @@ const SOLES = 27;
 const CHAIR_LIFT = Math.round(SEATED_TOP - SOLES * AVATAR_SCALE);
 const WALK_STEP_MS = 180;
 const TYPE_STEP_MS = 500;
+const TALK_TURN_MS = 1400;
 
 export type Figures = (agent: SceneAgent, seated: boolean, frame: number) => Texture;
 type Taps = { agent: () => void; bubble: () => void };
@@ -29,6 +30,8 @@ export class AgentActor {
   private agent: SceneAgent;
   private seat: Spot;
   private lastX = 0;
+  /** Just over this agent's head, where a reaction to something it did belongs. */
+  readonly above = { x: 0, y: 0 };
   private hovered = false;
 
   constructor(agent: SceneAgent, seat: Spot, private readonly figures: Figures, taps: Taps) {
@@ -63,8 +66,11 @@ export class AgentActor {
     this.name.write(agent.name.slice(0, 17), undefined, agent.status === "working" ? "#d2c3ed" : "#d7e6d8");
   }
 
-  /** `time` is zero for a still office: nothing bobs, blinks or bounces. */
-  frame(time: number, pose: IdlePose): void {
+  /**
+   * `time` is zero for a still office: nothing bobs, blinks or bounces. `talk` is this agent's side of a
+   * conversation, when it is in one: the two take turns holding up the dots.
+   */
+  frame(time: number, pose: IdlePose, talk: "speaks" | "listens" | null = null): void {
     const { agent, seat } = this;
     const working = agent.status === "working";
     const stride = pose?.walking ? 1 + (Math.floor(time / WALK_STEP_MS) % 2) : 0;
@@ -82,7 +88,7 @@ export class AgentActor {
     if (!pose) this.figure.scale.x = 1;
     this.lastX = x;
 
-    this.screen.visible = working;
+    this.screen.visible = working && pose === null;
     this.screen.alpha = 0.45 + 0.2 * Math.sin(time / 260);
 
     const top = -lift - (SOLES - avatarBounds(agent.avatar).top) * AVATAR_SCALE;
@@ -102,11 +108,16 @@ export class AgentActor {
       this.bubble.write(said.tone === "busy" ? "·".repeat(1 + (step % 3)).padEnd(3, " ") : said.text, BUBBLE_FILL[said.tone]);
       this.bubble.position.set(3, top - 38 - (calls && step % 2 ? 3 : 0));
     }
-    this.note.visible = !said && Boolean(pose?.doing);
-    if (pose?.doing) {
-      this.note.write(pose.doing);
+    const turn = Math.floor(time / TALK_TURN_MS) % 2;
+    const dots = time > 0 && (talk === "speaks" ? turn === 0 : talk === "listens" && turn === 1);
+    const noted = dots ? "· · ·" : (pose?.doing ?? null);
+    this.note.visible = !said && noted !== null;
+    if (noted) {
+      this.note.write(noted);
       this.note.position.set(3, top - 26);
     }
+    this.above.x = x;
+    this.above.y = y + top - 30;
   }
 
   destroy(): void {

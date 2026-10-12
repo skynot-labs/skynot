@@ -4,7 +4,9 @@ import { Application, Container, Rectangle, Sprite, Texture, type FederatedPoint
 import { avatarBounds, drawPixelAvatar } from "../ui/avatar-renderer";
 import { assignStudioSeats, DECISION_SIGN, deskKit, floorPoint, getStudioLayout, officeLayout, seatSpots } from "../ui/office-layout";
 import { Office, type Piece, type SceneAgent, type SceneState } from "../ui/office-renderer";
-import { idlePose, type Floor, type Haunt } from "../studio/idle-life";
+import { along, idlePose, pathLength, route, TILES_PER_SECOND, type Floor, type Haunt, type IdlePose, type Spot } from "../studio/idle-life";
+import { Ambient } from "./ambient";
+import { Reactions } from "./reactions";
 import { normalizeStudioPreferences } from "../studio/model";
 import { AgentActor, AVATAR_SCALE } from "./agent-actor";
 import { HOME, panBy, zoomAt, type View } from "./camera";
@@ -31,6 +33,13 @@ const OPEN_HAUNTS: Haunt[] = [
 ];
 const SOLES = 27;
 const FIGURE_MARGIN = 1;
+const MAX_FRAME_MS = 100;
+const NIGHT_FROM = 20;
+const NIGHT_UNTIL = 6;
+const NIGHT_SHADE = 0.16;
+const LIGHTS_OFF = 0.42;
+const CONFETTI = ["#f3c299", "#b4debf", "#d2c3ed", "#f08a8f", "#f3e3a2", "#93b7d5"];
+type Errand = { beside: string; doing: string; path: Spot[]; length: number; walked: number };
 
 /**
  * The live office. The scenery is painted once by the still painter and cut into sprites ordered by depth; the team
@@ -49,6 +58,12 @@ export class OfficeStage {
   private readonly inbox = words("OPEN INBOX →", { fontSize: 11, fill: "#5e675a" });
   private readonly boardLabel = words("", { fontSize: 14, fontWeight: "bold", fill: "#a9a3b7" });
   private readonly more = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 15, height: 28, padding: 10, minWidth: 200 });
+  private readonly ambient = new Ambient(FRAME);
+  private readonly reactions = new Reactions();
+  private readonly errands = new Map<string, Errand>();
+  private readonly seen = new Map<string, { failed: boolean; finished: boolean }>();
+  private tallies: { delivered: number; pending: number } | null = null;
+  private lastFrame = 0;
   private readonly still = matchMedia("(prefers-reduced-motion: reduce)").matches;
   private scene: SceneState | null = null;
   private seats: ReturnType<typeof assignStudioSeats<SceneAgent>> = [];
@@ -64,7 +79,7 @@ export class OfficeStage {
     private readonly handlers: () => StageHandlers,
   ) {
     this.scenery.sortableChildren = true;
-    this.world.addChild(this.scenery, this.overlay, this.signs);
+    this.world.addChild(this.scenery, this.ambient, this.overlay, this.signs, this.reactions);
     app.stage.addChild(this.world);
 
     this.decisions.eventMode = "static";
@@ -133,7 +148,11 @@ export class OfficeStage {
     const unseated = scene.agents.length - seated.size;
     this.more.visible = unseated > 0;
     this.more.write(`+${unseated} MORE ON THE TEAM`);
+    const hour = new Date().getHours();
+    const night = hour >= NIGHT_FROM || hour < NIGHT_UNTIL;
+    this.ambient.set(settings.season, scene.paused ? LIGHTS_OFF : night ? NIGHT_SHADE : 0, !this.still && !scene.paused);
     this.frame();
+    this.react(scene);
   }
 
   destroy(): void {
@@ -151,19 +170,94 @@ export class OfficeStage {
     this.overlay.addChild(actor.tags);
   }
 
+  // What just changed says what to celebrate or flag; the first scene only sets the baseline.
+  private react(scene: SceneState): void {
+    const moving = !this.still;
+    for (const agent of scene.agents) {
+      const now = { failed: agent.status === "error", finished: agent.bubble?.tone === "done" };
+      const before = this.seen.get(agent.id);
+      this.seen.set(agent.id, now);
+      const actor = this.actors.get(agent.id);
+      if (!before || !actor || !moving) continue;
+      if (now.failed && !before.failed) {
+        this.reactions.say(actor.above.x, actor.above.y, "!", "#f08a8f");
+        this.reactions.burst(actor.above.x, actor.above.y, ["#f08a8f", "#b9545a"], 10, 0.1);
+      }
+      if (now.finished && !before.finished) {
+        this.reactions.say(actor.above.x, actor.above.y, "✓", "#b4debf");
+        this.reactions.burst(actor.above.x, actor.above.y, ["#b4debf", "#f3e3a2", "#ffffff"], 16);
+      }
+    }
+    const tallies = { delivered: scene.delivered ?? 0, pending: scene.pending };
+    const before = this.tallies;
+    this.tallies = tallies;
+    if (!before || !moving) return;
+    if (tallies.delivered > before.delivered) {
+      const [x, y] = floorPoint(officeLayout.room.width / 2, officeLayout.room.depth / 2, 190);
+      this.reactions.burst(x, y, CONFETTI, 70, 0.34);
+      this.reactions.say(x, y, "DELIVERED", "#f3e3a2");
+    }
+    if (tallies.pending > before.pending)
+      this.reactions.burst(this.decisions.x, this.decisions.y + 20, ["#ecd0a7", "#f3c299"], 14, 0.12);
+  }
+
+  // Work done beside someone is walked to: out while it lasts, back to the desk when it ends.
+  private errand(agent: SceneAgent, seat: Spot, elapsed: number): IdlePose | undefined {
+    const wanted = agent.errand ?? null;
+    const host = wanted && this.seats.find((other) => other.agent?.id === wanted.beside);
+    let errand = this.errands.get(agent.id);
+    if (wanted && host && errand?.beside !== wanted.beside) {
+      const path = route(this.floor, seatSpots(seat).standsUp, seatSpots(host).visitor);
+      if (path) {
+        errand = { beside: wanted.beside, doing: wanted.doing, path, length: pathLength(path), walked: 0 };
+        this.errands.set(agent.id, errand);
+      }
+    }
+    if (!errand) return undefined;
+    const out = Boolean(host) && wanted?.beside === errand.beside;
+    if (out) errand.doing = wanted!.doing;
+    const step = this.still ? errand.length : (elapsed / 1000) * TILES_PER_SECOND;
+    errand.walked = Math.max(0, Math.min(errand.length, errand.walked + (out ? step : -step)));
+    if (!out && errand.walked === 0) {
+      this.errands.delete(agent.id);
+      return undefined;
+    }
+    const there = out && errand.walked === errand.length;
+    return {
+      ...along(errand.path, errand.walked),
+      walking: !there,
+      doing: there ? errand.doing : null,
+      ...(there ? { beside: errand.beside } : {}),
+    };
+  }
+
   private frame(): void {
     const scene = this.scene;
     if (!scene) return;
     const time = this.still ? 0 : performance.now();
-    const seats = this.seats;
-    for (const seat of seats) {
+    const elapsed = Math.min(MAX_FRAME_MS, Math.max(0, time - this.lastFrame));
+    this.lastFrame = time;
+    const poses = new Map<string, IdlePose>();
+    for (const seat of this.seats) {
       const agent = seat.agent;
-      const actor = agent && this.actors.get(agent.id);
-      if (!agent || !actor) continue;
+      if (!agent) continue;
       const roams = agent.status === "idle" && !scene.paused;
       const haunts = this.haunts.filter((haunt) => haunt.owner !== agent.id);
-      actor.frame(time, roams ? idlePose(agent.id, seatSpots(seat).standsUp, this.floor, haunts, time) : null);
+      poses.set(
+        agent.id,
+        this.errand(agent, seat, elapsed) ??
+          (roams ? idlePose(agent.id, seatSpots(seat).standsUp, this.floor, haunts, time) : null),
+      );
     }
+    // A visit is a conversation only while its host is at the desk to have it.
+    const heard = new Set<string>();
+    for (const pose of poses.values()) if (pose?.beside && poses.get(pose.beside) === null) heard.add(pose.beside);
+    for (const [id, pose] of poses)
+      this.actors
+        .get(id)
+        ?.frame(time, pose, pose?.beside && heard.has(pose.beside) ? "speaks" : heard.has(id) ? "listens" : null);
+    this.reactions.tick(elapsed);
+    this.ambient.tick(elapsed, time);
     this.decisions.pivot.y = scene.pending > 0 && time ? Math.round(Math.sin(time / 300) * 2) : 0;
   }
 

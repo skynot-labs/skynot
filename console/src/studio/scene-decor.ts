@@ -17,7 +17,8 @@ export type ScenePainter = {
     color: string,
     z?: number,
   ) => void;
-  add: (depth: number, draw: () => void) => void;
+  // A footprint keeps people from walking through what is drawn.
+  add: (depth: number, draw: () => void, solid?: { footprint?: { u: number; v: number; width: number; depth: number } }) => void;
 };
 export type SceneTheme = ReturnType<typeof resolveSceneTheme>;
 type Theme = SceneTheme;
@@ -193,7 +194,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
           ],
           theme.palette.foliage,
         );
-    });
+    }, { footprint: { u: 12.6 + roomGrowth.east, v: 0.65, width: 0.85, depth: 0.6 } });
   },
   parasol({ p, poly, line, add }, theme) {
     add(10.8 + roomGrowth.south, () => {
@@ -234,7 +235,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
       ctx.fillStyle = theme.palette.foliageLight;
       ctx.fillRect(x - 3, y - 56, 2, 52);
       ctx.fillRect(x + 15, y - 47, 2, 12);
-    });
+    }, { footprint: { u: 12.7 + roomGrowth.east, v: 0.7, width: 0.65, depth: 0.65 } });
   },
   blossoms({ p, ctx, line, add }) {
     add(17.8 + roomGrowth.east, () => {
@@ -305,7 +306,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
         ctx.fillRect(x + 6, y - 23, 6, 7);
         ctx.fillRect(x - 8, y - 10, 17, 5);
       }
-    });
+    }, { footprint: { u: 0.7, v: 9.4 + roomGrowth.south, width: 2.2, depth: 0.6 } });
   },
   tree({ p, poly, block, ctx, add }) {
     add(10.7 + roomGrowth.south, () => {
@@ -329,7 +330,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
           i % 3 === 0 ? "#ffe08d" : i % 3 === 1 ? "#ef666c" : "#d6e9f6",
         );
       star(ctx, x, y - 177, 17, "#ffdc67");
-    });
+    }, { footprint: { u: 0.35, v: 9.05 + roomGrowth.south, width: 0.4, depth: 0.4 } });
     add(16.3 + roomGrowth.south, () => {
       for (const [u, v, c] of [
         [0.8, 9.75, "#e36077"],
@@ -339,7 +340,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
         block(u, v, 0.6, 0.48, 24, c, 44);
         block(u + 0.24, v, 0.09, 0.48, 2, "#fce2a0", 68);
       }
-    });
+    }, { footprint: { u: 0.7, v: 9.6 + roomGrowth.south, width: 1.6, depth: 0.5 } });
   },
   garland,
   ...landmarkDecor,
@@ -357,7 +358,7 @@ const decor: Record<DecorId, (painter: ScenePainter, theme: Theme) => void> = {
         ctx.fillStyle = "#aa8059";
         ctx.fillRect(x, y, 2, 2);
       }
-    });
+    }, { footprint: { u: 12.65 + roomGrowth.east, v: 0.7, width: 1, depth: 0.5 } });
     for (let i = 0; i < 24; i++) {
       const [x, y] = p(8.2 + (i % 7) * 0.62, 9.9 - (i % 3) * 0.14, 1);
       ctx.fillStyle = "#ffa82d";

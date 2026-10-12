@@ -4,13 +4,13 @@ export type Floor = { width: number; depth: number; blocked: Rect[] };
 // A haunt someone owns (their desk) is for the others to visit, never for its owner.
 export type Haunt = Spot & { doing: string; owner?: string };
 // null is "at the desk".
-export type IdlePose = (Spot & { walking: boolean; doing: string | null }) | null;
+export type IdlePose = (Spot & { walking: boolean; doing: string | null; beside?: string }) | null;
 
 const STEP = 0.5;
 const CLEARANCE = 0.3;
 // Room to stand without a shoulder inside a desk or a face behind a monitor.
 const STANDING_ROOM = 0.9;
-const TILES_PER_SECOND = 1.4;
+export const TILES_PER_SECOND = 1.4;
 const MIN_LINGER_MS = 5_000;
 const MIN_CYCLE_MS = 40_000;
 const CYCLE_SPREAD_MS = 40_000;
@@ -87,7 +87,7 @@ export function route(floor: Floor, from: Spot, to: Spot): Spot[] | null {
   return path.map(spot);
 }
 
-function along(path: Spot[], distance: number): Spot {
+export function along(path: Spot[], distance: number): Spot {
   let left = distance;
   for (let index = 1; index < path.length; index++) {
     const leg = length(path[index - 1]!, path[index]!);
@@ -101,6 +101,12 @@ function along(path: Spot[], distance: number): Spot {
     left -= leg;
   }
   return path.at(-1)!;
+}
+
+export function pathLength(path: Spot[]): number {
+  let distance = 0;
+  for (let index = 1; index < path.length; index++) distance += length(path[index - 1]!, path[index]!);
+  return distance;
 }
 
 const routes = new Map<string, Spot[] | null>();
@@ -131,14 +137,14 @@ export function idlePose(id: string, home: Spot, floor: Floor, haunts: Haunt[], 
     () => route(floor, home, haunt),
   );
   if (!path) return null;
-  let distance = 0;
-  for (let index = 1; index < path.length; index++) distance += length(path[index - 1]!, path[index]!);
+  const distance = pathLength(path);
   const walkMs = (distance / TILES_PER_SECOND) * 1000;
   const lingerMs = cycleMs - leavesAt - 2 * walkMs;
   if (lingerMs < MIN_LINGER_MS) return null;
   const away = elapsed - leavesAt;
   if (away < walkMs) return { ...along(path, (away / 1000) * TILES_PER_SECOND), walking: true, doing: null };
-  if (away < walkMs + lingerMs) return { ...path.at(-1)!, walking: false, doing: haunt.doing };
+  if (away < walkMs + lingerMs)
+    return { ...path.at(-1)!, walking: false, doing: haunt.doing, ...(haunt.owner ? { beside: haunt.owner } : {}) };
   const back = distance - ((away - walkMs - lingerMs) / 1000) * TILES_PER_SECOND;
   return { ...along(path, Math.max(0, back)), walking: true, doing: null };
 }

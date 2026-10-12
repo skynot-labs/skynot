@@ -560,7 +560,7 @@ export const landmarkDecor = {
         const [x, y] = p(0.4 + i * 0.44, 9.18, 112);
         circle(ctx, x, y, 7, i % 2 ? "#fa842c" : "#ffd456");
       }
-    });
+    }, { footprint: { u: 0.55, v: 9.46 + roomGrowth.south, width: 2.6, depth: 0.76 } });
   },
 } satisfies Record<string, (painter: ScenePainter, theme: SceneTheme) => void>;
 
