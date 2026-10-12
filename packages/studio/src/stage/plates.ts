@@ -3,6 +3,7 @@ import { Container, Graphics, Text, type TextStyleOptions } from "pixi.js";
 export const MONO = "monospace";
 // Text is rasterized: twice the size keeps it sharp on dense screens and under the camera's zoom.
 const TEXT_RESOLUTION = 3;
+const TAIL = 7;
 
 export function words(text: string, style: TextStyleOptions): Text {
   const label = new Text({ text, style: { fontFamily: MONO, ...style } });
@@ -26,15 +27,18 @@ export class Plate extends Container {
   private readonly back = new Graphics();
   readonly caption: Text;
   private shown = "";
-  constructor(private readonly look: PlateLook) {
+  constructor(readonly look: PlateLook) {
     super();
     this.caption = words("", { fontSize: look.size, fontWeight: look.bold ? "bold" : "normal", fill: look.color });
     this.caption.anchor.set(0.5, 0.5);
     this.caption.y = look.height / 2;
     this.addChild(this.back, this.caption);
   }
-  private get span(): number {
+  get span(): number {
     return Math.max(this.look.minWidth ?? 0, this.caption.width + this.look.padding * 2);
+  }
+  get tall(): number {
+    return this.look.height + (this.look.tail ? TAIL : 0);
   }
   write(text: string, fill = this.look.fill, color = this.look.color): void {
     const key = `${text}|${fill}|${color}`;
@@ -45,6 +49,6 @@ export class Plate extends Container {
     const width = this.span;
     this.back.clear().rect(-width / 2, 0, width, this.look.height).fill(fill);
     if (this.look.tail)
-      this.back.poly([-6, this.look.height, 6, this.look.height, 0, this.look.height + 7]).fill(fill);
+      this.back.poly([-6, this.look.height, 6, this.look.height, 0, this.look.height + TAIL]).fill(fill);
   }
 }

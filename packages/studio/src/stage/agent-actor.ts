@@ -1,8 +1,9 @@
 import { Container, Graphics, Sprite, type Texture } from "pixi.js";
 import { avatarBounds } from "../ui/avatar-renderer";
 import { deskKit, deskScreens, floorPoint, SEAT_LABEL_DROP, seatSpots } from "../ui/office-layout";
-import { BUBBLE_FILL, BUBBLE_STEP_MS, SCREEN, SEATED_TOP, type SceneAgent } from "../ui/office-renderer";
+import { BUBBLE_FILL, BUBBLE_STEP_MS, busyDots, SCREEN, SEATED_TOP, type SceneAgent } from "../ui/office-renderer";
 import type { IdlePose, Spot } from "../studio/idle-life";
+import type { Box } from "./legible";
 import { Plate } from "./plates";
 
 export const AVATAR_SCALE = 3.2;
@@ -12,6 +13,9 @@ const CHAIR_LIFT = Math.round(SEATED_TOP - SOLES * AVATAR_SCALE);
 const WALK_STEP_MS = 180;
 const TYPE_STEP_MS = 500;
 const TALK_TURN_MS = 1400;
+const BUBBLE_HOP = 3;
+export const BUBBLE_TEXT = 14;
+export const NAME_TEXT = 12;
 
 export type Figures = (agent: SceneAgent, seated: boolean, frame: number) => Texture;
 type Taps = { agent: () => void; bubble: () => void };
@@ -24,14 +28,16 @@ export class AgentActor {
   private readonly shadow = new Graphics().ellipse(0, 0, 17, 7).fill({ color: 0x000000, alpha: 0.14 });
   private readonly figure = new Sprite();
   private readonly outline = new Graphics();
-  private readonly name = new Plate({ fill: "#31363f99", color: "#aeb8b1", size: 12, height: 20, padding: 7 });
-  private readonly bubble = new Plate({ fill: "#c9c6d4", color: "#2f3340", size: 14, bold: true, height: 24, padding: 10, tail: true });
+  private readonly name = new Plate({ fill: "#31363f99", color: "#aeb8b1", size: NAME_TEXT, height: 20, padding: 7 });
+  private readonly bubble = new Plate({ fill: "#c9c6d4", color: "#2f3340", size: BUBBLE_TEXT, bold: true, height: 24, padding: 10, tail: true });
   private readonly note = new Plate({ fill: "#f4f1e6d9", color: "#5a6170", size: 12, height: 18, padding: 7 });
   private agent: SceneAgent;
   private seat: Spot;
   private lastX = 0;
   /** Just over this agent's head, where a reaction to something it did belongs. */
   readonly above = { x: 0, y: 0 };
+  /** Where the bubble would sit were nothing in its way, for the stage to arrange among the others. */
+  speech: Box | null = null;
   private hovered = false;
 
   constructor(agent: SceneAgent, seat: Spot, private readonly figures: Figures, taps: Taps) {
@@ -71,9 +77,10 @@ export class AgentActor {
 
   /**
    * `time` is zero for a still office: nothing bobs, blinks or bounces. `talk` is this agent's side of a
-   * conversation, when it is in one: the two take turns holding up the dots.
+   * conversation, when it is in one: the two take turns holding up the dots. `look` is how the screen asks the
+   * labels to be: how much the bubble grows to stay readable, and whether a name at its own size still reads.
    */
-  frame(time: number, pose: IdlePose, talk: "speaks" | "listens" | null = null): void {
+  frame(time: number, pose: IdlePose, talk: "speaks" | "listens" | null, look: { bubble: number; names: boolean }): void {
     const { agent, seat } = this;
     const working = agent.status === "working";
     const stride = pose?.walking ? 1 + (Math.floor(time / WALK_STEP_MS) % 2) : 0;
@@ -97,6 +104,7 @@ export class AgentActor {
     const top = -lift - (SOLES - avatarBounds(agent.avatar).top) * AVATAR_SCALE;
     this.tags.position.set(x, y);
     this.name.y = pose ? 9 : SEAT_LABEL_DROP;
+    this.name.visible = look.names;
     this.outline.clear();
     if (this.hovered)
       this.outline
@@ -105,11 +113,15 @@ export class AgentActor {
 
     const said = agent.bubble;
     this.bubble.visible = said !== null;
+    this.speech = null;
     if (said) {
-      const step = Math.floor(time / BUBBLE_STEP_MS);
       const calls = said.tone !== "busy" && said.tone !== "wait";
-      this.bubble.write(said.tone === "busy" ? "·".repeat(1 + (step % 3)).padEnd(3, " ") : said.text, BUBBLE_FILL[said.tone]);
-      this.bubble.position.set(3, top - 38 - (calls && step % 2 ? 3 : 0));
+      this.bubble.write(said.tone === "busy" ? busyDots(time) : said.text, BUBBLE_FILL[said.tone]);
+      this.bubble.scale.set(look.bubble);
+      this.bubble.pivot.y = calls && Math.floor(time / BUBBLE_STEP_MS) % 2 ? BUBBLE_HOP : 0;
+      const height = this.bubble.tall * look.bubble;
+      this.speech = { x: x + 3, y: y + top - 7 - height, width: this.bubble.span * look.bubble, height };
+      this.say(this.speech);
     }
     const turn = Math.floor(time / TALK_TURN_MS) % 2;
     const dots = time > 0 && (talk === "speaks" ? turn === 0 : talk === "listens" && turn === 1);
@@ -121,6 +133,10 @@ export class AgentActor {
     }
     this.above.x = x;
     this.above.y = y + top - 30;
+  }
+
+  say(at: Box): void {
+    this.bubble.position.set(at.x - this.tags.x, at.y - this.tags.y);
   }
 
   destroy(): void {

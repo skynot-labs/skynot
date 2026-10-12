@@ -35,6 +35,12 @@ export class Reactions extends Container {
     this.addChild(label);
   }
 
+  clear(): void {
+    for (const mark of [...this.sparks.map((spark) => spark.dot), ...this.rising.map((rise) => rise.label)]) mark.destroy();
+    this.sparks = [];
+    this.rising = [];
+  }
+
   tick(elapsed: number): void {
     for (const spark of this.sparks) {
       spark.vy += GRAVITY * elapsed;

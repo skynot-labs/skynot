@@ -760,6 +760,7 @@ function Console({
               onDockUse={() => setDock("manager")}
               unread={unread}
               covered={dialog !== null}
+              connected={connected}
               send={send}
               busy={busy}
             />

@@ -2,7 +2,6 @@ import { Graphics } from "pixi.js";
 import { Plate } from "./plates";
 
 const RESTING = 0.3;
-const BREATH = 0.07;
 const LIT = 0.62;
 
 /**
@@ -13,7 +12,6 @@ export class Hotspot {
   /** Lies on the floor, under the furniture, and takes the click for everything standing on it. */
   readonly glow = new Graphics();
   readonly tip = new Plate({ fill: "#31363fe8", color: "#f1ead9", size: 13, height: 24, padding: 9, tail: true });
-  private lit = false;
 
   /** `patch` is the lit piece of floor or wall, as the corners of a polygon. */
   constructor(patch: Array<[number, number]>, tipAt: [number, number], onTap: () => void) {
@@ -24,7 +22,7 @@ export class Hotspot {
     this.glow.on("pointerout", () => this.hover(false));
     this.glow.on("pointertap", onTap);
     this.tip.eventMode = "none";
-    this.tip.visible = false;
+    this.hover(false);
   }
 
   place(patch: Array<[number, number]>, tipAt: [number, number]): void {
@@ -37,16 +35,11 @@ export class Hotspot {
   }
 
   hover(over: boolean): void {
-    this.lit = over;
+    this.glow.alpha = over ? LIT : RESTING;
     this.tip.visible = over;
   }
 
   say(text: string): void {
     this.tip.write(text);
-  }
-
-  /** `time` is zero for a still office: the light holds steady. */
-  frame(time: number): void {
-    this.glow.alpha = this.lit ? LIT : RESTING + (time ? BREATH * Math.sin(time / 700) : 0);
   }
 }
