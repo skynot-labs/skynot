@@ -18,9 +18,12 @@ interface Location {
   layer: Layer | null;
 }
 
-const IMPORT_SPECIFIER = /(?:from|import)\s*\(?\s*["']([^"']+)["']/g;
+const IMPORT_SPECIFIER = /(?:from|import)\s*\(?\s*["'`]([^"'`]+)["'`]/g;
 const PROJECT_REGISTRY = /\b(?:Yaml)?ProjectRegistry\b/;
 const MAY_REGISTER_PROJECTS = (filePath: string) => filePath === "src/app/main.ts" || filePath.startsWith("src/app/http/");
+const OFFICE = "src";
+const STUDIO = "console";
+const CONTRACT = "packages/contract";
 
 export function checkArchitecture(files: SourceFile[]): Violation[] {
   return files.flatMap((file) => violationsIn(file));
@@ -33,15 +36,50 @@ function violationsIn(file: SourceFile): Violation[] {
   const violations: Violation[] = [];
   const registry = from.context === "app" && !MAY_REGISTER_PROJECTS(file.path) ? PROJECT_REGISTRY.exec(file.content)?.[0] : undefined;
   if (registry) violations.push({ file: file.path, imports: registry, reason: "only main and the HTTP layer may reach project registration" });
-  for (const match of file.content.matchAll(IMPORT_SPECIFIER)) {
-    const specifier = match[1]!;
-    if (!specifier.startsWith(".")) continue;
-
-    const target = locate(path.posix.normalize(path.posix.join(path.posix.dirname(file.path), specifier)));
+  for (const specifier of importsOf(file)) {
+    const resolved = resolve(file.path, specifier);
+    const target = resolved ? locate(resolved) : null;
     const reason = target ? forbiddenReason(from, target) : null;
     if (reason) violations.push({ file: file.path, imports: specifier, reason });
   }
   return violations;
+}
+
+export function checkBoundaries(files: SourceFile[]): Violation[] {
+  return files.flatMap((file) =>
+    importsOf(file).flatMap((specifier) => {
+      const reason = crossingReason(file.path, specifier);
+      return reason ? [{ file: file.path, imports: specifier, reason }] : [];
+    }),
+  );
+}
+
+function crossingReason(filePath: string, specifier: string): string | null {
+  const target = resolve(filePath, specifier);
+  if (within(STUDIO, filePath)) {
+    return target && !within(STUDIO, target) && !within(CONTRACT, target) ? "the studio may import only itself and the contract" : null;
+  }
+  if (within(`${CONTRACT}/src`, filePath)) {
+    const allowed = target ? within(CONTRACT, target) : specifier === "zod" || specifier.startsWith("zod/");
+    return allowed ? null : "the contract may import only itself and zod";
+  }
+  if (within(OFFICE, filePath)) {
+    const studio = target ? within(STUDIO, target) : specifier === "@skynot/studio" || specifier.startsWith("@skynot/studio/");
+    return studio ? "the office must not import the studio" : null;
+  }
+  return null;
+}
+
+function importsOf(file: SourceFile): string[] {
+  return [...file.content.matchAll(IMPORT_SPECIFIER)].map((match) => match[1]!);
+}
+
+function resolve(filePath: string, specifier: string): string | null {
+  return specifier.startsWith(".") ? path.posix.normalize(path.posix.join(path.posix.dirname(filePath), specifier)) : null;
+}
+
+function within(dir: string, filePath: string): boolean {
+  return filePath === dir || filePath.startsWith(`${dir}/`);
 }
 
 function forbiddenReason(from: Location, to: Location): string | null {

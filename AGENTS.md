@@ -13,6 +13,9 @@ Hexagonal, light DDD, event-driven. Details in `docs/vision.md`.
 - `src/<context>/{domain,application,adapters}` for each bounded context, plus `src/kernel` for the small shared kernel.
 - The domain imports no adapter and no other context's internals. A test enforces it; keep it green.
 - Contexts talk through ports they define themselves. `src/app` is the composition layer: it wires adapters between contexts and may import only a context's public `index`.
+- `packages/contract` (`@skynot/contract`) is what the two sides exchange: the state, the commands and the event stream. It imports only zod.
+- `console/` is the studio (`@skynot/studio`), a workspace of its own. It may import only the contract, never `src/`; `src/` (the office) never imports it.
+- The same architecture test enforces both boundaries.
 - Agents act only through typed operations that the service validates against `policy.yaml`. The LLM proposes, the code validates.
 - State changes are domain events appended to a JSONL log. Clients (the console and its studio view, later Telegram) only send commands and read projections.
 

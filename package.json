@@ -5,7 +5,8 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "console"
   ],
   "description": "A dev shop of AI agents: a Manager runs per-project teams that deliver software.",
   "engines": {
@@ -13,34 +14,30 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit && tsc --noEmit -p console",
-    "build:console": "npm run design:export && vite build --config console/vite.config.ts && npm run github:export && vite build --config console/vite.github.config.ts",
-    "dev:console": "vite --config console/vite.config.ts",
+    "build:console": "npm run build -w @skynot/studio --",
+    "dev:console": "npm run dev -w @skynot/studio --",
     "test": "vitest run",
     "dev": "SKYNOT_MOCK=1 tsx src/app/main.ts",
     "start": "tsx src/app/main.ts",
     "start:shared": "SKYNOT_SHARE=tailscale tsx src/app/main.ts",
     "dev:shared": "SKYNOT_MOCK=1 SKYNOT_SHARE=tailscale tsx src/app/main.ts",
     "check": "tsx src/app/check.ts",
-    "design:export": "node console/scripts/export-design.mjs",
-    "github:export": "node console/scripts/export-github.mjs",
-    "build:github": "npm run design:export && npm run github:export && vite build --config console/vite.github.config.ts",
-    "build:studio": "vite build --config console/vite.config.ts --base ./ --outDir dist/github/studio",
-    "test:e2e": "npm run build:console && npm run build:studio && playwright test -c console/e2e"
+    "design:export": "npm run design:export -w @skynot/studio --",
+    "github:export": "npm run github:export -w @skynot/studio --",
+    "build:github": "npm run build:github -w @skynot/studio --",
+    "build:studio": "npm run build:studio -w @skynot/studio --",
+    "test:e2e": "npm run test:e2e -w @skynot/studio --"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
-    "@preact/preset-vite": "^2.10.6",
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vite": "^8.3.4",
     "vitest": "^5.0.3"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.4",
+    "@skynot/contract": "*",
     "hono": "^4.13.13",
-    "pixi.js": "^8.22.0",
-    "preact": "^11.0.1",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"
   }
