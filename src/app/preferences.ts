@@ -2,7 +2,6 @@ import { isDeepStrictEqual } from "node:util";
 import { err, ok, type Result } from "../kernel";
 import type { EventLog, Projection, StoredEvent } from "../kernel/events";
 
-export const PREFERENCE_KEY = /^(avatar|studio)\/[a-z][a-z0-9-]{1,39}(\/[a-z][a-z0-9_-]{0,39})?$/;
 export const MAX_PREFERENCE_BYTES = 2048;
 export const MAX_PREFERENCES = 200;
 
