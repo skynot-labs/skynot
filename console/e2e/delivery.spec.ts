@@ -51,9 +51,9 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(desk(page).getByLabel("Your call")).toHaveValue(answer);
     await desk(page).getByRole("button", { name: "Send answer" }).click();
 
-    await expect(desk(page).getByRole("heading", { name: "The team has what it needs." })).toBeVisible();
     await expect(deskTab(page, "To decide")).toHaveText(/To decide\s*0$/);
     await expect(deskTab(page, "To sign")).toHaveText(/To sign\s*1$/, TURN);
+    await expect(deskTab(page, "To sign")).toHaveAttribute("aria-selected", "true");
   });
 
   test("the proposed order waits for a signature, shows its acceptance criteria and is signed", async ({ page }) => {

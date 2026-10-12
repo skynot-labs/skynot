@@ -4,7 +4,7 @@ import type { MinutesBucket, Order, Project, Send } from "../contracts";
 import { Icon } from "./Icon";
 import { RichLine } from "./RichText";
 import { orderStatus, usd } from "./format";
-import { orderActions } from "./order-actions";
+import { orderActions, unblocking } from "./order-actions";
 import "./views.css";
 
 type OrderAction =
@@ -12,8 +12,6 @@ type OrderAction =
   | "discard-order"
   | "start-now"
   | "stop-order"
-  | "approve-protected-paths"
-  | "retry-order"
   | "apply-review"
   | "review-order"
   | "merge-pull-request";
@@ -60,11 +58,7 @@ export function OrderDetail({
       {label}
     </button>
   );
-  const blockedOnPaths = order.blocked !== null && order.protectedPaths.length > 0;
-  const retryable =
-    order.blocked !== null &&
-    order.protectedPaths.length === 0 &&
-    (order.status === "signed" || order.status === "on_bench");
+  const unblock = unblocking(order);
   const can = orderActions(order, simulated);
 
   return (
@@ -99,16 +93,17 @@ export function OrderDetail({
       {order.blocked && (
         <div class="order-notice blocked">
           Blocked: {order.blocked}
-          {(blockedOnPaths || retryable) && (
+          {unblock && (
             <div class="order-inline-actions">
-              {blockedOnPaths &&
-                action(
-                  "approve-protected-paths",
-                  `Approve ${order.protectedPaths.join(", ")}`,
-                  "primary",
-                )}
-              {retryable && action("retry-order", "Retry", "primary")}
-              {blockedOnPaths && order.status === "in_review" && (
+              <button
+                type="button"
+                class="primary-button"
+                disabled={busy}
+                onClick={() => void send(unblock.command)}
+              >
+                {unblock.label}
+              </button>
+              {order.protectedPaths.length > 0 && order.status === "in_review" && (
                 <span>After approving, send the follow-up again.</span>
               )}
             </div>

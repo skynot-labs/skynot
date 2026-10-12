@@ -60,6 +60,15 @@ describe("the bubble over an agent's desk", () => {
     expect(shown({ orders: toSign, teamChanges: [{}] as Project["teamChanges"] }, manager)).toEqual(["2 TO SIGN", { kind: "desk", tab: "signatures" }]);
     expect(shown({ inbox: [fromWorker] }, manager)).toBeNull();
   });
+
+  it("holds an unread reply over the Manager, after what waits on the director, and over nobody else", () => {
+    const replied = (overrides: Partial<Project>, who: Agent, unread: number) => agentBubble(project(overrides), who, unread);
+
+    expect(replied({}, manager, 1)).toEqual({ tone: "done", text: "REPLIED", open: { kind: "agent" } });
+    expect(replied({}, manager, 3)?.text).toBe("3 REPLIES");
+    expect(replied({ inbox: [{ kind: "manager_question" }] as Project["inbox"] }, manager, 1)?.text).toBe("? ASKS YOU");
+    expect(replied({}, developer, 2)).toBeNull();
+  });
 });
 
 describe("where an agent's work takes it", () => {

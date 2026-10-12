@@ -284,6 +284,12 @@ button.inbox-heading:hover h2 {
   border: 1px solid #cdb08b30;
   border-radius: 6px;
 }
+.inbox-counter.waiting {
+  color: #2a2118;
+  background: #f3c299;
+  border-color: #f3c299;
+  font-weight: 700;
+}
 .inbox-intro {
   padding: 0 16px;
   color: #a7a7af;

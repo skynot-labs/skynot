@@ -8,7 +8,7 @@ export type Reach = { kind: "answer"; order: Order } | { kind: "redirect"; order
 export interface AgentWork {
   current: Order | null;
   open: Order[];
-  retry: Order | null;
+  stuck: Order | null;
   runs: Run[];
   trace: Activity[];
   reach: Reach;
@@ -22,7 +22,7 @@ export function agentWork(project: Project, agent: Agent): AgentWork {
   return {
     current: open.find((order) => order.id === agent.orderId) ?? open.find((order) => order.working) ?? null,
     open,
-    retry: idle.find((order) => order.blocked !== null && order.status !== "in_review") ?? null,
+    stuck: idle.find((order) => order.blocked !== null) ?? null,
     runs: project.runs.filter((run) => run.role === agent.id),
     trace: project.activity.filter((entry) => entry.role === agent.id || entry.by === agent.id || (entry.role === null && entry.orderId !== null && heldIds.has(entry.orderId))),
     reach: reachOf(idle),

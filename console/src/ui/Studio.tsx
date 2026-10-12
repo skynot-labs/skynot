@@ -43,6 +43,7 @@ export function StudioHero({
   onContext,
   dock,
   onDock,
+  unread,
   send,
   busy,
   covered = false,
@@ -61,6 +62,7 @@ export function StudioHero({
   onContext: () => void;
   dock: DockCard;
   onDock: (card: DockCard) => void;
+  unread: number;
   send: Send;
   busy: boolean;
   covered?: boolean;
@@ -76,7 +78,13 @@ export function StudioHero({
   const stage = useRef<OfficeStage | null>(null);
   const stageHandlers = useRef<StageHandlers | null>(null);
   const [live, setLive] = useState(false);
-  const scene = studioScene(project, appearance, settings, paused !== null);
+  const scene = studioScene(
+    project,
+    appearance,
+    settings,
+    paused !== null,
+    unread,
+  );
   const latestCovered = useRef(covered);
   latestCovered.current = covered;
   const latestScene = useRef(scene);
@@ -88,7 +96,7 @@ export function StudioHero({
     office.current = renderer;
     renderer.draw(latestScene.current);
     stage.current?.show(latestScene.current);
-  }, [project, appearance, settings, paused]);
+  }, [project, appearance, settings, paused, unread]);
   useEffect(() => stage.current?.rest(covered), [covered]);
   useEffect(() => {
     let gone = false;
@@ -124,7 +132,8 @@ export function StudioHero({
       (event.clientY - rect.top) / ratio,
     );
   }
-  function openDesk(tab: "questions" | "signatures") {
+  // Without a tab the desk opens on whatever is waiting.
+  function openDesk(tab?: "questions" | "signatures") {
     onDock("decisions");
     inbox.current?.scrollIntoView({
       behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -132,6 +141,7 @@ export function StudioHero({
         : "smooth",
       block: "nearest",
     });
+    if (!tab) return;
     const entry = inbox.current?.querySelector<HTMLButtonElement>(
       `#director-${project.id}-${tab}`,
     );
@@ -140,7 +150,7 @@ export function StudioHero({
   }
   function openZone(zone: StudioZone) {
     if (zone === "manager") onManager();
-    else if (zone === "decisions") openDesk("questions");
+    else if (zone === "decisions") openDesk();
     else onTeam();
   }
   function openAgent(agent: Agent) {
@@ -158,13 +168,13 @@ export function StudioHero({
       const agent = agentOf(id);
       if (agent) openBubble(agent);
     },
-    onDecisions: () => openDesk("questions"),
+    onDecisions: () => openDesk(),
     onBoard: onOrders,
     onManager,
     onStats,
   };
   function openBubble(agent: Agent) {
-    const target = agentBubble(project, agent)?.open;
+    const target = agentBubble(project, agent, unread)?.open;
     const order =
       target?.kind === "order" &&
       project.orders.find((candidate) => candidate.id === target.id);
@@ -243,6 +253,7 @@ export function StudioHero({
             send={send}
             busy={busy}
             open={dock === "manager"}
+            unread={unread}
             onToggle={() => toggle("manager")}
             onUse={() => onDock("manager")}
             onOrder={onOrder}
@@ -306,6 +317,7 @@ function ManagerDock({
   send,
   busy,
   open,
+  unread,
   onToggle,
   onUse,
   onOrder,
@@ -314,6 +326,7 @@ function ManagerDock({
   send: Send;
   busy: boolean;
   open: boolean;
+  unread: number;
   onToggle: () => void;
   // The director is writing here: the card must not close under them when something lands on the desk.
   onUse: () => void;
@@ -346,6 +359,14 @@ function ManagerDock({
           <h2>Your Manager</h2>
         </div>
         {busyManager && <span class="tiny-led" title="Working on a turn" />}
+        {unread > 0 && (
+          <span
+            class="inbox-counter waiting"
+            title={unread === 1 ? "1 unread reply" : `${unread} unread replies`}
+          >
+            {unread}
+          </span>
+        )}
         <Icon name="chevron" />
       </button>
       <div class="manager-dock-body" ref={body} onFocusCapture={onUse}>

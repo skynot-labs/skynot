@@ -24,6 +24,7 @@ import {
 import { AvatarEditor, Modal, RegisterProject } from "./ui/Dialogs";
 import { OrderDetail } from "./ui/OrderDetail";
 import { AgentDesk } from "./ui/AgentDesk";
+import { useUnreadReplies } from "./application/unread";
 import { usd } from "./ui/format";
 import { StudioCustomizer } from "./ui/StudioCustomizer";
 import {
@@ -246,6 +247,11 @@ function Console({
     0;
   const blocked = project?.orders.filter((o) => o.blocked !== null).length ?? 0;
   const dock = dockChoice ?? (pending > 0 ? "decisions" : "manager");
+  const unread = useUnreadReplies(
+    project?.id,
+    project?.chat ?? [],
+    dock === "manager" && dialog === null,
+  );
   const openManager = () => {
     setDialog(null);
     setDock("manager");
@@ -632,7 +638,7 @@ function Console({
           >
             <Icon name="chat" />
             <span>Your Manager</span>
-            {pending > 0 && <b>{pending}</b>}
+            {unread > 0 && <b>{unread}</b>}
           </button>
           <span class="side-footer">YOU DIRECT. AGENTS BUILD.</span>
         </div>
@@ -703,6 +709,7 @@ function Console({
               onContext={() => setDialog({ kind: "context" })}
               dock={dock}
               onDock={setDock}
+              unread={unread}
               covered={dialog !== null}
               send={send}
               busy={busy}

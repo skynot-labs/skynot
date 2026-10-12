@@ -18,7 +18,7 @@ export type Bubble = {
 const CLOSED = ["delivered", "discarded"];
 
 // What an agent holds up over its desk, most urgent first: what waits on the director, then what it finished, then what it is doing.
-export function agentBubble(project: Project, agent: Agent): Bubble | null {
+export function agentBubble(project: Project, agent: Agent, unread = 0): Bubble | null {
   if (agent.kind === "manager") {
     const questions = project.inbox.filter(
       (item) => item.kind !== "worker_question",
@@ -39,6 +39,12 @@ export function agentBubble(project: Project, agent: Agent): Bubble | null {
         tone: "ask",
         text: `${toSign} TO SIGN`,
         open: { kind: "desk", tab: "signatures" },
+      };
+    if (unread > 0)
+      return {
+        tone: "done",
+        text: unread === 1 ? "REPLIED" : `${unread} REPLIES`,
+        open: { kind: "agent" },
       };
   }
   const work = agentWork(project, agent);
@@ -100,6 +106,7 @@ export function studioScene(
   appearance: Appearance,
   settings: StudioPreferences,
   shopPaused = false,
+  unread = 0,
 ): SceneState {
   return {
     name: project.name,
@@ -116,7 +123,7 @@ export function studioScene(
       role: agent.role,
       kind: agent.kind,
       status: agent.status,
-      bubble: agentBubble(project, agent),
+      bubble: agentBubble(project, agent, unread),
       errand: agentErrand(project, agent),
       runs: agent.runs,
       ...studioAgentAppearance(project.id, agent, appearance, settings),
