@@ -128,22 +128,26 @@ export function AvatarEditor({
     field: K,
     value: ResolvedAvatar[K],
   ) => setDraft((previous) => ({ ...previous, [field]: value }));
-  const choices = (field: ChoiceKey, title: string) => (
+  const choices = (field: ChoiceKey, title: string, personal = false) => (
     <Choices
       field={field}
       title={title}
       value={draft[field]}
-      onChange={(value) =>
-        setDraft((previous) => ({ ...previous, [field]: value }))
-      }
+      onChange={(value) => {
+        setDraft((previous) => ({ ...previous, [field]: value }));
+        if (personal) setFollow(false);
+      }}
     />
   );
-  const color = (field: ColorKey, title: string) => (
+  const color = (field: ColorKey, title: string, personal = false) => (
     <ColorPicker
       field={field}
       title={title}
       value={draft[field]}
-      onChange={(value) => update(field, value)}
+      onChange={(value) => {
+        update(field, value);
+        if (personal) setFollow(false);
+      }}
     />
   );
   return (
@@ -159,17 +163,6 @@ export function AvatarEditor({
             <span class="avatar-floor" />
           </div>
           <strong class="avatar-caption">{name || agent.name}</strong>
-          <span class={`engine-tag ${agent.engine}`}>
-            {agent.role} · {agent.engine}
-          </span>
-          <div class="avatar-proportions">
-            <span>
-              Height <b>{Math.round(draft.height * 100)}%</b>
-            </span>
-            <span>
-              Build <b>{Math.round(draft.build * 100)}%</b>
-            </span>
-          </div>
           <p class="avatar-preview-note">
             How it looks in the studio and on the team.
           </p>
@@ -297,10 +290,10 @@ export function AvatarEditor({
                     </button>
                   ))}
                 </div>
-                {choices("outfit", "Top")}
-                {color("shirt", "Top color")}
-                {color("pants", "Pants")}
-                {color("shoes", "Shoes")}
+                {choices("outfit", "Top", true)}
+                {color("shirt", "Top color", true)}
+                {color("pants", "Pants", true)}
+                {color("shoes", "Shoes", true)}
               </>
             )}
             {tab === "accessories" && (

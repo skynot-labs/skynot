@@ -56,23 +56,6 @@ dialog:has(.avatar-editor) {
   margin: 17px 0 6px;
   overflow-wrap: anywhere;
 }
-.avatar-proportions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  margin-top: 18px;
-  padding-top: 15px;
-  border-top: 1px solid #413849;
-  gap: 10px;
-  color: var(--muted);
-  font: 9px var(--mono);
-}
-.avatar-proportions b {
-  display: block;
-  margin-top: 6px;
-  font-size: 15px;
-  color: #cdb9eb;
-  font-weight: 500;
-}
 .avatar-preview-note {
   font-size: 11px;
   line-height: 1.6;
@@ -80,7 +63,7 @@ dialog:has(.avatar-editor) {
   margin: 18px 5px 0;
 }
 .avatar-editor .avatar-options > input {
-  margin: 0;
+  margin: 0 0 var(--sk-space-4);
   font-size: 12px;
   color: #eee8e3;
   padding: 11px 12px;
@@ -274,10 +257,6 @@ dialog:has(.avatar-editor) {
     text-align: left;
     margin-top: 8px;
     margin-bottom: 0;
-  }
-  .avatar-proportions {
-    margin-top: 10px;
-    padding-top: 10px;
   }
   .avatar-preview-note {
     margin: 10px 0 0;

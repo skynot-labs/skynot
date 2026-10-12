@@ -840,13 +840,6 @@ td small {
   width: 110px;
   height: 150px;
 }
-.engine-tag {
-  display: block;
-  text-align: center;
-  font: 8px var(--mono);
-  color: #8f829b;
-  line-height: 1.8;
-}
 .modal-wide .modal-header h2 {
   font-size: 23px;
 }

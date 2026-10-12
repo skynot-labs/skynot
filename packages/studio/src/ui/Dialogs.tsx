@@ -23,6 +23,10 @@ export function Modal({
   size?: "normal" | "wide" | "full";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const typed = useRef(false);
+  const closeFromBackdrop = () => {
+    if (!typed.current) onClose();
+  };
   // A full panel opens beside the sidebar, which has to stay usable: showModal would make it inert.
   const beside = size === "full";
   useEffect(() => {
@@ -45,13 +49,20 @@ export function Modal({
   }, []);
   return (
     <>
-      {beside && <div class="panel-backdrop" onClick={onClose} />}
+      {beside && <div class="panel-backdrop" onClick={closeFromBackdrop} />}
       <dialog
         ref={ref}
         tabIndex={-1}
         class={size === "normal" ? "" : `modal-${size}`}
         aria-labelledby="dialogTitle"
         onCancel={onClose}
+        onInput={(event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.matches("textarea, input[type=text]")
+          )
+            typed.current = true;
+        }}
         onClick={(event) => {
           const element = ref.current;
           if (!element || event.target !== element) return;
@@ -62,7 +73,7 @@ export function Modal({
             event.clientY < rect.top ||
             event.clientY > rect.bottom
           )
-            onClose();
+            closeFromBackdrop();
         }}
       >
         <div class="modal-header">
@@ -253,8 +264,10 @@ export function RegisterProject({
           <strong>{registered}</strong> was written to the projects folder.
         </p>
         <p class="form-note">
-          It starts with the next restart of the service. Until then it does not
-          appear in the project list.
+          It starts with the next restart of the office: stop it and start it
+          again the way you started it, <code>npm run start</code> in a terminal
+          or a restart of its service on a server. Until then it does not appear
+          in the project list.
         </p>
         <div class="modal-actions">
           <button class="primary-button" onClick={onClose}>
