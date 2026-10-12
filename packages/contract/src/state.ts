@@ -210,8 +210,8 @@ export type Hireable = z.infer<typeof HireableSchema>;
 export const PausedBySchema = z.enum(["director", "cost_cap"]);
 export type PausedBy = z.infer<typeof PausedBySchema>;
 
-// `by` is absent for a pause recorded before the office said who paused.
-export const PauseStateSchema = z.object({ since: timestamp, reason: z.string(), by: PausedBySchema.optional() });
+// `by` is absent for a pause recorded before the office said who paused, and reads as absent when a later office names someone unknown here.
+export const PauseStateSchema = z.object({ since: timestamp, reason: z.string(), by: PausedBySchema.optional().catch(undefined) });
 export type PauseState = z.infer<typeof PauseStateSchema>;
 
 // inputTokens is the whole input, cached part included.

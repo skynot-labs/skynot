@@ -17,7 +17,11 @@ describe("who paused the shop", () => {
     expect(pausedByDirector(fromAnOlderOffice("the daily cost cap of $10.00 was reached ($10.02 spent)"))).toBe(false);
   });
 
-  it("refuses a pause by someone the contract does not know", () => {
-    expect(PauseStateSchema.safeParse({ since, reason: "maintenance", by: "the landlord" }).success).toBe(false);
+  it("reads the reason when a later office names a pauser this studio does not know", () => {
+    const fromALaterOffice = (reason: string) => PauseStateSchema.parse({ since, reason, by: "the landlord" });
+
+    expect(fromALaterOffice("maintenance").by).toBeUndefined();
+    expect(pausedByDirector(fromALaterOffice("maintenance"))).toBe(false);
+    expect(pausedByDirector(fromALaterOffice("paused by the director"))).toBe(true);
   });
 });
