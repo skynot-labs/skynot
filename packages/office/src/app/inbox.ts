@@ -19,6 +19,7 @@ export interface AnsweredItem {
   readonly from: string;
   readonly question: string;
   readonly answer: string;
+  readonly answeredBy?: "director_via_manager" | "manager";
   readonly orderId: string | null;
   readonly ticket: number | null;
   readonly askedAt: string;

@@ -12,12 +12,20 @@ export interface TeamChoices {
 const MAX_BRIEFING = 1500;
 // The prompt asks for 600. A model cannot count characters, and a slightly long answer is not worth a second run.
 const MAX_MESSAGE = 1200;
+const MAX_RELAY = 4000;
+
+// The orders a worker can be written to now: the ones waiting on a question it asked, and the ones in review.
+export interface RelayTargets {
+  readonly waiting: readonly string[];
+  readonly inReview: readonly string[];
+}
 
 export function createAnswerSchema(
   orderSpec: z.ZodType,
   advisors: readonly string[] = [],
   choices: TeamChoices = { hire: [], dismiss: [], refocus: [] },
   openPlans: readonly string[] = [],
+  relayTargets: RelayTargets = { waiting: [], inReview: [] },
 ) {
   return z
     .object({
@@ -36,6 +44,10 @@ export function createAnswerSchema(
         })
         .nullable(),
       briefing: z.object({ text: z.string().trim().min(3).max(MAX_BRIEFING), reason: z.string().trim().min(3).max(300) }).nullable().default(null),
+      relay: z
+        .object({ orderId: z.string().regex(/^WO-\d{4}$/), text: z.string().trim().min(1).max(MAX_RELAY), from: z.enum(["director", "manager"]) })
+        .nullable()
+        .default(null),
     })
     .superRefine((answer, context) => {
       const proposes = answer.orders.length > 0;
@@ -73,6 +85,16 @@ export function createAnswerSchema(
       if (answer.briefing !== null && (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null)) {
         context.addIssue({ code: "custom", path: ["briefing"], message: "propose a briefing change on its own: leave question, orders, consult and team empty" });
       }
+      if (answer.relay !== null) {
+        if (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null || answer.briefing !== null) {
+          context.addIssue({ code: "custom", path: ["relay"], message: "pass an answer on to a worker on its own: leave question, orders, consult, team and briefing empty" });
+        }
+        const targets = [...relayTargets.waiting, ...relayTargets.inReview];
+        if (!targets.includes(answer.relay.orderId)) {
+          const available = targets.length ? `orders waiting on an answer: ${relayTargets.waiting.join(", ") || "none"}; in review: ${relayTargets.inReview.join(", ") || "none"}` : "no worker is waiting on an answer and no order is in review";
+          context.addIssue({ code: "custom", path: ["relay", "orderId"], message: `cannot write to the worker of "${answer.relay.orderId}"; ${available}` });
+        }
+      }
 
       const seen = new Set<string>();
       answer.consult.forEach((request, index) => {
@@ -98,6 +120,7 @@ export type ManagerAnswer<Order = unknown> = {
   consult: Array<{ role: string; question: string }>;
   team: { action: "hire" | "dismiss" | "refocus"; role: string; reason: string; focus: string | null } | null;
   briefing: { text: string; reason: string } | null;
+  relay: { orderId: string; text: string; from: "director" | "manager" } | null;
 };
 
 export function describeIssues(error: z.ZodError): string {

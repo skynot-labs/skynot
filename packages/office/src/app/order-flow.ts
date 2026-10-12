@@ -8,6 +8,8 @@ const AUTOMATIC_ROUNDS = 1;
 
 const RETRYABLE: readonly OrderStatus[] = ["signed", "on_bench"];
 
+export type AnsweredThrough = "director_via_manager" | "manager";
+
 export interface OrderFlowDependencies {
   log: EventLog;
   orders: OrderService;
@@ -139,8 +141,8 @@ export class OrderFlow {
     return ok(order);
   }
 
-  // The director answers what the worker asked; the order goes on with the answer in its prompt.
-  async answerQuestion(orderId: string, answer: string): Promise<Result<WorkOrder, OrderError>> {
+  // The worker gets an answer to what it asked and the order goes on with it in its prompt. Without `through` the director answered directly.
+  async answerQuestion(orderId: string, answer: string, through?: AnsweredThrough): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
     if (!order) return err({ kind: "not_found", message: `no order ${orderId}` });
     const { question, issue } = this.deps.progressOf(orderId);
@@ -149,9 +151,10 @@ export class OrderFlow {
     }
     if (this.running.has(orderId)) return err({ kind: "invalid_transition", message: `${orderId} is already being worked` });
 
-    await this.claim(orderId, { type: "delivery.question_answered", payload: { orderId, answer } });
+    await this.claim(orderId, { type: "delivery.question_answered", payload: { orderId, answer, ...(through && { answeredBy: through }) } });
     if (order.status === "in_review" && issue !== null) {
-      this.launch(orderId, (signal) => this.runFollowUp(order, issue, `The director answered your question: ${answer}`, signal));
+      const who = through === "manager" ? "The Manager decided on your question" : "The director answered your question";
+      this.launch(orderId, (signal) => this.runFollowUp(order, issue, `${who}: ${answer}`, signal));
     } else {
       this.launch(orderId);
     }

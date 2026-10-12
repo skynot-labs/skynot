@@ -8,7 +8,8 @@ export type DeliveryEvent =
   | { type: "delivery.review_failed"; payload: { orderId: string; reason: string } }
   | { type: "delivery.checks_changed"; payload: { orderId: string; state: "none" | "pending" | "passing" | "failing" } }
   | { type: "delivery.question_raised"; payload: { orderId: string; question: string } }
-  | { type: "delivery.question_answered"; payload: { orderId: string; answer: string } }
+  // Without `answeredBy` the director answered directly, which is all a log from before the Manager could pass answers on holds.
+  | { type: "delivery.question_answered"; payload: { orderId: string; answer: string; answeredBy?: "director_via_manager" | "manager" } }
   | { type: "delivery.worker_assigned"; payload: { orderId: string; worker: string } }
   | { type: "delivery.wait_skipped"; payload: { orderId: string } }
   | { type: "delivery.work_retried"; payload: { orderId: string } }

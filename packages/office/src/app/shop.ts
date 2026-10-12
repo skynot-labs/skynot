@@ -46,6 +46,7 @@ import { PreferencesProjection } from "./preferences";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
 import { ReviewNotice } from "./review-notice";
+import { createWorkerDesk } from "./worker-desk";
 import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
 
 export interface ShopConfig {
@@ -175,6 +176,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         ...(briefing && { briefing: { read: () => briefing.read(project.id) } }),
         briefingDesk: createBriefingDesk(briefingService, project.id),
         team: createTeamDesk(teamService, roster),
+        workers: createWorkerDesk({ flow: () => flow, orders, questionOf: (id) => activity.linksFor(id).question, projectId: project.id }),
         advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
       }),
       reviewer: reviewerRole
