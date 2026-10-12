@@ -88,12 +88,6 @@ export function OrdersView({
   return (
     <>
       <div class="view-toolbar">
-        <div>
-          <h2>From idea to delivery.</h2>
-          <p>
-            Signature, work, review and delivery. Every step leaves a trace.
-          </p>
-        </div>
         <input
           type="search"
           placeholder="Find an order…"
