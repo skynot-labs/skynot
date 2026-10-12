@@ -1,3 +1,4 @@
+import "./env-file";
 import { join } from "node:path";
 import { readPolicy } from "./config";
 import { flowStats, formatFlowStats, readEventFile } from "./flow-stats";

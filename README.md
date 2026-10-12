@@ -25,11 +25,12 @@ npm run dev            # http://127.0.0.1:4747
 
 This spends your `claude` or `codex` subscription quota and writes to a repository of yours.
 
-1. Log in to `claude` (and `codex` if a role uses it) and to `gh`, or register a [GitHub App](docs/github-app.md)
-   so the shop opens its pull requests under its own name.
-2. Copy `policy.example.yaml` to `policy.yaml`, `team.example.yaml` to `team.yaml` and `projects.example` to
-   `projects`, and set your repository in the project's `project.yaml`. All three are yours and untracked.
-3. `npm run check` verifies the logins and the GitHub access without spending quota or writing anything.
+1. Log in to `claude` (and `codex` if a role uses it).
+2. `npm run setup` shows the GitHub App it will create and waits for you, creates it once you confirm on GitHub,
+   keeps its key outside the repository, copies `policy.yaml`, `team.yaml` and `projects/` from their examples
+   without touching one that exists, and runs the check. It has not yet been run against GitHub itself; the
+   by-hand path is in the guide.
+3. `npm run check` verifies the logins and the GitHub access again, without spending quota or writing anything.
 4. `npm run build:console`, then `npm run start`.
 5. `npm run stats` prints, from the event log, how long each order spent in each stage and what it cost.
 

@@ -48,33 +48,52 @@ Pick a repository where a wrong pull request is cheap, and read this first:
   just wrote. To keep that away from your own files, run the shop in the
   [devcontainer](../.devcontainer/README.md).
 
-### Log in to the tools
+### Log in to the engines
 
 The shop drives the same command-line tools you would, with your logins:
 
 ```bash
 npm install --global @anthropic-ai/claude-code @openai/codex
 claude            # log in once; codex only if a role uses it: codex login
-gh auth login     # or a GitHub App, see below
 ```
 
-A GitHub token needs read and write on the repository's contents, issues and pull requests, and read on
-Actions. Scope it to the repositories the shop manages and give it an expiry: every process on the machine can
-read it. To have the shop act under its own name, so you can review and approve what it opens, register a
-[GitHub App](github-app.md) instead.
-
-### Write the three files
+### Set the shop up
 
 ```bash
-cp policy.example.yaml policy.yaml
-cp team.example.yaml team.yaml
-cp -r projects.example projects
-mv projects/example projects/my-project
+npm run setup
 ```
 
-Then set `repo` in `projects/my-project/project.yaml` to your repository, and its `setup_command` and
-`verify_commands` to how your project installs and checks itself. The three files are yours and untracked.
-[configuration.md](configuration.md) says what each one decides.
+It asks for the repository and who will own the GitHub App, then does five things, skipping each one that is
+already done, so it is safe to run again:
+
+1. **Says what it will create and waits for Enter:** a private GitHub App with write on the repository's
+   contents, issues and pull requests, read on Actions and metadata, and no webhook.
+2. **Creates the App.** It prints an address on `127.0.0.1` and tries to open it; that page sends the App's
+   description to GitHub, where you confirm. GitHub then sends the browser back to that address with the App's
+   key. The browser must reach the machine the command runs on: over SSH or in a container, forward the port
+   it prints first.
+3. **Keeps the key outside the repository,** in `~/.config/skynot/app.pem`, readable only by you, and writes
+   the App's id and that path to `.env`, which every `npm run` script that starts or checks the office reads.
+4. **Copies `policy.yaml`, `team.yaml` and `projects/` from their examples** when they do not exist, with your
+   repository in the new project's `project.yaml`. It never overwrites or edits one that is already there.
+5. **Sends you to install the App on the repository,** which only you can do, and then runs the check below.
+
+If it stops after the App exists, it says which App was left on GitHub and how to delete it.
+
+> Creating the App through this command has not yet been run against GitHub itself. The flow it follows was
+> done by hand on 2026-10-11, and the command is tested against a stand-in for GitHub. If it fails you, the
+> by-hand path below still works; please open an issue.
+
+Then set `setup_command` and `verify_commands` in `projects/<your-project>/project.yaml` to how your project
+installs and checks itself. The three files are yours and untracked. [configuration.md](configuration.md) says
+what each one decides.
+
+**By hand instead.** Copy `policy.example.yaml` to `policy.yaml`, `team.example.yaml` to `team.yaml` and
+`projects.example` to `projects`, rename `projects/example` and set `repo` in its `project.yaml`. For GitHub,
+either register the App yourself as in [github-app.md](github-app.md), or run `gh auth login` and let the shop
+act as you: that token needs read and write on the repository's contents, issues and pull requests, and read on
+Actions. Scope it to the repositories the shop manages and give it an expiry, because every process on the
+machine can read it.
 
 ### Check before you spend
 
