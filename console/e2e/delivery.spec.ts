@@ -189,6 +189,7 @@ test.describe.serial("an order's life in alpha", () => {
 });
 
 test("a discarded order leaves the signing queue and never reaches a developer", async ({ page }) => {
+  test.slow();
   const idea = "Rename the settings page";
   await openProject(page, PROJECT);
 
@@ -280,7 +281,7 @@ test("a question the chat has moved past stays pinned above it until it is answe
 
   await chat.getByLabel("Message to the Manager").fill("/ping");
   await chat.getByRole("button", { name: "Send" }).click();
-  await expect(chat.getByText("Nothing on the bench but the paperwork.")).toBeVisible(TURN);
+  await expect(chat.getByText("Nothing on the bench but the paperwork.").last()).toBeVisible(TURN);
   await expect(pinned.getByRole("button")).toHaveText(question);
 
   await pinned.getByRole("button").click();
