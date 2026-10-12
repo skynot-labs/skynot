@@ -64,7 +64,7 @@ test.describe("the live office", () => {
     await expect(page).toHaveURL(/#activity$/);
 
     await log.getByRole("button", { name: /^WO-\d+/ }).first().click();
-    await expect(dialog(page).getByRole("heading", { name: "An order with intent." })).toBeVisible();
+    await expect(dialog(page).getByRole("heading", { name: "ACCEPTANCE CRITERIA" })).toBeVisible();
     await dialog(page).getByRole("button", { name: "Close dialog" }).click();
     await expect(dialog(page).getByRole("heading", { name: "What happened." })).toBeVisible();
 
@@ -89,11 +89,19 @@ test.describe("the live office", () => {
     await expect(page.locator(".studio-canvas-room.live")).toBeVisible();
   });
 
-  test("a notice floats over the office until the director dismisses it", async ({ page }) => {
+  test("a notice takes its own room above the office, and a dismissed one stays dismissed after a reload", async ({ page }) => {
     await openProject(page, "alpha");
     const notice = page.getByRole("status").filter({ hasText: "SIMULATED ENGINES" });
+    const office = page.getByRole("region", { name: "alpha studio" });
     await expect(notice).toBeVisible();
+    const noticeBox = (await notice.boundingBox())!;
+    const officeBox = (await office.boundingBox())!;
+    expect(noticeBox.y + noticeBox.height).toBeLessThanOrEqual(officeBox.y);
+
     await notice.getByRole("button", { name: "Dismiss this notice" }).click();
+    await expect(notice).toHaveCount(0);
+    await page.reload();
+    await expect(office).toBeVisible();
     await expect(notice).toHaveCount(0);
   });
 });

@@ -1,8 +1,9 @@
 import type { Browser, Locator, Page } from "@playwright/test";
-import { closeDialog, dialog, expect, openManagerChat, openProject, openView, test } from "./support";
+import { closeDialog, dialog, expect, openManagerChat, openProject, openView, paintsOnTop, test } from "./support";
 
 const LEGACY_STUDIOS_KEY = "skynot-studios-v1";
 const PAUSE_REASON = "paused by the director";
+const CAP_REASON = "the daily cost cap of $10.00 was reached ($10.02 spent)";
 const MANAGER_TURN = { timeout: 20_000 };
 // Known defect, pinned by its own test below; the registration flow must not fail on it a second time.
 
@@ -12,6 +13,8 @@ const studio = (page: Page, name: string): Locator => page.getByRole("region", {
 const studioHeading = (page: Page): Locator => page.getByRole("heading", { level: 1 });
 const breadcrumb = (page: Page): Locator => page.getByRole("banner");
 const toast = (page: Page, text: string): Locator => page.getByRole("status").filter({ hasText: text });
+const failure = (page: Page, text: string): Locator => page.getByRole("alert").filter({ hasText: text });
+const dismissal = (notice: Locator): Locator => notice.getByRole("button", { name: "Dismiss this notice" });
 const pauseControl = (page: Page, label: string): Locator => page.getByRole("group", { name: "Pause" }).getByRole("button", { name: label });
 const metrics = (page: Page): Locator => page.getByRole("region", { name: "Project metrics" });
 const managerCard = (page: Page): Locator => page.getByRole("article").filter({ has: page.getByRole("heading", { name: "manager" }) });
@@ -126,6 +129,7 @@ test.describe.serial("the director's projects", () => {
     await pauseControl(page, "Pause this project").click();
 
     await expect(studio(page, "beta").getByRole("status")).toContainText(`This project is paused · ${PAUSE_REASON}`);
+    await expect(page.getByRole("status").filter({ hasText: "This project is paused" })).toHaveCount(1);
     await expect(pauseControl(page, "Resume this project")).toBeVisible();
     await expect(projectEntry(page, "beta")).toContainText("PAUSED");
     await expect(projectEntry(page, "beta")).toHaveAttribute("title", "acme/beta · paused");
@@ -205,11 +209,18 @@ test.describe.serial("the director's projects", () => {
       await refused.getByLabel(/^VERIFY COMMANDS/).fill("npm run verify");
       await refused.getByRole("button", { name: "Register the project" }).click();
 
-      await expect(page.getByText("acme/alpha already belongs to the project alpha: a repository belongs to one project.")).toBeVisible();
+      const refusal = failure(page, "The office refused: acme/alpha already belongs to the project alpha: a repository belongs to one project.");
+      await expect(refusal).toBeVisible();
+      expect(await paintsOnTop(refusal)).toBe(true);
       await expect(refused.getByText("was written to the projects folder")).toHaveCount(0);
       await expect(refused.getByLabel("ID", { exact: true })).toHaveValue("delta");
       await expect(refused.getByLabel("REPOSITORY")).toHaveValue("ACME/Alpha");
       await expect(refused.getByLabel(/^VERIFY COMMANDS/)).toHaveValue("npm run verify");
+
+      await page.waitForTimeout(6000);
+      await expect(refusal).toBeVisible();
+      await dismissal(refusal).click();
+      await expect(refusal).toBeHidden();
     });
     expect(errors).toEqual([expect.stringContaining("409")]);
   });
@@ -220,6 +231,61 @@ test.describe.serial("the director's projects", () => {
     const id = dialog(page).getByLabel("ID", { exact: true });
     await id.fill("Not An Id");
     expect(await id.evaluate((input: HTMLInputElement) => input.validity.patternMismatch)).toBe(true);
+  });
+
+  test("a command the office never got is reported above the open panel until the director dismisses it", async ({ page, browserErrors }) => {
+    await openProject(page, "beta");
+    await openView(page, "Context");
+    await page.route("**/api/commands/pause-project", (route) => route.abort());
+    await panel(page, "This project's work").getByRole("button", { name: "Pause this project" }).click();
+
+    const unsent = failure(page, "The command was not sent.");
+    await expect(unsent).toBeVisible();
+    expect(await paintsOnTop(unsent)).toBe(true);
+    await dismissal(unsent).click();
+    await expect(unsent).toBeHidden();
+    await expect(panel(page, "This project's work")).not.toContainText("PAUSED");
+    expect(browserErrors.splice(0)).toEqual([expect.stringContaining("pause-project")]);
+  });
+
+  test("a look the office never got keeps its dialog open with what was chosen", async ({ page, browserErrors }) => {
+    await openProject(page, "beta");
+    await page.route("**/api/commands/set-preference", (route) => route.abort());
+    await roster(page).getByRole("button", { name: "developer" }).click();
+    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByLabel("DISPLAY ALIAS").fill("Grace Hopper");
+    await dialog(page).getByRole("button", { name: "Save avatar" }).click();
+
+    const unsent = failure(page, "The command was not sent.");
+    await expect(unsent).toBeVisible();
+    expect(await paintsOnTop(unsent)).toBe(true);
+    await expect(dialog(page).getByLabel("DISPLAY ALIAS")).toHaveValue("Grace Hopper");
+    await dismissal(unsent).click();
+    await expect(unsent).toBeHidden();
+    await closeDialog(page);
+    await expect(roster(page).getByRole("button", { name: "developer" })).toBeVisible();
+    expect(browserErrors.splice(0)).toEqual([expect.stringContaining("set-preference")]);
+  });
+
+  test("a pause the director did not choose is announced as a whole sentence, with the way out", async ({ page }) => {
+    await page.route("**/api/state*", async (route) => {
+      const response = await route.fetch();
+      const state = await response.json();
+      await route.fulfill({ response, json: { ...state, paused: { since: new Date().toISOString(), reason: CAP_REASON } } });
+    });
+    await openProject(page, "alpha");
+
+    const notice = page.getByRole("status").filter({ hasText: "It paused itself" });
+    await expect(notice).toContainText(`The shop is paused: nothing new starts, what is running finishes. It paused itself because ${CAP_REASON}.`);
+    await expect(notice.getByRole("button", { name: "Resume the shop" })).toBeVisible();
+  });
+
+  test("on a narrow screen each pause control still says which pause it is", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 800 });
+    await openProject(page, "alpha");
+
+    await expect(pauseControl(page, "Pause this project")).toHaveText(/^\s*project\s*$/i, { useInnerText: true });
+    await expect(pauseControl(page, "Pause the shop")).toHaveText(/^\s*shop\s*$/i, { useInnerText: true });
   });
 
   test("keeps a studio's style and an agent's alias in the service, for any browser", async ({ page, browser, baseURL }) => {

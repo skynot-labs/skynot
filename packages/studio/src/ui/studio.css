@@ -230,7 +230,7 @@ button.inbox-heading:hover h2 {
   white-space: nowrap;
 }
 @media (max-width: 1020px) {
-  .studio-pause-controls button > span {
+  .studio-pause-controls .pause-verb {
     display: none;
   }
 }

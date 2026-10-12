@@ -86,6 +86,9 @@ const tabs: Array<{ id: Tab; name: string; icon: string }> = [
 ];
 const projectKey = "skynot.project";
 const sidebarKey = "skynot.sidebar";
+const simulatedNoticeKey = "skynot.simulated-notice";
+const DIRECTORS_PAUSE = "paused by the director";
+type Notice = { text: string; failed: boolean; shown: boolean };
 
 export function App() {
   const { office, connect, disconnect } = useOffice();
@@ -145,16 +148,27 @@ function Console({
     setDock(card);
     setDockCalls((calls) => calls + 1);
   };
-  const [dismissed, setDismissed] = useState<string[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>(() =>
+    remembered(simulatedNoticeKey) === "dismissed" ? ["simulated"] : [],
+  );
+  const dismiss = (key: string) => {
+    if (key === "simulated") remember(simulatedNoticeKey, "dismissed");
+    setDismissed((keys) => [...keys, key]);
+  };
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
   );
   const [unsaved, setUnsaved] = useState(nothingUnsaved);
   const [busy, setBusy] = useState(false);
-  const [notification, setNotification] = useState("");
-  const [noticeId, setNoticeId] = useState<ReturnType<
-    typeof setTimeout
-  > | null>(null);
+  const [notice, setNotice] = useState<Notice>({
+    text: "",
+    failed: false,
+    shown: false,
+  });
+  const noticeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const toastRef = useRef<HTMLDivElement>(null);
   const [, setMinute] = useState(0);
   useEffect(() => {
     const tick = setInterval(() => setMinute((value) => value + 1), 60_000);
@@ -182,10 +196,12 @@ function Console({
   const studioSettings = project
     ? projectStudio(studioAppearance, project.id)
     : defaultStudioPreferences;
-  function notify(text: string) {
-    if (noticeId) clearTimeout(noticeId);
-    setNotification(text);
-    setNoticeId(setTimeout(() => setNotification(""), 5000));
+  const dismissNotice = () =>
+    setNotice((current) => ({ ...current, shown: false }));
+  function notify(text: string, failed = false) {
+    clearTimeout(noticeTimer.current);
+    setNotice({ text, failed, shown: true });
+    if (!failed) noticeTimer.current = setTimeout(dismissNotice, 5000);
   }
   async function send(command: Command) {
     if (busy) return false;
@@ -194,9 +210,7 @@ function Console({
       await gateway.send(command);
       return true;
     } catch (cause) {
-      notify(
-        cause instanceof Error ? cause.message : "The command was not sent.",
-      );
+      notify(failureOf(cause), true);
       return false;
     } finally {
       setBusy(false);
@@ -218,16 +232,17 @@ function Console({
     saved: string,
   ) {
     if (!command) {
-      notify("The service cannot store a look under this id.");
+      notify("The service cannot store a look under this id.", true);
       return;
     }
     setUnsaved((current) => ({
       appearance: { ...current.appearance, ...look.appearance },
       studio: { ...current.studio, ...look.studio },
     }));
-    closeOver();
-    if (await send(command)) notify(saved);
-    else setUnsaved(nothingUnsaved);
+    if (await send(command)) {
+      closeOver();
+      notify(saved);
+    } else setUnsaved(nothingUnsaved);
   }
   const selectedAgent =
     dialog?.kind === "agent"
@@ -282,38 +297,18 @@ function Console({
           },
         ]
       : []),
-    ...(snapshot?.paused
+    ...(snapshot?.paused && snapshot.paused.reason !== DIRECTORS_PAUSE
       ? [
           {
             key: `shop-paused:${snapshot.paused.reason}`,
             attention: true,
             icon: "pause",
-            text: `The shop is paused: nothing new starts, and what is running will finish. ${snapshot.paused.reason}.`,
+            text: `The shop is paused: nothing new starts, what is running finishes. It paused itself because ${snapshot.paused.reason}.`,
             action: {
               label: "Resume the shop",
               icon: "play",
               waits: true,
               run: () => void send({ name: "resume-shop", payload: {} }),
-            },
-          },
-        ]
-      : []),
-    ...(project?.paused
-      ? [
-          {
-            key: `project-paused:${project.id}:${project.paused.reason}`,
-            attention: true,
-            icon: "pause",
-            text: `This project is paused: nothing new starts in ${project.name}. ${project.paused.reason}.`,
-            action: {
-              label: "Resume this project",
-              icon: "play",
-              waits: true,
-              run: () =>
-                void send({
-                  name: "resume-project",
-                  payload: { project: project.id },
-                }),
             },
           },
         ]
@@ -334,6 +329,37 @@ function Console({
         ]
       : []),
   ];
+  // A modal makes everything outside it inert, so the notice is shown inside the one that is open.
+  const overModal =
+    dialog?.kind === "register" ||
+    Boolean(
+      project && (dialog?.kind === "studio" || selectedAgent || selectedOrder),
+    );
+  useEffect(() => {
+    const element = toastRef.current;
+    if (!element || element.matches(":popover-open") === notice.shown) return;
+    if (notice.shown) element.showPopover();
+    else element.hidePopover();
+  });
+  const toast = (
+    <div
+      id="toast"
+      ref={toastRef}
+      popover="manual"
+      role={notice.failed ? "alert" : "status"}
+    >
+      {notice.text}
+      {notice.failed && (
+        <button
+          class="toast-close"
+          aria-label="Dismiss this notice"
+          onClick={dismissNotice}
+        >
+          <Icon name="close" />
+        </button>
+      )}
+    </div>
+  );
   // The sidebar is a set of shortcuts: the office stays where it is and each entry opens over it.
   const panelOfEntry: Partial<Record<Tab, Panel["kind"]>> = {
     orders: "board",
@@ -496,13 +522,19 @@ function Console({
                       payload: { project: project.id },
                     })
                   }
+                  aria-label={
+                    project.paused
+                      ? "Resume this project"
+                      : "Pause this project"
+                  }
                   title="While this project is paused nothing new starts in it; what is running finishes. The other projects keep working."
                 >
                   <Icon name={project.paused ? "play" : "pause"} />
                   <span>
-                    {project.paused
-                      ? "Resume this project"
-                      : "Pause this project"}
+                    <span class="pause-verb">
+                      {project.paused ? "Resume this " : "Pause this "}
+                    </span>
+                    project
                   </span>
                 </button>
                 <button
@@ -514,11 +546,17 @@ function Console({
                       payload: {},
                     })
                   }
+                  aria-label={
+                    snapshot.paused ? "Resume the shop" : "Pause the shop"
+                  }
                   title="While the shop is paused nothing new starts in any project; what is running finishes."
                 >
                   <Icon name={snapshot.paused ? "play" : "pause"} />
                   <span>
-                    {snapshot.paused ? "Resume the shop" : "Pause the shop"}
+                    <span class="pause-verb">
+                      {snapshot.paused ? "Resume the " : "Pause the "}
+                    </span>
+                    shop
                   </span>
                 </button>
               </div>
@@ -678,7 +716,7 @@ function Console({
                   <button
                     class="toast-close"
                     aria-label="Dismiss this notice"
-                    onClick={() => setDismissed((keys) => [...keys, alert.key])}
+                    onClick={() => dismiss(alert.key)}
                   >
                     <Icon name="close" />
                   </button>
@@ -775,6 +813,7 @@ function Console({
                 )
               }
             />
+            {toast}
           </Modal>
         )}
         {dialog?.kind === "register" && (
@@ -788,6 +827,7 @@ function Console({
               busy={busy}
               onClose={() => setDialog(null)}
             />
+            {toast}
           </Modal>
         )}
         {dialog?.kind === "board" && project && (
@@ -915,11 +955,12 @@ function Console({
                 />
               }
             />
+            {toast}
           </Modal>
         )}
         {selectedOrder && snapshot && project && (
           <Modal
-            title="An order with intent."
+            title={selectedOrder.title}
             eyebrow={`${project.name.toUpperCase()} · ${selectedOrder.id}`}
             onClose={closeOver}
             size="wide"
@@ -931,16 +972,22 @@ function Console({
               send={send}
               busy={busy}
             />
+            {toast}
           </Modal>
         )}
       </main>
-      {notification && (
-        <div id="toast" role="status" aria-live="polite">
-          {notification}
-        </div>
-      )}
+      {!overModal && toast}
     </div>
   );
+}
+
+function failureOf(cause: unknown): string {
+  if (!(cause instanceof Error) || cause instanceof TypeError)
+    return "The command was not sent.";
+  const reason = /[.!?]$/.test(cause.message)
+    ? cause.message
+    : `${cause.message}.`;
+  return `The office refused: ${reason}`;
 }
 
 function rememberedProject(): string | undefined {
