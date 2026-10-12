@@ -17,5 +17,5 @@ if (process.env.SKYNOT_E2E_PAIRING_SECRET) {
   await writeFile(join(root, "data", "pairing.secret"), `${process.env.SKYNOT_E2E_PAIRING_SECRET}\n`);
 }
 
-const office = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../src/app/main.ts", import.meta.url))], { stdio: "inherit" });
+const office = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../office/src/app/main.ts", import.meta.url))], { stdio: "inherit" });
 office.on("exit", (code) => process.exit(code ?? 1));

@@ -43,7 +43,7 @@ describe("exec", () => {
     await writeFile(
       script,
       `import { existsSync } from "node:fs";
-       import { exec } from ${JSON.stringify(path.resolve("src/kernel/process.ts"))};
+       import { exec } from ${JSON.stringify(path.resolve(import.meta.dirname, "../../src/kernel/process.ts"))};
        void exec("sh", ["-c", "echo $$ > ${pidFile}; sleep 30"]);
        const poll = setInterval(() => { if (existsSync(${JSON.stringify(pidFile)})) { clearInterval(poll); process.exit(0); } }, 10);`,
     );

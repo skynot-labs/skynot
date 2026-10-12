@@ -20,10 +20,11 @@ interface Location {
 
 const IMPORT_SPECIFIER = /(?:from|import)\s*\(?\s*["'`]([^"'`]+)["'`]/g;
 const PROJECT_REGISTRY = /\b(?:Yaml)?ProjectRegistry\b/;
-const MAY_REGISTER_PROJECTS = (filePath: string) => filePath === "src/app/main.ts" || filePath.startsWith("src/app/http/");
-const OFFICE = "src";
-const STUDIO = "console";
+const OFFICE = "packages/office";
+const OFFICE_SOURCE = `${OFFICE}/src`;
+const STUDIO = "packages/studio";
 const CONTRACT = "packages/contract";
+const MAY_REGISTER_PROJECTS = (filePath: string) => filePath === `${OFFICE_SOURCE}/app/main.ts` || filePath.startsWith(`${OFFICE_SOURCE}/app/http/`);
 
 export function checkArchitecture(files: SourceFile[]): Violation[] {
   return files.flatMap((file) => violationsIn(file));
@@ -94,8 +95,9 @@ function forbiddenReason(from: Location, to: Location): string | null {
 }
 
 function locate(filePath: string): Location | null {
-  const [root, context, layer] = filePath.split("/");
-  if (root !== "src" || !context) return null;
+  if (!within(OFFICE_SOURCE, filePath)) return null;
+  const [context, layer] = filePath.slice(OFFICE_SOURCE.length + 1).split("/");
+  if (!context) return null;
   if (context === "kernel") return { context, layer: null };
   const known: Layer[] = ["domain", "application", "adapters"];
   return { context, layer: known.find((candidate) => candidate === layer) ?? null };
