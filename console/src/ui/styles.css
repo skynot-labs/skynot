@@ -541,6 +541,9 @@ dialog {
   box-shadow: 0 30px 100px #0008;
   overflow: auto;
 }
+dialog:focus-visible {
+  outline: none;
+}
 dialog::backdrop {
   background: #14131dcc;
   backdrop-filter: blur(5px);
