@@ -1,5 +1,11 @@
 import type { ComponentChildren } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "preact/hooks";
 import type { Decision, Message, Order, Project, Send } from "../contracts";
 import { planOf } from "../application/plans";
 import { OrderChip } from "./OrderDetail";
@@ -15,6 +21,7 @@ export function Modal({
   notice,
   onClose,
   size = "normal",
+  covered = false,
 }: {
   title: string;
   eyebrow: string;
@@ -22,10 +29,13 @@ export function Modal({
   notice?: ComponentChildren;
   onClose: () => void;
   size?: "normal" | "wide" | "full";
+  covered?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const opener = useRef<Element | null>(null);
   const typedIn = useRef(new Set<HTMLInputElement | HTMLTextAreaElement>());
-  const closeFromBackdrop = () => {
+  const closeUnlessTyped = () => {
     const holdsText = [...typedIn.current].some(
       (field) => field.isConnected && field.value !== "",
     );
@@ -33,32 +43,48 @@ export function Modal({
   };
   // A full panel opens beside the sidebar, which has to stay usable: showModal would make it inert.
   const beside = size === "full";
-  useEffect(() => {
+  // Closed in the layout phase, while the dialog is still in the document: the platform returns focus only from there.
+  useLayoutEffect(() => {
     const element = ref.current;
-    if (!beside) {
-      element?.showModal();
-      return () => element?.close();
-    }
-    element?.show();
-    element?.focus();
+    if (!element) return;
+    opener.current = document.activeElement;
+    if (beside) {
+      element.show();
+      element.focus();
+    } else element.showModal();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape" || event.isComposing || element.hidden) return;
+      if (holdsSearch(event.target)) return;
+      // Prevented here and not on cancel: Chromium closes a modal on a second Escape whatever cancel answered.
+      event.preventDefault();
+      closeUnlessTyped();
     };
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
-      element?.close();
+      element.close();
     };
   }, []);
+  useEffect(() => () => returnFocus(opener.current), []);
   return (
     <>
-      {beside && <div class="panel-backdrop" onClick={closeFromBackdrop} />}
+      {beside && (
+        <div
+          class="panel-backdrop"
+          hidden={covered}
+          onClick={closeUnlessTyped}
+        />
+      )}
       <dialog
         ref={ref}
         tabIndex={-1}
+        hidden={covered}
         class={size === "normal" ? "" : `modal-${size}`}
-        aria-labelledby="dialogTitle"
-        onCancel={onClose}
+        aria-labelledby={titleId}
+        onCancel={(event) => {
+          event.preventDefault();
+          closeUnlessTyped();
+        }}
         onInput={(event) => {
           const field = event.target;
           if (
@@ -77,13 +103,13 @@ export function Modal({
             event.clientY < rect.top ||
             event.clientY > rect.bottom
           )
-            closeFromBackdrop();
+            closeUnlessTyped();
         }}
       >
         <div class="modal-header">
           <div>
             <div class="eyebrow">{eyebrow}</div>
-            <h2 id="dialogTitle">{title}</h2>
+            <h2 id={titleId}>{title}</h2>
           </div>
           <button
             class="icon-button"
@@ -98,6 +124,24 @@ export function Modal({
       </dialog>
     </>
   );
+}
+
+const holdsSearch = (target: EventTarget | null): boolean =>
+  target instanceof HTMLInputElement &&
+  target.type === "search" &&
+  target.value !== "";
+
+// What the platform could not return focus to was inert, hidden or gone when the dialog closed.
+function returnFocus(opener: Element | null) {
+  const places = [
+    opener,
+    document.querySelector("dialog[open]:not([hidden])"),
+    document.querySelector("main"),
+  ];
+  for (const place of places) {
+    if (document.activeElement !== document.body) return;
+    if (place instanceof HTMLElement) place.focus();
+  }
 }
 
 export function ManagerChat({

@@ -21,13 +21,13 @@ test.describe("a dialog and what was typed in it", () => {
     await expect(dialog(page)).toBeHidden();
   });
 
-  test("a click outside keeps a form that holds typed text, and Escape still closes it", async ({ page }) => {
+  test("a click outside keeps a form that holds typed text, and the Close button still closes it", async ({ page }) => {
     await page.goto("/");
     await sidebar(page).getByRole("button", { name: "Register a project" }).click();
     await dialog(page).getByLabel("ID", { exact: true }).pressSequentially("gamma");
     await page.mouse.click(5, 5);
     await expect(dialog(page).getByLabel("ID", { exact: true })).toHaveValue("gamma");
-    await page.keyboard.press("Escape");
+    await dialog(page).getByRole("button", { name: "Close dialog" }).click();
     await expect(dialog(page)).toBeHidden();
   });
 
