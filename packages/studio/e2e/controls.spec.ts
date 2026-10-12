@@ -145,6 +145,35 @@ test.describe("where the keyboard is after a command", () => {
     await expect(box).toBeFocused();
   });
 
+  test("a worker's question shown in the chat is answered there, once, for its own order", async ({ page }) => {
+    const about = (id: string, orderId: string, text: string): Message => ({ id, author: "manager", text, at: STAGED_AT, orderId, decisionId: null, consulted: [] });
+    const shop = await stageShop(page, {
+      orders: [stagedOrder("WO-901", "on_bench", { question: "Which footer?" }), stagedOrder("WO-902", "on_bench")],
+      chat: [
+        about("message-1", "WO-901", "Here is the order for the footer."),
+        about("message-2", "WO-902", "WO-902 is blocked: the worker gave up."),
+        about("message-3", "WO-901", "WO-901 has a question for you: Which footer? Answer it here, on its card or in the inbox."),
+      ],
+    });
+    const sent: unknown[] = [];
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/commands/answer-question")) sent.push(request.postDataJSON());
+    });
+    await openProject(page, PROJECT);
+    const chat = await openManagerChat(page);
+    const asked = chat.getByRole("article").filter({ hasText: "has a question for you" });
+
+    await expect(chat.getByRole("textbox", { name: "Answer", exact: true })).toHaveCount(1);
+    await expect(asked.getByText("The worker is waiting for your answer: Which footer?")).toBeVisible();
+    await asked.getByRole("textbox", { name: "Answer", exact: true }).fill("The left one");
+    await pressWithKeyboard(asked.getByRole("button", { name: "Answer", exact: true }));
+
+    await expect(chat.getByRole("textbox", { name: "Answer", exact: true })).toHaveCount(0);
+    await expect(chat.getByLabel("Message to the Manager")).toBeFocused();
+    expect(sent).toEqual([{ orderId: "WO-901", answer: "The left one" }]);
+    expect(shop.commands).toEqual(["answer-question"]);
+  });
+
   test("an answer and a follow-up from an agent's desk leave focus in the desk's box", async ({ page }) => {
     const shop = await stageShop(page, { orders: [askingInReview("WO-901")] });
     await openProject(page, PROJECT);

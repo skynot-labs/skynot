@@ -80,6 +80,13 @@
   padding: 9px 12px;
   font-size: 10px;
 }
+.chat-message .order-text-form input {
+  padding: 9px 11px;
+  font-size: 11px;
+}
+.chat-message .order-text-form button {
+  padding: 9px 12px;
+}
 .chat-pinned {
   display: grid;
   gap: 6px;
