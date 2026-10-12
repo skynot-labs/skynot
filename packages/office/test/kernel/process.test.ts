@@ -9,6 +9,14 @@ describe("exec", () => {
     expect(await exec("sh", ["-c", "echo out; echo err >&2; exit 3"])).toEqual({ stdout: "out\n", stderr: "err\n", code: 3 });
   });
 
+  it("does not hand the tsconfig the office was started with to what it runs", async () => {
+    const fixture = path.join(import.meta.dirname, "prints-child-env.fixture.ts");
+
+    const office = await exec("npx", ["tsx", "--tsconfig", "packages/office/tsconfig.json", fixture]);
+
+    expect(office).toMatchObject({ stdout: "none\n", code: 0 });
+  });
+
   it("keeps multi-byte characters whole in a long output", async () => {
     const result = await exec("node", ["-e", "process.stdout.write('x' + 'é'.repeat(300000))"]);
 
