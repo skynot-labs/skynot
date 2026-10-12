@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - console/**
-      - src/app/http/contract.ts
+      - packages/contract/**
       - src/app/http/state.ts
       - package.json
       - package-lock.json

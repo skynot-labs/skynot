@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { CONTRACT } from "../../src/app/http/contract";
+import { CONTRACT } from "@skynot/contract";
 import { LOCAL_OFFICE, PAIRING_SECRET, SESSION_OFFICE } from "./offices";
 import { expect, tellTheManager, test } from "./support";
 

@@ -4,6 +4,9 @@
   "private": true,
   "license": "MIT",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "description": "A dev shop of AI agents: a Manager runs per-project teams that deliver software.",
   "engines": {
     "node": ">=22"

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
-import { CONTRACT } from "../../../src/app/http/contract";
+import { CONTRACT } from "@skynot/contract";
 import { HttpGateway } from "../adapters/http-gateway";
 import { forgetConnection, officeOrigin, pair, pairingFrom, rememberConnection, rememberedConnection, type Connection } from "./connection";
 

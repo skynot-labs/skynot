@@ -5,7 +5,7 @@ import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { issueSession, pairingLink, readOfficeAccess, type OfficeAccess } from "../../src/app/http/access";
 import { createApi } from "../../src/app/http/api";
-import { CONTRACT } from "../../src/app/http/contract";
+import { CONTRACT } from "@skynot/contract";
 import { createMockDeveloper, createMockManager } from "../../src/app/mock-engines";
 import { createShop, type Shop } from "../../src/app/shop";
 import { FakeVcs, FakeWorkspace } from "../../src/delivery";

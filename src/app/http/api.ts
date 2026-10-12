@@ -10,7 +10,7 @@ import { PREFERENCE_KEY, setPreference } from "../preferences";
 import { registrationProblem, type ProjectsFolder } from "../projects";
 import type { Shop } from "../shop";
 import { issueSession, pairingDesk, sessionIsValid, type OfficeAccess } from "./access";
-import { CONTRACT } from "./contract";
+import { CONTRACT } from "@skynot/contract";
 import { readState } from "./state";
 
 export interface ApiOptions {
