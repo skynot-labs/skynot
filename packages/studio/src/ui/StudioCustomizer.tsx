@@ -243,8 +243,10 @@ export function StudioCustomizer({
           </button>
           <button
             class="primary-button"
-            disabled={busy}
-            onClick={() => onSave(draft)}
+            aria-disabled={busy}
+            onClick={() => {
+              if (!busy) onSave(draft);
+            }}
           >
             Save style
             <Icon name="check" />

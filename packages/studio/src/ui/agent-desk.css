@@ -53,7 +53,7 @@ dialog:has(.agent-desk) {
 .agent-desk-tabs button:hover {
   color: var(--text);
 }
-.agent-desk-tabs button[aria-selected="true"] {
+.agent-desk-tabs button[aria-pressed="true"] {
   color: var(--mint);
   border-bottom-color: var(--mint);
 }

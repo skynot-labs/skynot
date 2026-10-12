@@ -914,6 +914,10 @@ textarea {
   font-size: 12px;
   margin-bottom: 20px;
 }
+.order-detail-top:focus-visible {
+  outline: 2px solid var(--sk-focus);
+  outline-offset: 4px;
+}
 .order-objective {
   font-size: 12px;
   line-height: 1.9;
@@ -1158,12 +1162,9 @@ textarea {
   }
   .skynot-shell .sidebar {
     display: block;
-    position: sticky;
-    top: 0;
     background: #191922f5;
     backdrop-filter: blur(8px);
     min-height: 0;
-    z-index: 4;
     padding: 7px 16px;
     border-right: 0;
     border-bottom: 1px solid var(--border);
@@ -1480,7 +1481,7 @@ textarea {
 .cost-tabs button:hover {
   color: var(--text);
 }
-.cost-tabs button[aria-selected="true"] {
+.cost-tabs button[aria-pressed="true"] {
   color: var(--mint);
   border-bottom-color: var(--mint);
 }

@@ -27,6 +27,10 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
+/* The group clips what is drawn outside it, so the ring is drawn inside. */
+.studio-pause-controls button:focus-visible {
+  outline-offset: -2px;
+}
 .studio-pause-controls button + button {
   border-left: 1px solid #ffffff18;
 }
@@ -131,6 +135,13 @@ button.inbox-heading {
   background: transparent;
   color: inherit;
   text-align: left;
+}
+/* The dock clips what is drawn outside it, so the ring is drawn inside. */
+button.inbox-heading:focus-visible,
+.inbox-tabs:focus-visible,
+.director-tabpanel:focus-visible {
+  outline: 2px solid var(--sk-focus);
+  outline-offset: -2px;
 }
 button.inbox-heading:hover h2 {
   color: #d2e4cb;
@@ -319,7 +330,7 @@ button.inbox-heading:hover h2 {
   font-size: 10px;
   border-bottom: 2px solid transparent;
 }
-.inbox-tabs button[aria-selected="true"] {
+.inbox-tabs button[aria-pressed="true"] {
   color: #d2e4cb;
   border-bottom-color: #a5d7b8;
 }

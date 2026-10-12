@@ -104,6 +104,7 @@ function Question({
   answerWith,
   send,
   busy,
+  onAnswered,
 }: {
   kind: InboxItem["kind"];
   label: string;
@@ -116,6 +117,7 @@ function Question({
   answerWith: (answer: string) => Command;
   send: Send;
   busy: boolean;
+  onAnswered?: () => void;
 }) {
   const [answer, setAnswer] = useState("");
   return (
@@ -149,7 +151,9 @@ function Question({
           const text = answer.trim();
           if (busy || !text) return;
           void send(answerWith(text)).then((ok) => {
-            if (ok) setAnswer("");
+            if (!ok) return;
+            setAnswer("");
+            onAnswered?.();
           });
         }}
       >
@@ -159,9 +163,11 @@ function Question({
               <button
                 type="button"
                 key={option}
-                disabled={busy}
+                aria-disabled={busy}
                 aria-pressed={answer === option}
-                onClick={() => setAnswer(option)}
+                onClick={() => {
+                  if (!busy) setAnswer(option);
+                }}
               >
                 {option}
               </button>
@@ -176,17 +182,24 @@ function Question({
             maxLength={4000}
             placeholder={
               options.length > 0
-                ? "Pick an option or explain your decision…"
-                : "Explain your decision…"
+                ? "Pick an option or explain your decision… Ctrl+Enter sends it."
+                : "Explain your decision… Ctrl+Enter sends it."
             }
             value={answer}
             onInput={(event) => setAnswer(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && (event.metaKey || event.ctrlKey))
+                event.currentTarget.form?.requestSubmit();
+            }}
           />
         </label>
         <button
           type="submit"
           class="primary-button answer-submit"
-          disabled={busy || !answer.trim()}
+          disabled={!answer.trim()}
+          aria-disabled={busy}
+          title="Ctrl+Enter sends it"
+          aria-keyshortcuts="Control+Enter Meta+Enter"
         >
           Send answer
           <Icon name="arrow" />
@@ -235,6 +248,7 @@ function Proposal({
   discarding,
   send,
   busy,
+  onSettled,
   children,
 }: {
   eyebrow: string;
@@ -244,8 +258,13 @@ function Proposal({
   discarding?: Command;
   send: Send;
   busy: boolean;
+  onSettled?: (() => void) | undefined;
   children: ComponentChildren;
 }) {
+  const settle = (command: Command) =>
+    void send(command).then((ok) => {
+      if (ok) onSettled?.();
+    });
   return (
     <article class="inbox-proposal">
       <span class="eyebrow">{eyebrow}</span>
@@ -255,8 +274,8 @@ function Proposal({
         <button
           type="button"
           class="primary-button"
-          disabled={busy}
-          onClick={() => void send(signing)}
+          aria-disabled={busy}
+          onClick={() => settle(signing)}
         >
           {signLabel}
         </button>
@@ -264,8 +283,8 @@ function Proposal({
           <button
             type="button"
             class="danger-button"
-            disabled={busy}
-            onClick={() => void send(discarding)}
+            aria-disabled={busy}
+            onClick={() => settle(discarding)}
           >
             Discard
           </button>
@@ -280,11 +299,13 @@ export function TeamChangeProposal({
   send,
   busy,
   onTeam,
+  onSettled,
 }: {
   change: TeamChange;
   send: Send;
   busy: boolean;
   onTeam?: () => void;
+  onSettled?: () => void;
 }) {
   const payload = { changeId: change.id };
   return (
@@ -295,6 +316,7 @@ export function TeamChangeProposal({
       discarding={{ name: "discard-team-change", payload }}
       send={send}
       busy={busy}
+      onSettled={onSettled}
     >
       <p>{change.reason}</p>
       {change.focus && <p>New focus: {change.focus}</p>}
@@ -312,10 +334,12 @@ export function BriefingChangeProposal({
   change,
   send,
   busy,
+  onSettled,
 }: {
   change: BriefingChange;
   send: Send;
   busy: boolean;
+  onSettled?: () => void;
 }) {
   const payload = { changeId: change.id };
   return (
@@ -326,6 +350,7 @@ export function BriefingChangeProposal({
       discarding={{ name: "discard-briefing-change", payload }}
       send={send}
       busy={busy}
+      onSettled={onSettled}
     >
       <p>{change.reason}</p>
       <pre class="proposal-briefing">{change.text}</pre>
@@ -380,6 +405,21 @@ export function DecisionInbox({
     .map(([, name, count]) => `${count} ${name}`)
     .join(" · ");
   const tabId = `director-${project.id}`;
+  const plans = plansToSign(project.orders);
+  const lists = useRef<HTMLDivElement>(null);
+  const toDecide = useRef<HTMLDivElement>(null);
+  const toSign = useRef<HTMLDivElement>(null);
+  // The desk swaps a list out once it is empty, so focus goes to what stays: the list while it has more, else the row that names the lists.
+  const focusAfter = (list: typeof lists, left: number) => () =>
+    (left > 0 ? list : lists).current?.focus();
+  const afterAnswer = focusAfter(toDecide, project.inbox.length - 1);
+  const afterSigning = focusAfter(
+    toSign,
+    plans.length +
+      project.teamChanges.length +
+      project.briefingChanges.length -
+      1,
+  );
   const askerName = (item: { from: string }) =>
     project.agents.find((agent) => agent.id === item.from)?.name ?? item.from;
   return (
@@ -409,7 +449,13 @@ export function DecisionInbox({
       <p class="inbox-intro">
         Questions, doubts and proposals. Your call gets the team moving.
       </p>
-      <div class="inbox-tabs" role="tablist" aria-label="Waiting for you">
+      <div
+        class="inbox-tabs"
+        role="group"
+        aria-label="Waiting for you"
+        ref={lists}
+        tabIndex={-1}
+      >
         {(
           [
             ["questions", "To decide", project.inbox.length],
@@ -419,10 +465,8 @@ export function DecisionInbox({
           ] as const
         ).map(([id, title, count]) => (
           <button
-            role="tab"
             id={`${tabId}-${id}`}
-            aria-controls={`${tabId}-${id}-panel`}
-            aria-selected={tab === id}
+            aria-pressed={tab === id}
             onClick={() => setTab(id)}
             key={id}
           >
@@ -433,9 +477,10 @@ export function DecisionInbox({
       </div>
       <div
         class="director-tabpanel"
-        role="tabpanel"
-        id={`${tabId}-questions-panel`}
+        role="group"
         aria-labelledby={`${tabId}-questions`}
+        ref={toDecide}
+        tabIndex={-1}
         hidden={tab !== "questions"}
       >
         {project.inbox.map((item) => {
@@ -457,6 +502,7 @@ export function DecisionInbox({
               })}
               send={send}
               busy={busy}
+              onAnswered={afterAnswer}
             />
           ) : (
             <Question
@@ -477,6 +523,7 @@ export function DecisionInbox({
               })}
               send={send}
               busy={busy}
+              onAnswered={afterAnswer}
             />
           );
         })}
@@ -490,12 +537,13 @@ export function DecisionInbox({
       </div>
       <div
         class="director-tabpanel"
-        role="tabpanel"
-        id={`${tabId}-signatures-panel`}
+        role="group"
         aria-labelledby={`${tabId}-signatures`}
+        ref={toSign}
+        tabIndex={-1}
         hidden={tab !== "signatures"}
       >
-        {plansToSign(project.orders).map((plan) => {
+        {plans.map((plan) => {
           const first = plan[0]!;
           return (
             <Proposal
@@ -516,6 +564,7 @@ export function DecisionInbox({
               })}
               send={send}
               busy={busy}
+              onSettled={afterSigning}
             >
               <ol class="proposal-plan">
                 {plan.map((order) => (
@@ -545,6 +594,7 @@ export function DecisionInbox({
             send={send}
             busy={busy}
             onTeam={onTeam}
+            onSettled={afterSigning}
           />
         ))}
         {project.briefingChanges.map((change) => (
@@ -553,6 +603,7 @@ export function DecisionInbox({
             change={change}
             send={send}
             busy={busy}
+            onSettled={afterSigning}
           />
         ))}
         {signatures === 0 && (
@@ -568,8 +619,7 @@ export function DecisionInbox({
       </div>
       <div
         class="director-tabpanel"
-        role="tabpanel"
-        id={`${tabId}-blocked-panel`}
+        role="group"
         aria-labelledby={`${tabId}-blocked`}
         hidden={tab !== "blocked"}
       >
@@ -585,7 +635,7 @@ export function DecisionInbox({
                   <button
                     type="button"
                     class="primary-button"
-                    disabled={busy}
+                    aria-disabled={busy}
                     onClick={() => void send(unblock.command)}
                   >
                     {unblock.label}
@@ -613,8 +663,7 @@ export function DecisionInbox({
       </div>
       <div
         class="director-tabpanel"
-        role="tabpanel"
-        id={`${tabId}-answered-panel`}
+        role="group"
         aria-labelledby={`${tabId}-answered`}
         hidden={tab !== "answered"}
       >

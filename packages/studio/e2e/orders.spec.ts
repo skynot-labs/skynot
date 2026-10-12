@@ -113,7 +113,7 @@ test.describe.serial("a work order on every surface that shows it", () => {
 
       await openDecisionDesk(page);
       await openView(page, "Decisions");
-      await desk(page).getByRole("tab", { name: "To sign" }).click();
+      await desk(page).getByRole("group", { name: "Waiting for you" }).getByRole("button", { name: "To sign" }).click();
       const proposal = desk(page).getByRole("article").filter({ hasText: `WORK ORDER · ${orderId}` });
       await expectInside(proposal.getByRole("heading", { name: UNBROKEN }), proposal);
       await expectInside(proposal.getByRole("button", { name: "Discard" }), proposal);
@@ -193,7 +193,7 @@ test.describe.serial("a work order on every surface that shows it", () => {
     await openProject(page, PROJECT);
     await openDecisionDesk(page);
     await openView(page, "Decisions");
-    await desk(page).getByRole("tab", { name: "To sign" }).click();
+    await desk(page).getByRole("group", { name: "Waiting for you" }).getByRole("button", { name: "To sign" }).click();
 
     for (const [view, title] of [["Agents", "Refocus developer"], ["Context", "New briefing"]] as const) {
       const proposal = (within: Locator) => within.getByRole("article").filter({ has: page.getByRole("heading", { name: title }) });

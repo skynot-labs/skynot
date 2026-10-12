@@ -84,7 +84,7 @@ dialog:has(.avatar-editor) {
   background: transparent;
   font-size: 12px;
 }
-.avatar-editor-tabs button[aria-selected="true"] {
+.avatar-editor-tabs button[aria-pressed="true"] {
   color: #d8c7f0;
   background: #b7a0de16;
   border-color: #9b82bb60;

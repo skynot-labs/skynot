@@ -334,7 +334,7 @@ test.describe.serial("the director's projects", () => {
     await openProject(page, "beta");
     await page.route("**/api/commands/set-preference", (route) => route.abort());
     await roster(page).getByRole("button", { name: "developer" }).click();
-    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
     await dialog(page).getByLabel("DISPLAY ALIAS").fill("Grace Hopper");
     await dialog(page).getByRole("button", { name: "Save avatar" }).click();
 
@@ -395,7 +395,7 @@ test.describe.serial("the director's projects", () => {
     await expect(projectEntry(page, "beta")).toContainText("Kyoto · Year-round");
 
     await roster(page).getByRole("button", { name: "developer" }).click();
-    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
     await dialog(page).getByLabel("DISPLAY ALIAS").fill("Ada Lovelace");
     await dialog(page).getByRole("button", { name: "Save avatar" }).click();
     await expect(toast(page, "Avatar saved for this agent and project.")).toBeVisible();
@@ -484,7 +484,7 @@ test.describe.serial("the director's projects", () => {
       await route.continue();
     });
     await roster(page).getByRole("button", { name: "manager" }).click();
-    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
     await dialog(page).getByRole("button", { name: "Save avatar" }).click();
     await page.keyboard.press("Escape");
     await expect(dialog(page)).toBeHidden();

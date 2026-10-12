@@ -157,6 +157,8 @@ export function ManagerChat({
 }) {
   const [message, setMessage] = useState("");
   const list = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const backToBox = () => box.current?.focus();
   const manager = project.agents.find((agent) => agent.kind === "manager");
   const latest = project.chat.at(-1)?.decisionId;
   const buried = project.decisions.filter((decision) => decision.id !== latest);
@@ -167,6 +169,7 @@ export function ManagerChat({
     event.preventDefault();
     const text = message.trim();
     if (!text || busy) return;
+    backToBox();
     setMessage("");
     const sent = await send({
       name: "send-message",
@@ -208,6 +211,7 @@ export function ManagerChat({
             send={send}
             busy={busy}
             onOrder={onOrder}
+            onSettled={backToBox}
           />
         ))}
         {project.chat.length === 0 && (
@@ -228,6 +232,7 @@ export function ManagerChat({
       </div>
       <form class="chat-compose" onSubmit={submit}>
         <textarea
+          ref={box}
           aria-label="Message to the Manager"
           data-gramm="false"
           data-gramm_editor="false"
@@ -240,11 +245,14 @@ export function ManagerChat({
             if (event.key === "Enter" && (event.metaKey || event.ctrlKey))
               void submit(event);
           }}
-          placeholder="An idea, a bug, a question…"
+          placeholder="An idea, a bug, a question… Ctrl+Enter sends it."
         />
         <button
           class="primary-button"
-          disabled={busy || !message.trim()}
+          disabled={!message.trim()}
+          aria-disabled={busy}
+          title="Ctrl+Enter sends it"
+          aria-keyshortcuts="Control+Enter Meta+Enter"
           type="submit"
         >
           Send
@@ -443,7 +451,12 @@ export function RegisterProject({
         <button class="secondary-button" type="button" onClick={onClose}>
           Cancel
         </button>
-        <button class="primary-button" type="submit" disabled={busy || !ready}>
+        <button
+          class="primary-button"
+          type="submit"
+          disabled={!ready}
+          aria-disabled={busy}
+        >
           Register the project
           <Icon name="arrow" />
         </button>
@@ -464,12 +477,14 @@ function ChatMessage({
   send,
   busy,
   onOrder,
+  onSettled,
 }: {
   message: Message;
   project: Project;
   send: Send;
   busy: boolean;
   onOrder: (order: Order) => void;
+  onSettled: () => void;
 }) {
   const order = message.orderId
     ? project.orders.find((candidate) => candidate.id === message.orderId)
@@ -495,9 +510,17 @@ function ChatMessage({
           send={send}
           busy={busy}
           onOrder={onOrder}
+          onSigned={onSettled}
         />
       )}
-      {decision && <ChatQuestion decision={decision} send={send} busy={busy} />}
+      {decision && (
+        <ChatQuestion
+          decision={decision}
+          send={send}
+          busy={busy}
+          onAnswered={onSettled}
+        />
+      )}
     </article>
   );
 }
@@ -507,11 +530,13 @@ function ChatPlan({
   send,
   busy,
   onOrder,
+  onSigned,
 }: {
   orders: Order[];
   send: Send;
   busy: boolean;
   onOrder: (order: Order) => void;
+  onSigned: () => void;
 }) {
   const first = orders[0]!;
   const toSign = orders.filter(
@@ -555,9 +580,14 @@ function ChatPlan({
         <button
           class="primary-button"
           type="button"
-          disabled={busy}
+          aria-disabled={busy}
           onClick={() =>
-            void send({ name: "sign-plan", payload: { plan: first.plan } })
+            void send({
+              name: "sign-plan",
+              payload: { plan: first.plan },
+            }).then((ok) => {
+              if (ok) onSigned();
+            })
           }
         >
           {orders.length > 1 ? "Sign the plan" : "Sign"}
@@ -572,10 +602,12 @@ function ChatQuestion({
   decision,
   send,
   busy,
+  onAnswered,
 }: {
   decision: Decision;
   send: Send;
   busy: boolean;
+  onAnswered: () => void;
 }) {
   const [other, setOther] = useState("");
   const answer = (value: string) =>
@@ -592,9 +624,11 @@ function ChatQuestion({
             <button
               type="button"
               key={option}
-              disabled={busy}
+              aria-disabled={busy}
               aria-pressed={other === option}
-              onClick={() => setOther(option)}
+              onClick={() => {
+                if (!busy) setOther(option);
+              }}
             >
               {option}
             </button>
@@ -606,7 +640,9 @@ function ChatQuestion({
         onSubmit={async (event) => {
           event.preventDefault();
           const value = other.trim();
-          if (value && (await answer(value))) setOther("");
+          if (!value || !(await answer(value))) return;
+          setOther("");
+          onAnswered();
         }}
       >
         <input
@@ -624,7 +660,8 @@ function ChatQuestion({
         <button
           class="secondary-button"
           type="submit"
-          disabled={busy || !other.trim()}
+          disabled={!other.trim()}
+          aria-disabled={busy}
         >
           Answer
         </button>

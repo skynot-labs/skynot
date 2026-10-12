@@ -1,5 +1,5 @@
 import type { JSX } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import type { MinutesBucket, Order, Project, Send } from "../contracts";
 import { Icon } from "./Icon";
 import { RichLine } from "./RichText";
@@ -55,6 +55,10 @@ export function OrderDetail({
   busy: boolean;
 }) {
   const orderId = order.id;
+  const top = useRef<HTMLDivElement>(null);
+  // Signing or discarding takes the pressed button away: focus goes to the row that says what the order became.
+  const leaves = (name: OrderAction) =>
+    name === "sign-order" || name === "discard-order";
   const action = (
     name: OrderAction,
     label: string,
@@ -63,8 +67,12 @@ export function OrderDetail({
     <button
       type="button"
       class={`${style}-button ${name === "discard-order" ? "order-discard" : ""}`}
-      disabled={busy}
-      onClick={() => void send({ name, payload: { orderId } })}
+      aria-disabled={busy}
+      onClick={() =>
+        void send({ name, payload: { orderId } }).then((ok) => {
+          if (ok && leaves(name)) top.current?.focus();
+        })
+      }
     >
       {label}
     </button>
@@ -74,7 +82,7 @@ export function OrderDetail({
 
   return (
     <>
-      <div class="order-detail-top">
+      <div class="order-detail-top" ref={top} tabIndex={-1}>
         <OrderChip order={order} />
         {order.ticket !== null && (
           <span class="mono">From ticket #{order.ticket}</span>
@@ -105,7 +113,7 @@ export function OrderDetail({
               <button
                 type="button"
                 class="primary-button"
-                disabled={busy}
+                aria-disabled={busy}
                 onClick={() => void send(unblock.command)}
               >
                 {unblock.label}
@@ -222,7 +230,7 @@ export function OrderDetail({
                 type="button"
                 class="secondary-button"
                 key={bucket}
-                disabled={busy}
+                aria-disabled={busy}
                 onClick={() =>
                   void send({
                     name: "record-minutes",
@@ -410,7 +418,8 @@ function TextForm({
       <button
         type="submit"
         class="secondary-button"
-        disabled={busy || !text.trim()}
+        disabled={!text.trim()}
+        aria-disabled={busy}
       >
         {label}
       </button>

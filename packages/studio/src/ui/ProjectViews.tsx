@@ -292,7 +292,7 @@ export function AgentsView({
               {runId !== null && (
                 <button
                   class="danger-button agent-stop"
-                  disabled={busy}
+                  aria-disabled={busy}
                   onClick={() =>
                     void send({ name: "stop-run", payload: { runId } })
                   }
@@ -431,7 +431,7 @@ export function UsageView({
         </section>
       </div>
       <section class="panel cost-table">
-        <div class="cost-tabs" role="tablist" aria-label="Where the money went">
+        <div class="cost-tabs" role="group" aria-label="Where the money went">
           {(
             [
               ["orders", "Per work order", spenders.length],
@@ -440,10 +440,7 @@ export function UsageView({
             ] as const
           ).map(([id, title, count]) => (
             <button
-              role="tab"
-              id={`cost-tab-${id}`}
-              aria-controls="cost-tabpanel"
-              aria-selected={tab === id}
+              aria-pressed={tab === id}
               onClick={() => setTab(id)}
               key={id}
             >
@@ -452,11 +449,7 @@ export function UsageView({
             </button>
           ))}
         </div>
-        <div
-          role="tabpanel"
-          id="cost-tabpanel"
-          aria-labelledby={`cost-tab-${tab}`}
-        >
+        <div>
           {tab === "orders" && (
             <>
               {spenders.length > 0 ? (
@@ -753,7 +746,7 @@ function ProfileCard({
             >
               Cancel
             </button>
-            <button type="submit" class="primary-button" disabled={busy}>
+            <button type="submit" class="primary-button" aria-disabled={busy}>
               Save
             </button>
           </div>
@@ -791,7 +784,7 @@ function PauseCard({
       </p>
       <button
         class="secondary-button"
-        disabled={busy}
+        aria-disabled={busy}
         onClick={() =>
           void send({
             name: paused ? "resume-project" : "pause-project",
@@ -892,7 +885,7 @@ export function ContextView({
             <span class="panel-title">Setup</span>
             <button
               class="text-button"
-              disabled={busy}
+              aria-disabled={busy}
               onClick={() => void send({ name: "recheck", payload: {} })}
             >
               Check again
