@@ -42,14 +42,15 @@ console (web)  ──API / event log──▶  orchestrator  ──▶ role runs
 
 - **Console** is a thin client: the studio where the team is seen working, chat with the Manager, work orders, logbook, pending decisions. It only talks to the orchestrator's API and event log, so Telegram (roadmap) can be added without touching the core. It can also be published on its own and paired with an office elsewhere, behind a session ([connecting a studio](connecting-a-studio.md)).
 - **Orchestrator and roles run together**, in one deployable service. Roles are memory folders plus the engine that runs them, not separate deployments.
-- **Hosting:** everything on the local KVM VM behind Tailscale *(proposed)*. A remote host for the console only, if ever needed, is a later and independent decision.
+- **Hosting:** the office runs on one machine, the director's own or a [server](running-on-a-server.md). The studio is either the console that office serves or the public one on GitHub Pages, paired with it.
 
 ## Architecture
 
 Hexagonal, light DDD, event-driven.
 
-- **Bounded contexts:** Orders (work order lifecycle), Team (roles, rosters, hiring), Execution (role runs, queue, concurrency, engines), Delivery (worktrees, verification, GitHub, PRs), Memory (the memory repo), Governance (policy and limits).
-- **Layout:** `packages/office/src/<context>/{domain,application,adapters}` plus a small shared kernel. The domain never imports an adapter; `test/architecture` enforces it.
+- **Bounded contexts:** Orders (work order lifecycle), Team (roles, rosters, hiring), Execution (role runs, queue, concurrency, engines), Delivery (worktrees, verification, GitHub, PRs), Governance (policy and limits), Manager (the conversation with the director and what comes out of it), Projects (the repositories a shop works on). Memory (the memory repo) is planned, not built.
+- **Three packages:** `packages/office` is the service, `packages/studio` the console in the browser, and `packages/contract` what the two exchange: the state, the commands and the event stream, as schemas with a version. The studio knows the office only through the contract ([ADR 0002](adr/0002-studio-office-and-a-contract.md)).
+- **Layout of the office:** `packages/office/src/<context>/{domain,application,adapters}` plus a small shared kernel. The domain never imports an adapter; `test/architecture` enforces it, along with the boundaries between the packages.
 - **Outbound ports:** `RoleEngine` (adapters: claude CLI, codex CLI, fake), `Vcs` (gh, fake), `Workspace`, `MemoryStore`, `EventStore`, `Clock`. **Inbound:** web console over HTTP and SSE; Telegram later.
 - **Domain events** (`OrderDrafted`, `OrderSigned`, `TeamProposed`, `RoleRunStarted`, `RoleRunCompleted`, `VerificationFailed`, `PullRequestOpened`, `OrderDelivered`) go through an in-process bus and an append-only JSONL log. The log feeds the console, the logbook and the ledger, and coordinates the flow between contexts. State is rebuilt from the log at startup; no full event sourcing and no database at first.
 - **Light DDD:** aggregates only for the work order and the role run. Ubiquitous language in English. No empty layers.
@@ -100,7 +101,7 @@ No secrets in memory. Each important note links its source (issue, PR or directo
 ## GitHub *(proposed)*
 
 - A **dedicated GitHub organization** for the shop, owned by the director's account. Project repos live there, private when wanted, with CI, lint and tests in Actions.
-- A **machine account** inside the organization, used through `gh`, as the shop's identity. GitHub Apps come later; whether a bot approval satisfies branch protection is still to be validated.
+- A **machine account** inside the organization, used through `gh`, as the shop's identity. The shop can already act as a [GitHub App](github-app.md) instead; whether a bot approval satisfies branch protection is still to be validated.
 - The reviewer's approval must come from a different identity than the author's.
 - GitHub Projects boards for dashboards, to be confirmed as supported for the chosen identity.
 
@@ -119,7 +120,7 @@ No secrets in memory. Each important note links its source (issue, PR or directo
 
 ## Not included for now
 
-Autonomy levels per task type, a costs dashboard with automatic cut-off, the visual office, voice notes, local models, and any framework for multi-agent orchestration.
+Autonomy levels per task type, voice notes, local models, and any framework for multi-agent orchestration.
 
 ## Open questions
 

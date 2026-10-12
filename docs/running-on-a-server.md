@@ -135,5 +135,5 @@ the pairing link from its log. The steps are in [connecting a studio](connecting
 
 ## What this is not
 
-There is no login, no way to share a console with someone else, and no way to run the engines on a different
-machine than the service. Those are planned, not built.
+There are no accounts: whoever holds the pairing link is the director. And there is no way to run the engines
+on a different machine than the service. Those are planned, not built.
