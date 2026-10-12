@@ -134,6 +134,11 @@ function Console({
     return () => removeEventListener("popstate", follow);
   }, []);
   const [dockChoice, setDock] = useState<DockCard | null>(null);
+  const [dockCalls, setDockCalls] = useState(0);
+  const callDock = (card: DockCard) => {
+    setDock(card);
+    setDockCalls((calls) => calls + 1);
+  };
   const [dismissed, setDismissed] = useState<string[]>([]);
   const [collapsed, setCollapsed] = useState(
     () => remembered(sidebarKey) === "collapsed",
@@ -254,7 +259,7 @@ function Console({
   );
   const openManager = () => {
     setDialog(null);
-    setDock("manager");
+    callDock("manager");
   };
   const failing =
     snapshot?.readiness.filter((f) => f.level === "fail").length ?? 0;
@@ -339,7 +344,7 @@ function Console({
     const opens = panelOfEntry[entry];
     setBehind(null);
     setDialog(opens ? { kind: opens } : null);
-    if (entry === "decisions") setDock("decisions");
+    if (entry === "decisions") callDock("decisions");
   };
   // The numbers of the project at a glance: shown with the costs, in their view and in their panel.
   const stats = project && snapshot && (
@@ -708,7 +713,9 @@ function Console({
               onStats={() => setDialog({ kind: "costs" })}
               onContext={() => setDialog({ kind: "context" })}
               dock={dock}
-              onDock={setDock}
+              dockCalls={dockCalls}
+              onDock={callDock}
+              onDockUse={() => setDock("manager")}
               unread={unread}
               covered={dialog !== null}
               send={send}

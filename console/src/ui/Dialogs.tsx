@@ -5,6 +5,7 @@ import { planOf } from "../application/plans";
 import { orderStatus } from "./format";
 import { Icon } from "./Icon";
 import { RichLine, RichText } from "./RichText";
+import { announceArrival } from "./arrival";
 import "./shell.css";
 export { AvatarEditor } from "./AvatarEditor";
 
@@ -26,6 +27,7 @@ export function Modal({
   const beside = size === "full";
   useEffect(() => {
     const element = ref.current;
+    announceArrival(element);
     if (!beside) {
       element?.showModal();
       return () => element?.close();

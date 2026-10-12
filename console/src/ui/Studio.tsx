@@ -21,6 +21,7 @@ import {
   type StudioZone,
 } from "./office-layout";
 import { DecisionInbox } from "./DecisionInbox";
+import { announceArrival } from "./arrival";
 import { ManagerChat } from "./Dialogs";
 import { Icon } from "./Icon";
 import { AvatarCanvas } from "./AvatarCanvas";
@@ -42,7 +43,9 @@ export function StudioHero({
   onStats,
   onContext,
   dock,
+  dockCalls,
   onDock,
+  onDockUse,
   unread,
   send,
   busy,
@@ -61,7 +64,10 @@ export function StudioHero({
   onStats: () => void;
   onContext: () => void;
   dock: DockCard;
+  // Counts every time a card is asked for, so one that is already open still answers.
+  dockCalls: number;
   onDock: (card: DockCard) => void;
+  onDockUse: () => void;
   unread: number;
   send: Send;
   busy: boolean;
@@ -74,6 +80,12 @@ export function StudioHero({
   const pending = project.needsYou;
   const toggle = (card: DockCard) =>
     onDock(dock !== card ? card : card === "manager" ? "decisions" : "manager");
+  useEffect(() => {
+    if (dockCalls > 0)
+      announceArrival(
+        inbox.current?.querySelector(".director-inbox:not(.collapsed)"),
+      );
+  }, [dockCalls]);
   const stageHost = useRef<HTMLDivElement>(null);
   const stage = useRef<OfficeStage | null>(null);
   const stageHandlers = useRef<StageHandlers | null>(null);
@@ -255,7 +267,7 @@ export function StudioHero({
             open={dock === "manager"}
             unread={unread}
             onToggle={() => toggle("manager")}
-            onUse={() => onDock("manager")}
+            onUse={onDockUse}
             onOrder={onOrder}
           />
         </div>
