@@ -27,6 +27,7 @@ test.describe.serial("an order's life in alpha", () => {
 
   test("the director's idea comes back as a question, answered at the decision desk", async ({ page }) => {
     await openProject(page, PROJECT);
+    await openView(page, "Costs");
     await expect(metrics(page)).toContainText("0 questions");
 
     const chat = await tellTheManager(page, idea);
@@ -57,6 +58,7 @@ test.describe.serial("an order's life in alpha", () => {
 
   test("the proposed order waits for a signature, shows its acceptance criteria and is signed", async ({ page }) => {
     await openProject(page, PROJECT);
+    await openView(page, "Costs");
     await expect(metrics(page).getByRole("button", { name: /WORK ORDERS/ })).toContainText("1 to sign");
 
     await openView(page, "Work orders");
@@ -128,6 +130,7 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(boardColumn(page, "Delivered").getByRole("button", { name: idea })).toContainText("Delivered");
     await expect(boardColumn(page, "Delivered").getByRole("button", { name: idea })).not.toContainText("Ready to merge");
     await expect(boardColumn(page, "In review")).toContainText("Nothing here.");
+    await openView(page, "Costs");
     await expect(metrics(page).getByRole("button", { name: /WORK ORDERS/ })).toContainText("1 delivered");
   });
 
