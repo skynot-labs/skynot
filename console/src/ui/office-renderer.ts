@@ -72,7 +72,7 @@ export const BUBBLE_STEP_MS = 300;
 // Canvas pixels from the floor under a chair to the top of the sprite of whoever sits on it.
 export const SEATED_TOP = 90;
 /** Heights of a screen's bottom and top edge above the floor. */
-export const SCREEN = { bottom: 62, top: 90 };
+export const SCREEN = { bottom: 54, top: 79 };
 /** One cut of the scene on its own transparent canvas, placed at (x, y) of the office canvas. */
 export type Piece = {
   kind: "base" | "prop" | "labels" | "front" | "board";
@@ -263,52 +263,28 @@ class Office {
         ),
       );
     };
-    const monitor = (
-      u: number,
-      v: number,
-      active: boolean,
-      w: number,
-    ) => {
+    // A screen faces whoever sits behind the desk, so the room sees its back.
+    const monitor = (u: number, v: number, w: number) => {
       const y = SCREEN.bottom,
         h = SCREEN.top - SCREEN.bottom;
       // The foot and the neck stand under the middle of the screen and reach into it, or the screen reads as floating.
-      block(u + w / 2 - 0.15, v - 0.03, 0.3, 0.16, 2, "#667886", 47);
-      block(u + w / 2 - 0.045, v + 0.01, 0.09, 0.07, y - 45, "#697986", 49);
+      block(u + w / 2 - 0.15, v - 0.06, 0.3, 0.16, 2, "#667886", 47);
+      block(u + w / 2 - 0.045, v - 0.05, 0.09, 0.07, y - 45, "#697986", 49);
+      block(u, v, w, 0.05, h, "#4a5563", y);
       poly(
-        [p(u, v, y + h), p(u + w, v, y + h), p(u + w, v, y), p(u, v, y)],
-        "#283647",
+        [p(u + 0.07, v + 0.05, y + h - 4), p(u + w - 0.07, v + 0.05, y + h - 4), p(u + w - 0.07, v + 0.05, y + 5), p(u + 0.07, v + 0.05, y + 5)],
+        "#3d4755",
       );
-      poly(
-        [
-          p(u + 0.045, v - 0.015, y + h - 3),
-          p(u + w - 0.045, v - 0.015, y + h - 3),
-          p(u + w - 0.045, v - 0.015, y + 4),
-          p(u + 0.045, v - 0.015, y + 4),
-        ],
-        active ? "#91b8bd" : "#607e8e",
-      );
-      for (let j = 0; j < 5; j++) {
-        const z = y + h - 9 - j * 3;
-        line(
-          p(u + 0.12, v - 0.025, z),
-          p(u + 0.12 + (j % 2 ? 0.3 : 0.43) * Math.min(1, w / 0.9), v - 0.025, z),
-          j % 2 ? "#d2debd" : "#596f91",
-          1.6,
-        );
-      }
-      line(
-        p(u + 0.075, v - 0.03, y + 5),
-        p(u + w - 0.075, v - 0.03, y + 5),
-        "#e1d2d5",
-        1,
-      );
+      const [dotX, dotY] = p(u + w / 2, v + 0.05, y + h / 2);
+      ctx.fillStyle = "#93a7b8";
+      ctx.fillRect(dotX - 2, dotY - 2, 4, 4);
     };
     const mug = (u: number, v: number) => block(u, v, 0.14, 0.14, 9, "#eedcc0", 49);
     // What a desk carries besides its screens, by whose desk it is. Everything stands on the top, 49 above the floor.
     const deskThings: Record<DeskKit, (u: number, v: number) => void> = {
       plain: (u, v) => mug(u + 1.7, v + 0.5),
       lead: (u, v) => {
-        block(u + 1.2, v + 0.62, 0.5, 0.08, 7, "#d9c7a0", 49);
+        block(u + 1.42, v + 0.62, 0.44, 0.08, 7, "#d9c7a0", 49);
         block(u + 1.72, v + 0.1, 0.16, 0.16, 8, "#b9876d", 49);
         const [x, y] = p(u + 1.8, v + 0.18, 57);
         line([x, y], [x - 4, y - 12], "#5f8f78", 3);
@@ -320,10 +296,13 @@ class Office {
         mug(u + 1.72, v + 0.12);
       },
       dev: (u, v) => {
-        block(u + 1.3, v + 0.5, 0.5, 0.3, 2, "#59606e", 49);
-        poly([p(u + 1.3, v + 0.5, 51), p(u + 1.8, v + 0.5, 51), p(u + 1.8, v + 0.44, 70), p(u + 1.3, v + 0.44, 70)], "#3a4250");
-        poly([p(u + 1.34, v + 0.49, 54), p(u + 1.76, v + 0.49, 54), p(u + 1.76, v + 0.445, 67), p(u + 1.34, v + 0.445, 67)], "#8fb4bd");
-        const [x, y] = p(u + 0.14, v + 0.62, 51);
+        // The laptop is open toward its owner too: the lid shows its back.
+        block(u + 0.06, v + 0.38, 0.46, 0.3, 2, "#59606e", 49);
+        poly([p(u + 0.06, v + 0.68, 51), p(u + 0.52, v + 0.68, 51), p(u + 0.52, v + 0.74, 70), p(u + 0.06, v + 0.74, 70)], "#4a5361");
+        const [lidX, lidY] = p(u + 0.29, v + 0.71, 61);
+        ctx.fillStyle = "#93a7b8";
+        ctx.fillRect(lidX - 2, lidY - 2, 4, 4);
+        const [x, y] = p(u + 1.68, v + 0.6, 51);
         ctx.strokeStyle = "#3d4250";
         ctx.lineWidth = 3;
         ctx.beginPath();
@@ -334,14 +313,14 @@ class Office {
         ctx.fillRect(x + 5, y - 5, 5, 8);
       },
       tablet: (u, v) => {
-        block(u + 1.25, v + 0.45, 0.55, 0.36, 2, "#3f4552", 49);
-        block(u + 1.3, v + 0.49, 0.45, 0.28, 1, "#d9c9ea", 51);
+        block(u + 1.4, v + 0.42, 0.48, 0.36, 2, "#3f4552", 49);
+        block(u + 1.44, v + 0.46, 0.4, 0.28, 1, "#d9c9ea", 51);
         ["#e36077", "#f3c15a", "#59b6a4"].forEach((swatch, index) => block(u + 0.08 + index * 0.13, v + 0.62, 0.11, 0.16, 2, swatch, 49));
       },
       papers: (u, v) => {
-        block(u + 1.3, v + 0.46, 0.44, 0.34, 6, "#f1ead9", 49);
-        block(u + 1.34, v + 0.5, 0.44, 0.34, 2, "#fffaf0", 55);
-        line(p(u + 1.42, v + 0.6, 58), p(u + 1.7, v + 0.6, 58), "#c8574f", 2);
+        block(u + 1.44, v + 0.44, 0.4, 0.34, 6, "#f1ead9", 49);
+        block(u + 1.46, v + 0.48, 0.4, 0.34, 2, "#fffaf0", 55);
+        line(p(u + 1.52, v + 0.6, 58), p(u + 1.8, v + 0.6, 58), "#c8574f", 2);
         mug(u + 1.74, v + 0.1);
       },
     };
@@ -676,11 +655,11 @@ class Office {
       const [x, y] = p(spots.chair.u, spots.chair.v);
       const upholstery = zone === "manager" ? "#617e70" : "#677488";
       add(u + v + 0.15, () => {
-        const { u: cu, v: cv } = spots.chair;
         line([x, y - 16], [x, y + 3], "#484957", 3);
         line([x - 12, y + 2], [x + 12, y + 2], "#484957", 3);
-        block(cu - 0.27, cv - 0.36, 0.54, 0.1, 34, upholstery, 22);
-        block(cu - 0.27, cv - 0.26, 0.54, 0.46, 5, upholstery, 17);
+        // The back is drawn square to the room, right behind whoever sits facing it.
+        poly([[x - 20, y - 74], [x + 20, y - 74], [x + 20, y - 24], [x - 20, y - 24]], color(upholstery, -12));
+        poly([[x - 17, y - 71], [x + 17, y - 71], [x + 17, y - 27], [x - 17, y - 27]], upholstery);
         if (member && !live)
           avatar(ctx, member.avatar, x - 25, y - SEATED_TOP, 3.2, true, active ? Math.floor(time / 500) % 2 : 0);
       });
@@ -699,7 +678,7 @@ class Office {
         block(u + 0.86, v + 0.08, 0.6, 0.15, 2, "#e5d6c4", 49);
         for (let k = 0; k < 5; k++)
           line(p(u + 0.91 + k * 0.11, v + 0.09, 51), p(u + 0.91 + k * 0.11, v + 0.2, 51), "#9c95a5");
-        for (const screen of deskScreens(seat, kit)) monitor(screen.u, screen.v, active && !live, screen.width);
+        for (const screen of deskScreens(seat, kit)) monitor(screen.u, screen.v, screen.width);
         deskThings[kit](u, v);
         const [lx, ly] = [x, y + SEAT_LABEL_DROP];
         if (member && !live) {

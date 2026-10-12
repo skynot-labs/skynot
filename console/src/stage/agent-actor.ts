@@ -56,11 +56,14 @@ export class AgentActor {
     this.agent = agent;
     this.seat = seat;
     this.screen.clear();
+    // The screens face away from the room: what shows of one that is on is the light spilling past its edges.
     for (const screen of deskScreens(seat, deskKit(agent))) {
-      const corner = (du: number, z: number) => floorPoint(screen.u + du, screen.v - 0.015, z);
-      this.screen
-        .poly([corner(0.045, SCREEN.top - 3), corner(screen.width - 0.045, SCREEN.top - 3), corner(screen.width - 0.045, SCREEN.bottom + 4), corner(0.045, SCREEN.bottom + 4)].flat())
-        .fill("#91b8bd");
+      const edge = (du: number, z: number) => floorPoint(screen.u + du, screen.v, z);
+      const strip = (fromU: number, toU: number, fromZ: number, toZ: number) =>
+        this.screen.poly([edge(fromU, toZ), edge(toU, toZ), edge(toU, fromZ), edge(fromU, fromZ)].flat()).fill("#c9f0f3");
+      strip(-0.03, screen.width + 0.03, SCREEN.top, SCREEN.top + 3);
+      strip(-0.05, 0, SCREEN.bottom + 2, SCREEN.top + 3);
+      strip(screen.width, screen.width + 0.05, SCREEN.bottom + 2, SCREEN.top + 3);
     }
     this.screen.zIndex = seat.u + seat.v + 1.001;
     this.name.write(agent.name.slice(0, 17), undefined, agent.status === "working" ? "#d2c3ed" : "#d7e6d8");
@@ -89,7 +92,7 @@ export class AgentActor {
     this.lastX = x;
 
     this.screen.visible = working && pose === null;
-    this.screen.alpha = 0.45 + 0.2 * Math.sin(time / 260);
+    this.screen.alpha = 0.7 + 0.3 * Math.sin(time / 260);
 
     const top = -lift - (SOLES - avatarBounds(agent.avatar).top) * AVATAR_SCALE;
     this.tags.position.set(x, y);

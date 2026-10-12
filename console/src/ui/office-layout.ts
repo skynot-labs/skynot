@@ -73,8 +73,8 @@ export const COFFEE_COUNTER = { u: 0.65, v: officeLayout.room.depth - 0.8, width
 export const SEAT_LABEL_DROP = 34;
 type Spot = { u: number; v: number };
 /**
- * Where things are around a desk. Its owner sits behind it, facing the room, a little to the right so the screens,
- * which stand to the left, never cover a face.
+ * Where things are around a desk. Its owner sits behind it, facing the room, and its screens stand in front of them,
+ * low enough to leave the face clear, their backs to the room.
  */
 export const seatSpots = (seat: Spot) => ({
   chair: { u: seat.u + 1.15, v: seat.v - 0.42 },
@@ -93,9 +93,9 @@ export function deskKit(owner: { role: string; kind: "manager" | "worker" | "adv
   return owner.kind === "worker" ? "dev" : "plain";
 }
 const SCREEN_PLANE = 0.3;
-/** The screens of a desk as tile spans along its width; they share one plane and one height. */
+/** The screens of a desk as tile spans along its width; they share one plane and one height, and face the chair. */
 export const deskScreens = (seat: Spot, kit: DeskKit): Array<{ u: number; v: number; width: number }> =>
-  (kit === "dual" ? [[0, 0.58], [0.62, 0.58]] : kit === "lead" ? [[0.1, 0.95]] : [[0.3, 0.8]]).map(([du, width]) => ({
+  (kit === "dual" ? [[0.2, 0.58], [0.82, 0.58]] : kit === "lead" ? [[0.4, 0.95]] : [[0.55, 0.8]]).map(([du, width]) => ({
     u: seat.u + du!,
     v: seat.v + SCREEN_PLANE,
     width: width!,
