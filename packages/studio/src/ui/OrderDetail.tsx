@@ -30,6 +30,11 @@ const CHECKS_LABEL = {
   failing: "checks failing",
 } as const;
 
+const ANSWERED_BY = {
+  manager: "Answered by the Manager",
+  director_via_manager: "Passed on by the Manager",
+} as const;
+
 export function OrderChip({ order }: { order: Order }) {
   const tone = order.blocked ? "blocked" : order.working ? "working" : order.status;
   return (
@@ -79,6 +84,10 @@ export function OrderDetail({
   );
   const unblock = unblocking(order);
   const can = orderActions(order, simulated);
+  const lastAnswered = order.answered.at(-1);
+  const answeredThroughManager = lastAnswered?.answeredBy
+    ? { ...lastAnswered, answeredBy: lastAnswered.answeredBy }
+    : undefined;
 
   return (
     <>
@@ -92,19 +101,17 @@ export function OrderDetail({
         <RichLine text={order.summary} />
       </p>
 
-      {order.question && (
-        <div class="order-notice">
-          The worker is waiting for your answer: {order.question}
-          <TextForm
-            label="Answer"
-            placeholder="Your answer for the worker"
-            busy={busy}
-            submit={(answer) =>
-              send({ name: "answer-question", payload: { orderId, answer } })
-            }
-            onSent={() => top.current?.focus()}
-          />
-        </div>
+      <WorkerQuestion
+        order={order}
+        send={send}
+        busy={busy}
+        onSent={() => top.current?.focus()}
+      />
+      {answeredThroughManager && (
+        <p class="form-note">
+          {ANSWERED_BY[answeredThroughManager.answeredBy]}:{" "}
+          {answeredThroughManager.question} → {answeredThroughManager.answer}
+        </p>
       )}
       {order.blocked && (
         <div class="order-notice blocked">
@@ -390,6 +397,38 @@ function Verdict({
         </div>
       )}
     </section>
+  );
+}
+
+// The one place a worker's question is answered from, wherever it is shown.
+export function WorkerQuestion({
+  order,
+  send,
+  busy,
+  onSent,
+}: {
+  order: Order;
+  send: Send;
+  busy: boolean;
+  onSent: () => void;
+}) {
+  if (!order.question) return null;
+  return (
+    <div class="order-notice">
+      The worker is waiting for your answer: {order.question}
+      <TextForm
+        label="Answer"
+        placeholder="Your answer for the worker"
+        busy={busy}
+        submit={(answer) =>
+          send({
+            name: "answer-question",
+            payload: { orderId: order.id, answer },
+          })
+        }
+        onSent={onSent}
+      />
+    </div>
   );
 }
 

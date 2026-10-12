@@ -8,7 +8,7 @@ import {
 } from "preact/hooks";
 import type { Decision, Message, Order, Project, Send } from "../contracts";
 import { planOf } from "../application/plans";
-import { OrderChip } from "./OrderDetail";
+import { OrderChip, WorkerQuestion } from "./OrderDetail";
 import { Icon } from "./Icon";
 import { RichLine, RichText } from "./RichText";
 import "./shell.css";
@@ -172,6 +172,12 @@ export function ManagerChat({
   const manager = project.agents.find((agent) => agent.kind === "manager");
   const latest = project.chat.at(-1)?.decisionId;
   const buried = project.decisions.filter((decision) => decision.id !== latest);
+  // A worker's question is answered under the last message about its order, so the box shows once.
+  const lastAbout = new Map(
+    project.chat.flatMap((entry) =>
+      entry.orderId ? [[entry.orderId, entry.id] as const] : [],
+    ),
+  );
   useEffect(() => {
     if (list.current) list.current.scrollTop = list.current.scrollHeight;
   }, [project.chat, manager?.status]);
@@ -222,6 +228,9 @@ export function ManagerChat({
             busy={busy}
             onOrder={onOrder}
             onSettled={backToBox}
+            answerable={
+              entry.orderId !== null && lastAbout.get(entry.orderId) === entry.id
+            }
           />
         ))}
         {project.chat.length === 0 && (
@@ -488,6 +497,7 @@ function ChatMessage({
   busy,
   onOrder,
   onSettled,
+  answerable,
 }: {
   message: Message;
   project: Project;
@@ -495,6 +505,7 @@ function ChatMessage({
   busy: boolean;
   onOrder: (order: Order) => void;
   onSettled: () => void;
+  answerable: boolean;
 }) {
   const order = message.orderId
     ? project.orders.find((candidate) => candidate.id === message.orderId)
@@ -521,6 +532,14 @@ function ChatMessage({
           busy={busy}
           onOrder={onOrder}
           onSigned={onSettled}
+        />
+      )}
+      {order && answerable && (
+        <WorkerQuestion
+          order={order}
+          send={send}
+          busy={busy}
+          onSent={onSettled}
         />
       )}
       {decision && (
