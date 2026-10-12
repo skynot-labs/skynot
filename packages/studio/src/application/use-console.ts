@@ -1,8 +1,9 @@
 import { useEffect, useState } from "preact/hooks";
 import type { HttpGateway } from "../adapters/http-gateway";
 import type { Snapshot } from "../contracts";
+import { OFFICE_PATIENCE_MS } from "./connection";
 
-export type StreamState = "connecting" | "live" | "reconnecting";
+type StreamState = "connecting" | "live" | "reconnecting";
 
 export function useConsole(gateway: HttpGateway, projectId?: string) {
   const [read, setRead] = useState<{ projectId: string | undefined; snapshot: Snapshot } | null>(null);
@@ -14,6 +15,7 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
     let active = true;
     let request = 0;
     let unwatch: (() => void) | undefined;
+    let patience: ReturnType<typeof setTimeout> | undefined;
     const refresh = async () => {
       const current = ++request;
       try {
@@ -30,18 +32,21 @@ export function useConsole(gateway: HttpGateway, projectId?: string) {
       }
     };
     void refresh().then(() => {
-      if (active)
-        unwatch = gateway.watch(
-          () => void refresh(),
-          (connected) => {
-            if (!active) return;
-            if (connected) setStream("live");
-            else setStream("reconnecting");
-          },
-        );
+      if (!active) return;
+      // A stream that never answers, not even to refuse, gets the time an office gets to answer at all.
+      patience = setTimeout(() => setStream((was) => (was === "connecting" ? "reconnecting" : was)), OFFICE_PATIENCE_MS);
+      unwatch = gateway.watch(
+        () => void refresh(),
+        (connected) => {
+          if (!active) return;
+          if (connected) setStream("live");
+          else setStream("reconnecting");
+        },
+      );
     });
     return () => {
       active = false;
+      clearTimeout(patience);
       unwatch?.();
     };
   }, [gateway, projectId, revision]);

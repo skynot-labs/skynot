@@ -1,10 +1,10 @@
 import type { Locator, Page } from "@playwright/test";
-import type { Decision, InboxItem, Message, Order } from "@skynot/contract";
-import { STAGED_AT, dialog, expect, openDecisionDesk, openManagerChat, openProject, stageState, stagedOrder, test } from "./support";
+import type { BriefingChange, Decision, InboxItem, Message, Order, TeamChange } from "@skynot/contract";
+import { STAGED_AT, dialog, expect, openDecisionDesk, openManagerChat, openProject, openView, stageState, stagedOrder, test } from "./support";
 
 const PROJECT = "beta";
 
-type Shop = { inbox: InboxItem[]; orders: Order[]; chat: Message[]; decisions: Decision[] };
+type Shop = { inbox: InboxItem[]; orders: Order[]; chat: Message[]; decisions: Decision[]; teamChanges: TeamChange[]; briefingChanges: BriefingChange[]; workers?: string[] };
 type Staged = { commands: string[]; hold: () => () => void };
 
 const desk = (page: Page) => page.getByRole("region", { name: "Decision desk" });
@@ -16,7 +16,7 @@ const question = (id: string, text: string): InboxItem => ({ id, kind: "manager_
 
 // The simulated shop is left as it was: every command is answered here, and the staged state follows it.
 async function stageShop(page: Page, shop: Partial<Shop>): Promise<Staged> {
-  const staged: Shop = { inbox: [], orders: [], chat: [], decisions: [], ...shop };
+  const staged: Shop = { inbox: [], orders: [], chat: [], decisions: [], teamChanges: [], briefingChanges: [], ...shop };
   const commands: string[] = [];
   let held: Promise<void> | null = null;
   const settle = (status: Order["status"], matches: (order: Order) => boolean) => {
@@ -39,6 +39,10 @@ async function stageShop(page: Page, shop: Partial<Shop>): Promise<Staged> {
     if (name === "sign-plan") settle("signed", (order) => order.plan === payload.plan);
     if (name === "sign-order") settle("signed", (order) => order.id === payload.orderId);
     if (name === "discard-order") settle("discarded", (order) => order.id === payload.orderId);
+    if (name === "answer-question") staged.orders = staged.orders.map((order) => (order.id === payload.orderId ? { ...order, question: null } : order));
+    if (name === "reassign-order") staged.orders = staged.orders.map((order) => (order.id === payload.orderId ? { ...order, worker: String(payload.worker) } : order));
+    if (name.endsWith("-team-change")) staged.teamChanges = staged.teamChanges.filter((change) => change.id !== payload.changeId);
+    if (name.endsWith("-briefing-change")) staged.briefingChanges = staged.briefingChanges.filter((change) => change.id !== payload.changeId);
     await route.fulfill({ json: {} });
   });
   return {
@@ -55,6 +59,12 @@ async function openDesk(page: Page): Promise<void> {
   await openProject(page, PROJECT);
   await openDecisionDesk(page);
 }
+
+const hire = (id: string, role: string): TeamChange => ({ id, action: "hire", role, reason: `the footer needs a ${role}`, focus: null, status: "pending", proposedAt: STAGED_AT });
+const newBriefing = (id: string): BriefingChange => ({ id, projectId: PROJECT, text: "Marta reads only Spanish.", reason: "the director said so", status: "pending", proposedAt: STAGED_AT });
+// An order its worker stopped on to ask, with a pull request open: it takes an answer first and a follow-up after.
+const askingInReview = (id: string): Order => stagedOrder(id, "in_review", { question: "Which footer?", pullRequest: 12, issue: 7 });
+const teamMember = (page: Page, role: string) => page.getByRole("region", { name: "Project team" }).getByRole("button", { name: role });
 
 async function pressWithKeyboard(button: Locator): Promise<void> {
   await button.focus();
@@ -135,6 +145,121 @@ test.describe("where the keyboard is after a command", () => {
     await expect(box).toBeFocused();
   });
 
+  test("an answer and a follow-up from an agent's desk leave focus in the desk's box", async ({ page }) => {
+    const shop = await stageShop(page, { orders: [askingInReview("WO-901")] });
+    await openProject(page, PROJECT);
+    await teamMember(page, "developer").click();
+
+    const answer = dialog(page).getByLabel("ANSWER WO-901");
+    await answer.fill("Left");
+    await page.keyboard.press("Tab");
+    await expect(dialog(page).getByRole("button", { name: "Answer", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
+    const redirect = dialog(page).getByLabel("REDIRECT WO-901");
+    await expect(redirect).toHaveValue("");
+    await expect(redirect).toBeFocused();
+
+    await redirect.fill("Resolve the conflicts with main");
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Enter");
+    await expect(redirect).toHaveValue("");
+    await expect(redirect).toBeFocused();
+    expect(shop.commands).toEqual(["answer-question", "follow-up"]);
+  });
+
+  test("an answer in an order's dialog leaves focus on the row that says where the order is, and a follow-up in its own field", async ({ page }) => {
+    const shop = await stageShop(page, { orders: [askingInReview("WO-901")] });
+    await openProject(page, PROJECT);
+    await teamMember(page, "developer").click();
+    await dialog(page).getByRole("button", { name: /^WO-901/ }).click();
+
+    await dialog(page).getByLabel("Answer", { exact: true }).fill("Left");
+    await page.keyboard.press("Tab");
+    await expect(dialog(page).getByRole("button", { name: "Answer", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(dialog(page).getByText("The worker is waiting for your answer")).toBeHidden();
+    await expect(dialog(page).locator(".order-detail-top")).toBeFocused();
+
+    const followUp = dialog(page).getByRole("textbox", { name: "Follow up" });
+    await followUp.fill("Resolve the conflicts with main");
+    await page.keyboard.press("Tab");
+    await expect(dialog(page).getByRole("button", { name: "Follow up" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(followUp).toHaveValue("");
+    await expect(followUp).toBeFocused();
+    expect(shop.commands).toEqual(["answer-question", "follow-up"]);
+  });
+
+  test("the worker of an order keeps focus while it changes, and a second change in the meantime is undone and not sent", async ({ page }) => {
+    const shop = await stageShop(page, { orders: [stagedOrder("WO-901", "in_review")], workers: ["developer", "tester"] });
+    await openProject(page, PROJECT);
+    await teamMember(page, "developer").click();
+    await dialog(page).getByRole("button", { name: /^WO-901/ }).click();
+    const worker = dialog(page).getByLabel("WORKER");
+    await expect(worker).toHaveValue("developer");
+
+    const release = shop.hold();
+    await worker.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(worker).toHaveAttribute("aria-disabled", "true");
+    await expect(worker).toBeFocused();
+    await expect(worker).toHaveValue("developer");
+    await page.keyboard.press("ArrowDown");
+    await expect(worker).toHaveValue("developer");
+    release();
+    await expect(worker).toHaveValue("tester");
+    await expect(worker).toBeFocused();
+    expect(shop.commands).toEqual(["reassign-order"]);
+  });
+
+  test("a team change signed or discarded in the Agents panel leaves focus on the changes that remain, then on the panel's heading", async ({ page }) => {
+    const shop = await stageShop(page, { teamChanges: [hire("change-1", "designer"), hire("change-2", "tester")] });
+    await openProject(page, PROJECT);
+    await openView(page, "Agents");
+    const changes = dialog(page).getByRole("region", { name: "Team changes to sign" });
+    const change = (role: string) => changes.getByRole("article").filter({ hasText: `Hire ${role}` });
+
+    await pressWithKeyboard(change("designer").getByRole("button", { name: "Sign", exact: true }));
+    await expect(change("designer")).toBeHidden();
+    await expect(changes).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(change("tester").getByRole("button", { name: "Sign", exact: true })).toBeFocused();
+
+    await pressWithKeyboard(change("tester").getByRole("button", { name: "Discard" }));
+    await expect(changes).toBeHidden();
+    await expect(dialog(page).getByText(/AGENTS ON THIS PROJECT/)).toBeVisible();
+    expect(await page.evaluate(() => document.activeElement?.textContent)).toMatch(/AGENTS ON THIS PROJECT$/);
+    expect(shop.commands).toEqual(["sign-team-change", "discard-team-change"]);
+  });
+
+  test("a briefing change signed in the Context panel leaves focus on the briefing it became", async ({ page }) => {
+    const shop = await stageShop(page, { briefingChanges: [newBriefing("briefing-1")] });
+    await openProject(page, PROJECT);
+    await openView(page, "Context");
+
+    await pressWithKeyboard(dialog(page).getByRole("button", { name: "Sign", exact: true }));
+    await expect(dialog(page).getByText("Proposed: new briefing")).toBeHidden();
+    await expect(dialog(page).getByRole("region", { name: "The briefing every agent reads" })).toBeFocused();
+    expect(shop.commands).toEqual(["sign-briefing-change"]);
+  });
+
+  test("a message sent from a desk opened over the Agents panel lands in the chat, with the panel closed", async ({ page }) => {
+    await stageShop(page, {});
+    await openProject(page, PROJECT);
+    await openView(page, "Agents");
+    await dialog(page).getByRole("button", { name: "Customize avatar" }).first().click();
+    await dialog(page).getByRole("button", { name: "Work", exact: true }).click();
+
+    await dialog(page).getByLabel(/THE MANAGER$/).fill("Tidy the invoice footer");
+    await dialog(page).getByRole("button", { name: /^Send/ }).click();
+
+    await expect(dialog(page)).toBeHidden();
+    expect(new URL(page.url()).hash).toBe("");
+    const box = page.getByRole("region", { name: "Your Manager" }).getByLabel("Message to the Manager");
+    await box.focus();
+    await expect(box).toBeFocused();
+  });
+
   test("a button keeps focus while its command is on the way, and a second press sends nothing", async ({ page }) => {
     const shop = await stageShop(page, { inbox: [question("question-1", "Which footer?")], orders: [stagedOrder("WO-901", "awaiting_signature")] });
     const requests: string[] = [];
@@ -170,6 +295,31 @@ test.describe("where the keyboard is after a command", () => {
     await expect(item(page, "WO-901")).toBeHidden();
     expect(shop.commands).toEqual(["answer-decision", "sign-plan"]);
     expect(requests).toHaveLength(2);
+  });
+});
+
+test.describe("a button that is waiting", () => {
+  test("does not move under a press it ignores, as one that takes the press does", async ({ page }) => {
+    const shop = await stageShop(page, { orders: [stagedOrder("WO-901", "awaiting_signature")] });
+    await openDesk(page);
+    await page.addStyleTag({ content: "* { transition: none !important; }" });
+    const nudgeUnderPress = async (button: Locator) => {
+      await button.hover();
+      await page.mouse.down();
+      const nudge = await button.evaluate((element) => getComputedStyle(element).transform);
+      await page.mouse.move(0, 0);
+      await page.mouse.up();
+      return nudge;
+    };
+    const sign = item(page, "WO-901").getByRole("button", { name: "Sign", exact: true });
+    expect(await nudgeUnderPress(sign)).toBe("matrix(1, 0, 0, 1, 0, 1)");
+
+    const release = shop.hold();
+    await pressWithKeyboard(sign);
+    await expect(sign).toHaveAttribute("aria-disabled", "true");
+    expect(await nudgeUnderPress(sign)).toBe("none");
+    release();
+    await expect(item(page, "WO-901")).toBeHidden();
   });
 });
 
@@ -222,6 +372,22 @@ test.describe("the boxes that send on Ctrl+Enter", () => {
     await box.press("Control+Enter");
     await expect(box).toHaveValue("");
     expect(shop.commands).toEqual(["answer-decision", "send-message"]);
+  });
+
+  test("say so at an agent's desk too, and send from there", async ({ page }) => {
+    const shop = await stageShop(page, {});
+    await openProject(page, PROJECT);
+    await teamMember(page, "manager").click();
+
+    const box = dialog(page).getByLabel("TALK TO THE MANAGER");
+    await expect(box).toHaveAttribute("placeholder", /Ctrl\+Enter sends it\.$/);
+    await expect(dialog(page).getByRole("button", { name: "Send", exact: true })).toHaveAttribute("aria-keyshortcuts", "Control+Enter Meta+Enter");
+    await box.fill("Tidy the invoice footer");
+    await box.press("Enter");
+    expect(shop.commands).toEqual([]);
+    await box.press("Control+Enter");
+    await expect(dialog(page)).toBeHidden();
+    expect(shop.commands).toEqual(["send-message"]);
   });
 });
 

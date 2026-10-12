@@ -44,7 +44,7 @@ button {
     color var(--sk-motion-fast),
     transform var(--sk-motion-fast);
 }
-button:active:not(:disabled) {
+button:active:not(:disabled, [aria-disabled="true"]) {
   transform: translateY(1px);
 }
 a {

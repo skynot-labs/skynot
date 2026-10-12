@@ -914,7 +914,10 @@ textarea {
   font-size: 12px;
   margin-bottom: 20px;
 }
-.order-detail-top:focus-visible {
+.order-detail-top:focus-visible,
+.section-heading:focus-visible,
+.team-proposals:focus-visible,
+.vision-card:focus-visible {
   outline: 2px solid var(--sk-focus);
   outline-offset: 4px;
 }

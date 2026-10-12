@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import type {
   Activity,
   Agent,
@@ -221,9 +221,14 @@ export function AgentsView({
   send: Send;
   busy: boolean;
 }) {
+  const heading = useRef<HTMLDivElement>(null);
+  const changes = useRef<HTMLElement>(null);
+  // A settled change leaves the list: focus goes to the list while it has more, else to the heading that stays.
+  const afterSettling = () =>
+    (project.teamChanges.length > 1 ? changes : heading).current?.focus();
   return (
     <>
-      <div class="section-heading">
+      <div class="section-heading" ref={heading} tabIndex={-1}>
         <span>{project.agents.length} AGENTS ON THIS PROJECT</span>
       </div>
       <div class="people-grid">
@@ -310,7 +315,12 @@ export function AgentsView({
         })}
       </div>
       {project.teamChanges.length > 0 && (
-        <section class="panel team-proposals">
+        <section
+          class="panel team-proposals"
+          aria-label="Team changes to sign"
+          ref={changes}
+          tabIndex={-1}
+        >
           <div class="panel-heading">
             <span class="panel-title">
               <Icon name="shield" />
@@ -324,6 +334,7 @@ export function AgentsView({
               change={change}
               send={send}
               busy={busy}
+              onSettled={afterSettling}
             />
           ))}
         </section>
@@ -819,6 +830,7 @@ export function ContextView({
   const repoUrl = /^[\w.-]+\/[\w.-]+$/.test(project.repo)
     ? `https://github.com/${project.repo}`
     : null;
+  const briefing = useRef<HTMLElement>(null);
   return (
     <div class="context-grid">
       <div class="context-main">
@@ -831,10 +843,20 @@ export function ContextView({
               </span>
               <span class="pill state">TO SIGN</span>
             </div>
-            <BriefingChangeProposal change={change} send={send} busy={busy} />
+            <BriefingChangeProposal
+              change={change}
+              send={send}
+              busy={busy}
+              onSettled={() => briefing.current?.focus()}
+            />
           </section>
         ))}
-        <section class="panel vision-card">
+        <section
+          class="panel vision-card"
+          aria-label="The briefing every agent reads"
+          ref={briefing}
+          tabIndex={-1}
+        >
           <div class="panel-heading">
             <span class="panel-title">
               <Icon name="star" />

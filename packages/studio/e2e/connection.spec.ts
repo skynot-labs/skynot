@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test";
 import { CONTRACT } from "@skynot/contract";
 import { LOCAL_OFFICE, PAIRING_SECRET, SESSION_OFFICE } from "./offices";
-import { expect, tellTheManager, test } from "./support";
+import { expect, openView, tellTheManager, test } from "./support";
 
 declare global {
   interface Window {
@@ -194,6 +194,78 @@ test("a fresh load never says it is reconnecting, and does not say it is live be
   answer();
   await expect(live(page)).toBeVisible();
   expect(await page.evaluate(() => window.reconnectingSaid)).toBe(0);
+});
+
+test("an event stream that never answers at all ends as reconnecting", async ({ page }) => {
+  await page.clock.install();
+  await page.route("**/api/events*", () => {});
+  const reconnecting = page.locator(".main-footer").getByText("RECONNECTING", { exact: true });
+
+  await page.goto("/");
+  await expect(page.locator(".main-footer")).toContainText("HUMAN IN THE LOOP");
+  await page.clock.fastForward(14_000);
+  await expect(reconnecting).toHaveCount(0);
+  await page.clock.fastForward(1_000);
+
+  await expect(reconnecting).toBeVisible();
+  await expect(live(page)).toHaveCount(0);
+  await page.unrouteAll({ behavior: "ignoreErrors" });
+});
+
+// The office answers 500 to every read of its state until the returned function is called.
+async function stateUnreadable(page: Page): Promise<() => void> {
+  let unreadable = true;
+  await page.route("**/api/state*", (route) => (unreadable ? route.fulfill({ status: 500, body: "" }) : route.continue()));
+  return () => {
+    unreadable = false;
+  };
+}
+
+for (const width of [1280, 390])
+  test(`a panel's address loaded while the state cannot be read leaves Retry and the sidebar usable at ${width} pixels, and the panel opens once it can`, async ({ page, browserErrors }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const readable = await stateUnreadable(page);
+
+    await page.goto("/#board");
+    await expect(page.getByRole("alert")).toHaveText(/The shop did not answer \(500\)\./);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    for (const control of ["Register a project", "Retry"]) {
+      await page.getByRole("button", { name: control }).focus();
+      await expect(page.getByRole("button", { name: control })).toBeFocused();
+    }
+
+    readable();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog").getByRole("heading", { name: "Work orders." })).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    for (const refusal of browserErrors.splice(0)) expect(refusal).toContain("500");
+  });
+
+test("a state that stops being readable under an open panel says so in the panel, once, and its Retry works", async ({ page, browserErrors }) => {
+  // The stream ends at once, so the studio reads the state again each time it reconnects.
+  await page.route("**/api/events*", (route) => route.fulfill({ contentType: "text/event-stream", body: "" }));
+  await page.goto("/");
+  await expect(studioOf(page, "alpha")).toBeVisible();
+  await openView(page, "Costs");
+  const costs = page.getByRole("dialog", { name: "What it takes." });
+  const notice = page.locator(".error-banner");
+
+  const readable = await stateUnreadable(page);
+  await expect(costs.getByRole("alert")).toHaveText(/The shop did not answer \(500\)\./);
+  await expect(notice).toHaveCount(1);
+
+  await costs.getByRole("button", { name: "Close dialog" }).click();
+  await expect(page.getByRole("main").locator(".error-banner")).toBeVisible();
+  await expect(notice).toHaveCount(1);
+  await expect(page.getByRole("alert")).toHaveCount(0);
+
+  await openView(page, "Costs");
+  await expect(costs.locator(".error-banner")).toBeVisible();
+  readable();
+  await costs.getByRole("button", { name: "Retry" }).click();
+  await expect(notice).toHaveCount(0);
+  await expect(costs).toBeVisible();
+  for (const refusal of browserErrors.splice(0)) expect(refusal).toContain("500");
 });
 
 test("disconnecting falls back to the office that serves this console", async ({ page }) => {
