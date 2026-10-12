@@ -125,6 +125,19 @@ describe("run scheduler", () => {
     expect(runs.list()).toMatchObject([{ turns: 4, model: "sonnet", usage }, { turns: null, model: null, usage }]);
   });
 
+  it("keeps the model a run was asked for when the run fails, and the one the engine reports when it completes", async () => {
+    let calls = 0;
+    const engine = new FakeEngine(() => (++calls === 1 ? { kind: "failed", message: "boom" } : { text: "hi", model: "claude-opus-5-5" }));
+    const { scheduler, log, runs } = await createScheduler(engine, 1);
+    const asking = (model: string): RunSubmission => ({ ...submission(), request: { ...request, model } });
+
+    await scheduler.submit(asking("opus"));
+    await scheduler.submit(asking("opus"));
+
+    expect((await log.readAfter(0))[0]).toMatchObject({ type: "execution.run_requested", payload: { model: "opus" } });
+    expect(runs.list().map((run) => [run.status, run.model])).toEqual([["failed", "opus"], ["completed", "claude-opus-5-5"]]);
+  });
+
   it("leaves usage out of the event when the engine reports none", async () => {
     const { scheduler, log, runs } = await createScheduler(new FakeEngine(() => ({ text: "hi" })), 1);
 
