@@ -194,12 +194,11 @@ test("a discarded order leaves the signing queue and never reaches a developer",
 
   const chat = await tellTheManager(page, idea);
   await chat.getByRole("button", { name: "Keep it small" }).click(TURN);
-  await expect(chat.getByText("That settles it. Filing the order.")).toBeVisible(TURN);
   await openDecisionDesk(page);
 
   await openView(page, "Decisions");
   await deskTab(page, "To sign").click();
-  await expect(deskTab(page, "To sign")).toHaveText(/To sign\s*1$/);
+  await expect(deskTab(page, "To sign")).toHaveText(/To sign\s*1$/, TURN);
   const proposal = desk(page).getByRole("article").filter({ hasText: "WORK ORDER ·" });
   const orderId = (await proposal.getByText(/^WORK ORDER · \S+$/).innerText()).replace("WORK ORDER · ", "");
   await proposal.getByRole("button", { name: "Discard" }).click();

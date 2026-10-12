@@ -11,7 +11,8 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   reporter: "list",
-  use: { baseURL: LOCAL_OFFICE, trace: "retain-on-failure", screenshot: "only-on-failure" },
+  // The specs are about what the shop does, not how the office moves: a still office leaves the browser its time.
+  use: { reducedMotion: "reduce", baseURL: LOCAL_OFFICE, trace: "retain-on-failure", screenshot: "only-on-failure" },
   webServer: [
     {
       command: `PORT=${portOf(LOCAL_OFFICE)} npx tsx console/e2e/serve.ts`,

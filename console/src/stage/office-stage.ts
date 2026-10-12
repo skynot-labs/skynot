@@ -155,6 +155,8 @@ export class OfficeStage {
       resolution: Math.min(2, Math.max(1, window.devicePixelRatio)),
       preference: "webgl",
     });
+    // Pixel art gains nothing past this, and with reduced motion the frames only serve the pointer.
+    app.ticker.maxFPS = matchMedia("(prefers-reduced-motion: reduce)").matches ? 10 : 30;
     host.appendChild(app.canvas);
     return new OfficeStage(app, handlers);
   }
