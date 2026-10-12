@@ -24,7 +24,7 @@ export class AgentActor {
   private readonly shadow = new Graphics().ellipse(0, 0, 17, 7).fill({ color: 0x000000, alpha: 0.14 });
   private readonly figure = new Sprite();
   private readonly outline = new Graphics();
-  private readonly name = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 15, height: 28, padding: 10, minWidth: 70 });
+  private readonly name = new Plate({ fill: "#31363f99", color: "#aeb8b1", size: 12, height: 20, padding: 7 });
   private readonly bubble = new Plate({ fill: "#c9c6d4", color: "#2f3340", size: 14, bold: true, height: 24, padding: 10, tail: true });
   private readonly note = new Plate({ fill: "#f4f1e6d9", color: "#5a6170", size: 12, height: 18, padding: 7 });
   private agent: SceneAgent;
@@ -66,7 +66,7 @@ export class AgentActor {
       strip(screen.width, screen.width + 0.05, SCREEN.bottom + 2, SCREEN.top + 3);
     }
     this.screen.zIndex = seat.u + seat.v + 1.001;
-    this.name.write(agent.name.slice(0, 17), undefined, agent.status === "working" ? "#d2c3ed" : "#d7e6d8");
+    this.name.write(agent.name.slice(0, 17), undefined, agent.status === "working" ? "#d2c3ed" : "#aeb8b1");
   }
 
   /**
