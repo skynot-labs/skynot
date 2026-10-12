@@ -27,7 +27,7 @@ export interface Run {
 }
 
 export type RunEvent =
-  | { type: "execution.run_requested"; payload: { runId: RunId; role: string; engine: EngineName; access: Access; orderId: string | null; projectId?: string } }
+  | { type: "execution.run_requested"; payload: { runId: RunId; role: string; engine: EngineName; access: Access; orderId: string | null; model?: string; projectId?: string } }
   | { type: "execution.run_started"; payload: { runId: RunId } }
   | { type: "execution.run_completed"; payload: { runId: RunId; costUsd: number | null; turns?: number; model?: string; usage?: TokenUsage } }
   | { type: "execution.run_failed"; payload: { runId: RunId; failure: EngineFailure } };
@@ -38,7 +38,7 @@ export function asRunEvent(event: DomainEvent): RunEvent | null {
 
 export function evolve(run: Run | null, event: RunEvent, at: string, firstProject = "default"): Run | null {
   if (event.type === "execution.run_requested") {
-    const { runId, role, engine, access, orderId, projectId } = event.payload;
+    const { runId, role, engine, access, orderId, model, projectId } = event.payload;
     return {
       id: runId,
       role,
@@ -52,7 +52,7 @@ export function evolve(run: Run | null, event: RunEvent, at: string, firstProjec
       finishedAt: null,
       costUsd: null,
       turns: null,
-      model: null,
+      model: model ?? null,
       usage: null,
       failure: null,
     };
@@ -69,7 +69,7 @@ export function evolve(run: Run | null, event: RunEvent, at: string, firstProjec
         finishedAt: at,
         costUsd: reportedCost(run.engine, event.payload.costUsd),
         turns: event.payload.turns ?? null,
-        model: event.payload.model ?? null,
+        model: event.payload.model ?? run.model,
         usage: event.payload.usage ?? null,
       };
     case "execution.run_failed": {

@@ -49,6 +49,7 @@ export class RunScheduler {
           engine: submission.engine,
           access: submission.request.access,
           orderId: submission.orderId,
+          ...(submission.request.model && { model: submission.request.model }),
           ...(submission.projectId && { projectId: submission.projectId }),
         },
       },
