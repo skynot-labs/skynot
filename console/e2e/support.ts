@@ -36,14 +36,16 @@ export function dialog(page: Page): Locator {
   return page.getByRole("dialog");
 }
 
+// Closing an agent or an order gives back the panel it was opened from, so only the dialog that was closed is gone.
 export async function closeDialog(page: Page): Promise<void> {
+  const title = await dialog(page).getByRole("heading", { level: 2 }).first().innerText();
   await dialog(page).getByRole("button", { name: "Close dialog" }).click();
-  await expect(dialog(page)).toBeHidden();
+  await expect(page.getByRole("dialog", { name: title })).toBeHidden();
 }
 
 // The chat lives beside the office, so whatever panel is open over it closes first.
 export async function openManagerChat(page: Page): Promise<Locator> {
-  if (await dialog(page).isVisible()) await closeDialog(page);
+  while (await dialog(page).isVisible()) await closeDialog(page);
   await page.getByRole("button", { name: "Open the chat with the Manager" }).click();
   const chat = page.getByRole("region", { name: "Your Manager" });
   await expect(chat.getByRole("textbox", { name: "Message to the Manager" })).toBeVisible();
