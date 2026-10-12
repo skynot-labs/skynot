@@ -1,0 +1,28 @@
+{
+  "name": "@skynot/studio",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "The studio: the browser side of skynot, which knows an office only through the contract.",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run design:export && vite build && npm run github:export && vite build --config vite.github.config.ts",
+    "build:github": "npm run design:export && npm run github:export && vite build --config vite.github.config.ts",
+    "build:studio": "vite build --base ./ --outDir dist/github/studio",
+    "design:export": "node scripts/export-design.mjs",
+    "github:export": "node scripts/export-github.mjs",
+    "test:e2e": "npm run build && npm run build:studio && playwright test -c e2e"
+  },
+  "dependencies": {
+    "@skynot/contract": "*",
+    "pixi.js": "^8.22.0",
+    "preact": "^11.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0",
+    "@preact/preset-vite": "^2.10.6",
+    "vite": "^8.3.4"
+  }
+}

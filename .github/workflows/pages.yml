@@ -6,7 +6,6 @@ on:
     paths:
       - console/**
       - packages/contract/**
-      - src/app/http/state.ts
       - package.json
       - package-lock.json
       - .github/workflows/pages.yml

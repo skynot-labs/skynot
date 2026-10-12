@@ -22,7 +22,6 @@ const contentSecurityPolicy: Plugin = {
 };
 
 export default defineConfig({
-  root: "console",
   plugins: [preact(), contentSecurityPolicy],
   build: { outDir: "dist", emptyOutDir: true },
   server: {

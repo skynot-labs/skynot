@@ -1,15 +1,14 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { checkArchitecture, type SourceFile } from "./rules";
+import { checkArchitecture, checkBoundaries, type SourceFile } from "./rules";
 
 function readSources(dir: string): SourceFile[] {
   return readdirSync(dir, { withFileTypes: true, recursive: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
-    .map((entry) => {
-      const full = path.join(entry.parentPath, entry.name);
-      return { path: path.relative(process.cwd(), full).split(path.sep).join("/"), content: readFileSync(full, "utf8") };
-    });
+    .filter((entry) => entry.isFile() && /\.(ts|tsx|mjs)$/.test(entry.name))
+    .map((entry) => path.join(entry.parentPath, entry.name))
+    .filter((full) => !full.split(path.sep).some((segment) => segment === "node_modules" || segment === "dist"))
+    .map((full) => ({ path: path.relative(process.cwd(), full).split(path.sep).join("/"), content: readFileSync(full, "utf8") }));
 }
 
 const file = (filePath: string, content: string): SourceFile => ({ path: filePath, content });
@@ -17,6 +16,70 @@ const file = (filePath: string, content: string): SourceFile => ({ path: filePat
 describe("architecture rules on the real source", () => {
   it("has no violations", () => {
     expect(checkArchitecture(readSources("src"))).toEqual([]);
+  });
+});
+
+describe("boundaries between the office, the studio and the contract on the real source", () => {
+  it("has no violations", () => {
+    const sources = ["src", "console", "packages/contract/src"].flatMap(readSources);
+    expect(checkBoundaries(sources)).toEqual([]);
+  });
+});
+
+describe("boundaries between the office, the studio and the contract", () => {
+  it("lets the studio import itself, packages and the contract", () => {
+    const files = [
+      file("console/src/main.tsx", `import { render } from "preact";\nimport { CONTRACT } from "@skynot/contract";\nimport { App } from "./app";`),
+      file("console/test/gateway.test.ts", `import { StateSchema } from "../../packages/contract/src/state";`),
+    ];
+    expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it("rejects the studio importing the office, as a type, a value or a dynamic import, from any of its folders", () => {
+    const files = [
+      file("console/src/application/gateway.ts", `import type { State } from "../../../src/app/http/state";`),
+      file("console/test/gateway.test.ts", `import { buildApi } from "../../src/app/http/api";`),
+      file("console/e2e/serve.ts", `await import("../../src/app/main.ts");`),
+      file("console/e2e/support.ts", "await import(`../../src/app/main.ts`);"),
+      file("console/vite.config.ts", `export { port } from "../src/app/port";`),
+      file("console/scripts/export-github.mjs", `import { CONTRACT } from "../../src/app/http/meta.ts";`),
+    ];
+    expect(checkBoundaries(files).map((violation) => violation.file)).toEqual(files.map((source) => source.path));
+  });
+
+  it("lets the studio start an office as a process, by the path of its entry point", () => {
+    const files = [file("console/e2e/serve.ts", `spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../src/app/main.ts", import.meta.url))]);`)];
+    expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it("lets the contract import itself and zod", () => {
+    const files = [file("packages/contract/src/state.ts", `import { z } from "zod";\nimport { ProjectIdSchema } from "./formats";`)];
+    expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it("rejects the contract importing the office, the studio or any package other than zod", () => {
+    const files = [
+      file("packages/contract/src/state.ts", `import type { Order } from "../../../src/orders";`),
+      file("packages/contract/src/events.ts", `import { format } from "../../../console/src/application/format";`),
+      file("packages/contract/src/meta.ts", `import { parse } from "yaml";`),
+      file("packages/contract/src/formats.ts", `import { randomUUID } from "node:crypto";`),
+      file("packages/contract/src/commands.ts", `const studio = await import("@skynot/studio");`),
+    ];
+    expect(checkBoundaries(files).map((violation) => violation.file)).toEqual(files.map((source) => source.path));
+  });
+
+  it("lets the office import the contract and its own packages", () => {
+    const files = [file("src/app/http/state.ts", `import { StateSchema } from "@skynot/contract";\nimport { Hono } from "hono";`)];
+    expect(checkBoundaries(files)).toEqual([]);
+  });
+
+  it("rejects the office importing the studio, by path or by package name", () => {
+    const files = [
+      file("src/app/main.ts", `import type { Appearance } from "../../console/src/application/appearance";`),
+      file("src/app/http/api.ts", `const tokens = await import("../../../console/src/design/tokens.json");`),
+      file("src/app/shop.ts", `import { model } from "@skynot/studio/src/studio/model";`),
+    ];
+    expect(checkBoundaries(files).map((violation) => violation.file)).toEqual(files.map((source) => source.path));
   });
 });
 
