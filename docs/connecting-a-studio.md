@@ -90,4 +90,4 @@ Five wrong secrets in a minute stop the office from listening to secrets for a m
 The studio is a static site. `npm run build:github && npm run build:studio` leaves it in
 `console/dist/github/studio`, built to work from any folder of any host. Name its address in `SKYNOT_STUDIO` so
 the office accepts its calls. The office and a studio agree on a contract number
-(`src/app/http/contract.ts`), which the office reports at `/api/meta`.
+(`packages/contract`), which the office reports at `/api/meta`.

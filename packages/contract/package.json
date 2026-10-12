@@ -1,0 +1,12 @@
+{
+  "name": "@skynot/contract",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "What a studio and an office exchange: the state, the commands and the event stream.",
+  "exports": "./src/index.ts",
+  "dependencies": {
+    "zod": "^4.6.5"
+  }
+}
