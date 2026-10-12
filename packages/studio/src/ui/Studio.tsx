@@ -485,7 +485,7 @@ export function Studio({
                   <span class={`status-chip ${agent.status}`}>
                     {agentStatus[agent.status]}
                     {agent.queuePosition !== null &&
-                      ` · #${agent.queuePosition}`}
+                      ` · number ${agent.queuePosition}`}
                   </span>
                 </div>
                 <Icon name="edit" />

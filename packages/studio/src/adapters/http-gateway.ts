@@ -128,7 +128,7 @@ export class HttpGateway {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(command.payload),
     });
-    if (!response.ok) throw new Error(await errorOf(response, `The shop refused the command (${response.status}).`));
+    if (!response.ok) throw new Error(await errorOf(response, `it gave no reason (${response.status}).`));
   }
 
   // EventSource cannot carry the session, so the stream is read from a plain request.
