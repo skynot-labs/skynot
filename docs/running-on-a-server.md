@@ -86,7 +86,7 @@ After=network-online.target
 WorkingDirectory=%h/skynot
 ExecStart=/usr/bin/npm run start
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-# Only with a GitHub App:
+# Only with a GitHub App that .env does not name already:
 # Environment=SKYNOT_GITHUB_APP_ID=123456
 # Environment=SKYNOT_GITHUB_APP_KEY=%h/.config/skynot/app.pem
 Restart=on-failure

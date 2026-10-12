@@ -1,3 +1,4 @@
+import "./env-file";
 import { existsSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";

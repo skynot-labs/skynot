@@ -89,6 +89,11 @@ and `repo`. A board owned by an organization was not tried with a token. A faile
 | `SKYNOT_OFFICE_URL` | none | the HTTPS address the office is reached at; with it every request needs a session |
 | `SKYNOT_STUDIO` | the public studio | address of the studio whose pages may call the office from a browser |
 
+The `npm run` scripts that start or check the office (`dev`, `start`, `start:shared`, `dev:shared`, `check`, `stats`,
+`setup`) also read a `.env` file at the root of the repository, when there is one: one `NAME=value` per line. It is
+untracked, and a variable already set in the environment wins over the file. `npm run setup` writes the two App
+variables there and leaves every other line as it is.
+
 Set both App variables or neither: with only one the service refuses to start. The last two are explained in
 [connecting a studio](connecting-a-studio.md); without them the office answers on its own machine only.
 
