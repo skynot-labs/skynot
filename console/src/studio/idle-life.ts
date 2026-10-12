@@ -109,6 +109,27 @@ export function pathLength(path: Spot[]): number {
   return distance;
 }
 
+const ELBOW_ROOM = 0.9;
+/**
+ * Two people on their feet never share a spot: whoever comes later in the list steps aside, away from the other.
+ * Each walk is worked out alone, so this is where they notice each other.
+ */
+export function apart<Pose extends Spot>(standing: Array<Pose | null>): Array<Pose | null> {
+  const placed: Pose[] = [];
+  return standing.map((pose) => {
+    if (!pose) return null;
+    let moved = pose;
+    for (const other of placed) {
+      const gap = length(other, moved);
+      if (gap >= ELBOW_ROOM) continue;
+      const [du, dv] = gap === 0 ? [1, 0] : [(moved.u - other.u) / gap, (moved.v - other.v) / gap];
+      moved = { ...moved, u: other.u + du * ELBOW_ROOM, v: other.v + dv * ELBOW_ROOM };
+    }
+    placed.push(moved);
+    return moved;
+  });
+}
+
 const routes = new Map<string, Spot[] | null>();
 function remembered(key: string, find: () => Spot[] | null): Spot[] | null {
   if (!routes.has(key)) {
