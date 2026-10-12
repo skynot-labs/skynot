@@ -18,6 +18,8 @@ export interface AnsweredQuestion {
   readonly question: string;
   readonly answer: string;
   readonly from: string;
+  // Absent when the director answered directly.
+  readonly answeredBy?: "director_via_manager" | "manager";
   readonly askedAt: string;
   readonly answeredAt: string;
 }
@@ -65,6 +67,11 @@ const BY_DIRECTOR: ReadonlySet<string> = new Set([
 ]);
 const BY_MANAGER: ReadonlySet<string> = new Set(["orders.proposed", "manager.answer_rejected", "manager.consulted", "team.change_proposed", "projects.briefing_proposed"]);
 
+const ANSWERED = { director: "the director answered", director_via_manager: "the director answered through the Manager", manager: "the Manager decided" } as const;
+
+const answeredBy = (payload: Payload): AnsweredQuestion["answeredBy"] =>
+  payload.answeredBy === "manager" || payload.answeredBy === "director_via_manager" ? payload.answeredBy : undefined;
+
 export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
   private readonly links = new Map<string, OrderLinks>();
@@ -105,6 +112,7 @@ export class ActivityProjection implements Projection {
 
   private authorOf(type: string, payload: Payload): string | null {
     if (type.startsWith("execution.")) return this.runOrders.get(payload.runId as string)?.role ?? null;
+    if (type === "delivery.question_answered" && payload.answeredBy === "manager") return "manager";
     if (BY_DIRECTOR.has(type)) return DIRECTOR;
     if (BY_MANAGER.has(type)) return "manager";
     if (type === "manager.advised" || type === "manager.advisor_failed") return payload.role as string;
@@ -152,7 +160,7 @@ export class ActivityProjection implements Projection {
       case "delivery.question_raised":
         return delivery(`the worker asks: ${payload.question}`);
       case "delivery.question_answered":
-        return delivery(`the director answered: ${payload.answer}`);
+        return delivery(`${ANSWERED[answeredBy(payload) ?? "director"]}: ${payload.answer}`);
       case "delivery.worker_assigned":
         return delivery(`assigned to ${payload.worker}`);
       case "delivery.review_completed":
@@ -250,12 +258,13 @@ export class ActivityProjection implements Projection {
       case "delivery.question_answered": {
         const question = current.question ?? "question";
         const answer = payload.answer as string;
+        const by = answeredBy(payload);
         this.links.set(orderId, {
           ...current,
           question: null,
           questionAt: null,
-          answers: [...current.answers, `${question} → ${answer}`],
-          answered: [...current.answered, { question, answer, from: current.worker ?? "developer", askedAt: current.questionAt ?? at, answeredAt: at }],
+          answers: [...current.answers, `${question} → ${answer}${by === "manager" ? " (decided by the Manager, not the director)" : ""}`],
+          answered: [...current.answered, { question, answer, from: current.worker ?? "developer", ...(by && { answeredBy: by }), askedAt: current.questionAt ?? at, answeredAt: at }],
         });
         break;
       }

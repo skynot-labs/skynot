@@ -65,3 +65,23 @@ export interface BriefingDesk {
 }
 
 export const NO_BRIEFING_DESK: BriefingDesk = { propose: async () => err("the briefing cannot be changed here") };
+
+export interface WaitingWorker {
+  readonly orderId: string;
+  readonly question: string;
+}
+
+export interface Relay {
+  readonly orderId: string;
+  readonly text: string;
+  // "director" passes the director's own words on; "manager" is the Manager's decision and is recorded as such.
+  readonly from: "director" | "manager";
+}
+
+export interface WorkerDesk {
+  waiting(): WaitingWorker[];
+  inReview(): string[];
+  passOn(relay: Relay): Promise<Result<void, string>>;
+}
+
+export const NO_WORKER_DESK: WorkerDesk = { waiting: () => [], inReview: () => [], passOn: async () => err("there is no worker to write to") };

@@ -4,6 +4,7 @@ import {
   NO_ADVISORS,
   NO_BRIEFING_DESK,
   NO_TEAM_DESK,
+  NO_WORKER_DESK,
   SYSTEM_PROMPT,
   buildAdvicePrompt,
   buildPrompt,
@@ -20,6 +21,7 @@ import {
   type ModelRunner,
   type OrderDesk,
   type TeamDesk,
+  type WorkerDesk,
 } from "../domain";
 import type { ChatProjection } from "./chat-projection";
 
@@ -36,6 +38,7 @@ export interface ManagerDependencies {
   team?: TeamDesk;
   briefing?: BriefingSource;
   briefingDesk?: BriefingDesk;
+  workers?: WorkerDesk;
 }
 
 export class ManagerService {
@@ -43,11 +46,13 @@ export class ManagerService {
   private readonly bench: AdvisorBench;
   private readonly teamDesk: TeamDesk;
   private readonly briefingDesk: BriefingDesk;
+  private readonly workerDesk: WorkerDesk;
 
   constructor(private readonly deps: ManagerDependencies) {
     this.bench = deps.advisors ?? NO_ADVISORS;
     this.teamDesk = deps.team ?? NO_TEAM_DESK;
     this.briefingDesk = deps.briefingDesk ?? NO_BRIEFING_DESK;
+    this.workerDesk = deps.workers ?? NO_WORKER_DESK;
   }
 
   async idle(): Promise<void> {
@@ -86,9 +91,10 @@ export class ManagerService {
     const onTeam = this.bench.roster().map((advisor) => advisor.name);
     const choices = { hire: this.teamDesk.hireable().map((role) => role.name), dismiss: onTeam, refocus: onTeam };
     const openPlans = [...new Set(this.deps.desk.overview().filter((order) => order.status === "awaiting_signature").map((order) => order.plan))];
+    const relayTargets = { waiting: this.workerDesk.waiting().map((worker) => worker.orderId), inReview: this.workerDesk.inReview() };
     return {
-      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices, openPlans),
-      final: createAnswerSchema(this.deps.desk.specSchema, [], choices, openPlans),
+      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices, openPlans, relayTargets),
+      final: createAnswerSchema(this.deps.desk.specSchema, [], choices, openPlans, relayTargets),
     };
   }
 
@@ -103,6 +109,7 @@ export class ManagerService {
       advisors: this.bench.roster(),
       hireable: this.teamDesk.hireable(),
       openQuestions: chat.openDecisions().map((decision) => decision.question),
+      waitingWorkers: this.workerDesk.waiting(),
       conversation: chat.recent(CONVERSATION_WINDOW),
       message: text,
     });
@@ -192,6 +199,10 @@ export class ManagerService {
       const { focus, ...team } = answer.team;
       const proposed = await this.teamDesk.propose({ ...team, ...(focus && { focus }) });
       return proposed.ok ? this.reply(`${answer.message}\n\n${proposed.value.text}`) : this.reply(`I could not propose that: ${proposed.error}`);
+    }
+    if (answer.relay !== null) {
+      const passed = await this.workerDesk.passOn(answer.relay);
+      return this.reply(passed.ok ? answer.message : `I could not pass that on to the worker of ${answer.relay.orderId}: ${passed.error}`);
     }
     return this.reply(answer.message);
   }

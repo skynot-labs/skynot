@@ -249,6 +249,18 @@ describe("the state an office reports", () => {
     expect(StateSchema.parse(byTheLandlord)).not.toEqual(byTheLandlord);
   });
 
+  it("reads an answerer the contract does not know as absent, so a card claims nothing about who answered", () => {
+    const body = at("the whole story");
+    const answeredBy = (who: string) => ({ ...body, orders: body.orders.map((order) => ({ ...order, answered: order.answered.map((answered) => ({ ...answered, answeredBy: who })) })) });
+    const answered = (state: State) => state.orders.flatMap((order) => order.answered);
+
+    expect(answered(body)).toMatchObject([{ answer: "green" }]);
+    expect(answered(body)[0]).not.toHaveProperty("answeredBy");
+    expect(answered(StateSchema.parse(answeredBy("manager")))).toMatchObject([{ answeredBy: "manager" }]);
+    expect(StateSchema.safeParse(answeredBy("the landlord")).success).toBe(true);
+    expect(answered(StateSchema.parse(answeredBy("the landlord")))[0]?.answeredBy).toBeUndefined();
+  });
+
   it.each<[string, (state: State) => unknown]>([
     ["an order without its status", (state) => ({ ...state, orders: state.orders.map(({ status: _status, ...order }) => order) })],
     ["an order in a status nobody knows", (state) => ({ ...state, orders: [{ ...state.orders[0], status: "archived" }] })],

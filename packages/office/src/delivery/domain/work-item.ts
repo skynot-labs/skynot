@@ -116,7 +116,7 @@ export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, 
     "Finish with a short report: for each acceptance criterion, the evidence (a test name, or a command and its result).",
   ];
   if (item.answers?.length) {
-    parts.splice(1, 0, `The director already answered your questions. Follow these answers:\n${item.answers.map((answer) => `- ${answer}`).join("\n")}`);
+    parts.splice(1, 0, `Your questions were already answered. Follow these answers:\n${item.answers.map((answer) => `- ${answer}`).join("\n")}`);
   }
   if (followUp) {
     parts.splice(

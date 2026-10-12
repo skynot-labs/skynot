@@ -61,10 +61,17 @@ export const ReviewSchema = z.object({
 });
 export type Review = z.infer<typeof ReviewSchema>;
 
+export const AnsweredBySchema = z.enum(["director_via_manager", "manager"]);
+export type AnsweredBy = z.infer<typeof AnsweredBySchema>;
+
+// Absent when the director answered directly; a value a later office adds reads as absent too, so an earlier studio shows no claim it cannot back.
+const answeredBy = AnsweredBySchema.optional().catch(undefined);
+
 export const AnsweredQuestionSchema = z.object({
   question: z.string(),
   answer: z.string(),
   from: z.string(),
+  answeredBy,
   askedAt: timestamp,
   answeredAt: timestamp,
 });
@@ -157,6 +164,7 @@ export const AnsweredSchema = z.object({
   from: z.string(),
   question: z.string(),
   answer: z.string(),
+  answeredBy,
   orderId: z.string().nullable(),
   ticket: issueNumber.nullable(),
   askedAt: timestamp,
