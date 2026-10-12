@@ -2,7 +2,7 @@
 import "pixi.js/unsafe-eval";
 import { Application, Container, Rectangle, Sprite, Texture, type FederatedPointerEvent } from "pixi.js";
 import { avatarBounds, drawPixelAvatar } from "../ui/avatar-renderer";
-import { assignStudioSeats, DECISION_SIGN, deskKit, floorPoint, getStudioLayout, officeLayout, seatSpots } from "../ui/office-layout";
+import { assignStudioSeats, DECISION_TABLE, deskKit, floorPoint, getStudioLayout, officeLayout, seatSpots } from "../ui/office-layout";
 import { Office, type Piece, type SceneAgent, type SceneState } from "../ui/office-renderer";
 import { along, apart, idlePose, pathLength, route, TILES_PER_SECOND, type Floor, type Haunt, type IdlePose, type Spot } from "../studio/idle-life";
 import { Ambient } from "./ambient";
@@ -10,7 +10,8 @@ import { Reactions } from "./reactions";
 import { normalizeStudioPreferences } from "../studio/model";
 import { AgentActor, AVATAR_SCALE } from "./agent-actor";
 import { HOME, panBy, zoomAt, type View } from "./camera";
-import { Plate, words } from "./plates";
+import { Hotspot } from "./hotspot";
+import { Plate } from "./plates";
 
 export type StageHandlers = {
   onAgent: (id: string) => void;
@@ -31,6 +32,8 @@ const OPEN_HAUNTS: Haunt[] = [
   { u: 8.6, v: 6.6, doing: "stretching" },
   { u: 8.8, v: 12.3, doing: "thinking" },
 ];
+// Where the board stands, outside the front edge of the room.
+const BOARD_AT = { u: 2.57, v: officeLayout.room.depth + 0.64 };
 const SOLES = 27;
 const FIGURE_MARGIN = 1;
 const MAX_FRAME_MS = 100;
@@ -54,9 +57,10 @@ export class OfficeStage {
   private readonly signs = new Container();
   private readonly actors = new Map<string, AgentActor>();
   private readonly figures = new Map<string, Texture>();
-  private readonly decisions = new Plate({ fill: "#dae3d3", color: "#46514a", size: 15, bold: true, height: 52, padding: 16, minWidth: 190, tail: true });
-  private readonly inbox = words("OPEN INBOX →", { fontSize: 11, fill: "#5e675a" });
-  private readonly boardLabel = words("", { fontSize: 14, fontWeight: "bold", fill: "#a9a3b7" });
+  private readonly desk: Hotspot;
+  private readonly board: Hotspot;
+  // The one thing in the office that asks for the director: how many decisions wait at the table.
+  private readonly waiting = new Plate({ fill: "#ecd0a7", color: "#46514a", size: 15, bold: true, height: 26, padding: 9, minWidth: 30, tail: true });
   private readonly more = new Plate({ fill: "#31363fe8", color: "#d7e6d8", size: 15, height: 28, padding: 10, minWidth: 200 });
   private readonly ambient = new Ambient(FRAME);
   private readonly reactions = new Reactions();
@@ -82,22 +86,30 @@ export class OfficeStage {
     this.world.addChild(this.scenery, this.ambient, this.overlay, this.signs, this.reactions);
     app.stage.addChild(this.world);
 
-    this.decisions.eventMode = "static";
-    this.decisions.cursor = "pointer";
-    this.decisions.on("pointertap", () => this.tap(() => this.handlers().onDecisions()));
-    this.inbox.anchor.set(0.5, 0.5);
-    this.inbox.y = 42;
-    this.decisions.caption.y = 20;
-    this.decisions.addChild(this.inbox);
-    const [dx, dy] = floorPoint(DECISION_SIGN.u, DECISION_SIGN.v, DECISION_SIGN.z);
-    this.decisions.position.set(dx, dy - 27);
-    this.boardLabel.anchor.set(0.5, 1);
-    this.boardLabel.position.set(...floorPoint(2.57, officeLayout.room.depth + 0.64, -30));
+    this.desk = new Hotspot(floorPatch(DECISION_TABLE, 0.45), floorPoint(DECISION_TABLE.u + 1.75, DECISION_TABLE.v + 0.7, 62), () =>
+      this.tap(() => this.handlers().onDecisions()),
+    );
+    const underBoard = { u: BOARD_AT.u - 1.05, v: BOARD_AT.v - 0.2, width: 2.1, depth: 0.5 };
+    this.board = new Hotspot(floorPatch(underBoard, 0.25), floorPoint(BOARD_AT.u, BOARD_AT.v, 52), () =>
+      this.tap(() => this.handlers().onBoard()),
+    );
+    for (const spot of [this.desk, this.board]) {
+      spot.glow.zIndex = BEHIND + 1;
+      this.scenery.addChild(spot.glow);
+      this.signs.addChild(spot.tip);
+    }
+    const [wx, wy] = floorPoint(DECISION_TABLE.u + 1.75, DECISION_TABLE.v + 0.7, 62);
+    this.waiting.position.set(wx, wy - 33);
+    this.waiting.eventMode = "static";
+    this.waiting.cursor = "pointer";
+    this.waiting.on("pointerover", () => this.desk.hover(true));
+    this.waiting.on("pointerout", () => this.desk.hover(false));
+    this.waiting.on("pointertap", () => this.tap(() => this.handlers().onDecisions()));
     const [mx, my] = floorPoint(6.5, officeLayout.room.depth + 1.1, -29);
     this.more.position.set(mx, my + 32);
-    for (const still of [this.inbox, this.boardLabel, this.more]) still.eventMode = "none";
-    this.overlay.addChild(this.seatLabels, this.boardLabel, this.more);
-    this.signs.addChild(this.decisions);
+    this.more.eventMode = "none";
+    this.overlay.addChild(this.seatLabels, this.more);
+    this.signs.addChild(this.waiting);
 
     this.bindCamera();
     app.ticker.add(() => this.frame());
@@ -142,9 +154,10 @@ export class OfficeStage {
         this.actors.delete(id);
       }
 
-    const lit = scene.pending > 0;
-    this.decisions.write(lit ? `${scene.pending} TO DECIDE` : "DECISION DESK", lit ? "#ecd0a7" : "#dae3d3");
-    this.boardLabel.text = `BOARD · ${scene.openOrders} OPEN →`;
+    this.waiting.visible = scene.pending > 0;
+    this.waiting.write(String(scene.pending));
+    this.desk.say(scene.pending > 0 ? `${scene.pending} to decide` : "Decision desk");
+    this.board.say(`Work orders · ${scene.openOrders} open`);
     const unseated = scene.agents.length - seated.size;
     this.more.visible = unseated > 0;
     this.more.write(`+${unseated} MORE ON THE TEAM`);
@@ -198,7 +211,7 @@ export class OfficeStage {
       this.reactions.say(x, y, "DELIVERED", "#f3e3a2");
     }
     if (tallies.pending > before.pending)
-      this.reactions.burst(this.decisions.x, this.decisions.y + 20, ["#ecd0a7", "#f3c299"], 14, 0.12);
+      this.reactions.burst(this.waiting.x, this.waiting.y, ["#ecd0a7", "#f3c299"], 14, 0.12);
   }
 
   // Work done beside someone is walked to: out while it lasts, back to the desk when it ends.
@@ -260,7 +273,9 @@ export class OfficeStage {
         ?.frame(time, pose, pose?.beside && heard.has(pose.beside) ? "speaks" : heard.has(id) ? "listens" : null);
     this.reactions.tick(elapsed);
     this.ambient.tick(elapsed, time);
-    this.decisions.pivot.y = scene.pending > 0 && time ? Math.round(Math.sin(time / 300) * 2) : 0;
+    this.waiting.pivot.y = time ? Math.round(Math.sin(time / 300) * 2) : 0;
+    this.desk.frame(time);
+    this.board.frame(time);
   }
 
   private paint(scene: SceneState): void {
@@ -289,8 +304,8 @@ export class OfficeStage {
     if (piece.kind === "board") {
       sprite.eventMode = "static";
       sprite.cursor = "pointer";
-      sprite.on("pointerover", () => (this.boardLabel.style.fill = "#ffffff"));
-      sprite.on("pointerout", () => (this.boardLabel.style.fill = "#a9a3b7"));
+      sprite.on("pointerover", () => this.board.hover(true));
+      sprite.on("pointerout", () => this.board.hover(false));
       sprite.on("pointertap", () => this.tap(() => this.handlers().onBoard()));
     }
     this.scenery.addChild(sprite);
@@ -363,6 +378,12 @@ export class OfficeStage {
       this.drag = { x: event.global.x, y: event.global.y, moved: true };
     });
   }
+}
+
+// The floor under something, a margin wider than it on every side.
+function floorPatch(rect: { u: number; v: number; width: number; depth: number }, margin: number): Array<[number, number]> {
+  const [left, right, back, front] = [rect.u - margin, rect.u + rect.width + margin, rect.v - margin, rect.v + rect.depth + margin];
+  return [floorPoint(left, back), floorPoint(right, back), floorPoint(right, front), floorPoint(left, front)];
 }
 
 function pixelTexture(canvas: HTMLCanvasElement): Texture {
