@@ -18,6 +18,9 @@ npm run dev            # http://127.0.0.1:4747, simulated engines and a fake Git
 
 [docs/getting-started.md](docs/getting-started.md) explains what you are looking at.
 
+The code is three packages under `packages/`: `office` is the service, `studio` the console in the browser, and
+`contract` what the two exchange. Every command here runs from the repository root.
+
 ## Before you open a pull request
 
 ```bash
