@@ -143,7 +143,7 @@ test.describe("Escape and what was typed", () => {
   test("Escape, pressed three times, keeps an alias being typed for an agent", async ({ page }) => {
     await openProject(page, PROJECT);
     await page.getByRole("region", { name: "Project team" }).getByRole("button", { name: "manager" }).click();
-    await dialog(page).getByRole("tab", { name: "Look" }).click();
+    await dialog(page).getByRole("button", { name: "Look", exact: true }).click();
     await dialog(page).getByLabel("DISPLAY ALIAS").pressSequentially("Grace");
     for (let press = 0; press < 3; press++) await page.keyboard.press("Escape");
     await expect(dialog(page).getByLabel("DISPLAY ALIAS")).toHaveValue("Grace");

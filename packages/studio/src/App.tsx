@@ -546,7 +546,7 @@ function Console({
               >
                 <button
                   class={project.paused ? "paused" : ""}
-                  disabled={busy}
+                  aria-disabled={busy}
                   onClick={() =>
                     void send({
                       name: project.paused ? "resume-project" : "pause-project",
@@ -570,7 +570,7 @@ function Console({
                 </button>
                 <button
                   class={snapshot.paused ? "paused" : ""}
-                  disabled={busy}
+                  aria-disabled={busy}
                   onClick={() =>
                     void send({
                       name: snapshot.paused ? "resume-shop" : "pause-shop",
@@ -743,7 +743,7 @@ function Console({
                   </span>
                   {alert.action && (
                     <button
-                      disabled={alert.action.waits && busy}
+                      aria-disabled={alert.action.waits && busy}
                       onClick={alert.action.run}
                     >
                       {alert.action.label}
