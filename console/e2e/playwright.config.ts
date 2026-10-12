@@ -9,6 +9,9 @@ export default defineConfig({
   testDir: ".",
   outputDir: "../../test-results",
   workers: 1,
+  // CI renders the office in software on two cores: the same steps take three to four times as long there.
+  timeout: process.env.CI ? 120_000 : 30_000,
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   forbidOnly: Boolean(process.env.CI),
   reporter: "list",
   // The specs are about what the shop does, not how the office moves: a still office leaves the browser its time.

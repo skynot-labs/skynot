@@ -189,7 +189,6 @@ test.describe.serial("an order's life in alpha", () => {
 });
 
 test("a discarded order leaves the signing queue and never reaches a developer", async ({ page }) => {
-  test.slow();
   const idea = "Rename the settings page";
   await openProject(page, PROJECT);
 
