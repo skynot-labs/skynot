@@ -1,7 +1,16 @@
 import { err, ok, type Result } from "../../kernel";
 import type { EventLog, Projection, StoredEvent } from "../../kernel/events";
 
-export type PausedBy = "director" | "cost_cap";
+const pausers = ["director", "cost_cap"] as const;
+export type PausedBy = (typeof pausers)[number];
+
+// A log is a file anyone can have written: a pauser this office does not know is dropped, not passed on.
+function byOf(event: StoredEvent): { by?: PausedBy } {
+  const recorded: unknown = event.payload;
+  const named = typeof recorded === "object" && recorded !== null && "by" in recorded ? recorded.by : undefined;
+  const by = pausers.find((known) => known === named);
+  return by ? { by } : {};
+}
 
 export interface PauseState {
   readonly since: string;
@@ -19,14 +28,14 @@ export class ShopControl implements Projection {
 
   apply(event: StoredEvent): void {
     if (event.type === "control.paused") {
-      const { reason, by, capDay } = event.payload as { reason: string; by?: PausedBy; capDay?: string };
-      this.state = { since: event.occurredAt, reason, ...(by && { by }) };
+      const { reason, capDay } = event.payload as { reason: string; capDay?: string };
+      this.state = { since: event.occurredAt, reason, ...byOf(event) };
       if (capDay) this.lastCapDay = capDay;
     }
     if (event.type === "control.resumed") this.state = null;
     if (event.type === "control.project_paused") {
-      const { projectId, reason, by } = event.payload as { projectId: string; reason: string; by?: PausedBy };
-      this.projects.set(projectId, { since: event.occurredAt, reason, ...(by && { by }) });
+      const { projectId, reason } = event.payload as { projectId: string; reason: string };
+      this.projects.set(projectId, { since: event.occurredAt, reason, ...byOf(event) });
     }
     if (event.type === "control.project_resumed") this.projects.delete((event.payload as { projectId: string }).projectId);
   }

@@ -257,6 +257,23 @@ describe("console api", () => {
     expect(PauseStateSchema.safeParse(paused).success).toBe(true);
   });
 
+  it("does not pass on a pauser it does not know, found in a log someone else wrote", async () => {
+    const project = (await getState()).project.id;
+    shop.stop();
+    const at = "2026-10-01T09:00:00.000Z";
+    const recorded = [
+      { sequence: 1, id: "evt_00000001", occurredAt: at, type: "control.paused", payload: { reason: "the building is closed", by: "the landlord" } },
+      { sequence: 2, id: "evt_00000002", occurredAt: at, type: "control.project_paused", payload: { projectId: project, reason: "the floor is wet", by: "the landlord" } },
+    ];
+    await writeFile(path.join(dataDir, "events.jsonl"), recorded.map((event) => `${JSON.stringify(event)}\n`).join(""));
+    await openShop();
+
+    const { paused, projectPaused } = await getState();
+
+    expect(paused).toEqual({ since: at, reason: "the building is closed" });
+    expect(projectPaused).toEqual({ since: at, reason: "the floor is wet" });
+  });
+
   it("rejects malformed commands without changing anything", async () => {
     expect((await post("/api/commands/send-message", { text: "   " })).status).toBe(400);
     expect((await post("/api/commands/sign-order", { orderId: "not-an-id" })).status).toBe(400);

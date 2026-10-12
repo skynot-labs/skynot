@@ -20,3 +20,6 @@ It depends on nothing of the office or the studio. Both depend on it.
   message. The office checks in its tests that its own rules agree with them.
 - **Raise `CONTRACT` when a studio built against the previous number would break:** a field removed or renamed,
   a type changed, a command's payload made stricter. Adding a field, a command or an event type does not.
+- **Adding a value to a closed set is a breaking change,** unless the field is one a studio can do without. Such a
+  field's schema reads a value it does not know as absent, as `paused.by` does, so an earlier studio falls back
+  instead of refusing the whole state.

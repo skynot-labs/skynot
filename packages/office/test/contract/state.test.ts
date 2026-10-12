@@ -241,6 +241,14 @@ describe("the state an office reports", () => {
     expect(StateSchema.parse(withSecret)).not.toEqual(withSecret);
   });
 
+  it("notices a pauser the contract does not know, though the contract reads it as absent", () => {
+    const body = at("the whole story");
+    const byTheLandlord = { ...body, paused: { ...body.paused, by: "the landlord" } };
+
+    expect(StateSchema.safeParse(byTheLandlord).success).toBe(true);
+    expect(StateSchema.parse(byTheLandlord)).not.toEqual(byTheLandlord);
+  });
+
   it.each<[string, (state: State) => unknown]>([
     ["an order without its status", (state) => ({ ...state, orders: state.orders.map(({ status: _status, ...order }) => order) })],
     ["an order in a status nobody knows", (state) => ({ ...state, orders: [{ ...state.orders[0], status: "archived" }] })],
