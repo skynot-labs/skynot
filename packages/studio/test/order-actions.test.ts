@@ -25,6 +25,12 @@ describe("what an order's detail offers", () => {
     expect(offered({ status: "on_bench" })).toEqual(["reassign"]);
   });
 
+  it("lets an order in review be discarded once it is blocked or asks, and not while its pull request just waits", () => {
+    expect(offered({ status: "in_review", blocked: "the pull request was closed without merging" })).toEqual(["discard", "reassign"]);
+    expect(offered({ status: "in_review", question: "Which color?" })).toEqual(["discard", "reassign"]);
+    expect(offered({ status: "in_review" })).not.toContain("discard");
+  });
+
   it("offers the signature only before it is given, and nothing once the order is closed", () => {
     expect(offered({ status: "awaiting_signature" })).toEqual(["discard", "sign"]);
     expect(offered({ status: "signed" })).toEqual(["discard", "reassign"]);

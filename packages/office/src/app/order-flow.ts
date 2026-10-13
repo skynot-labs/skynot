@@ -185,7 +185,7 @@ export class OrderFlow {
   // Once a worker has started, only a blocked order that nobody is working on can be dropped.
   discard(orderId: string): Promise<Result<WorkOrder, OrderError>> {
     const order = this.deps.findOrder(orderId);
-    if (order?.status !== "on_bench") return this.deps.orders.discard(orderId);
+    if (order?.status !== "on_bench" && order?.status !== "in_review") return this.deps.orders.discard(orderId);
     const { blocked: stuck, question } = this.deps.progressOf(orderId);
     if (this.running.has(orderId) || (stuck === null && question === null)) {
       return Promise.resolve(err({ kind: "invalid_transition", message: `${orderId} is being worked on: wait until it finishes or blocks` }));

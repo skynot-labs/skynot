@@ -186,6 +186,8 @@ export class ActivityProjection implements Projection {
         return delivery(`follow-up requested: ${payload.instruction}`);
       case "delivery.pull_request_updated":
         return delivery(`pull request #${payload.number} updated`);
+      case "delivery.pull_request_reopened":
+        return delivery(`pull request #${payload.number} reopened`);
       case "control.paused":
         return shop(`the shop was paused: ${payload.reason}`);
       case "control.resumed":
@@ -299,6 +301,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, ...UNBLOCKED, waitingOn: [] });
         break;
       case "delivery.work_retried":
+      case "delivery.pull_request_reopened":
         this.links.set(orderId, { ...current, ...UNBLOCKED });
         break;
       case "delivery.follow_up_requested":
