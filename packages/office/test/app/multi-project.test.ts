@@ -60,6 +60,23 @@ async function fileAnOrder(shop: Shop, projectId: string, idea: string): Promise
 }
 
 describe("a shop with two projects", () => {
+  it("tells a project's Manager about its own pull requests waiting to be merged, never another project's", async () => {
+    const manager = recording(createMockManager());
+    const shop = await createShop({ policy: examplePolicy(), dataDir, team: team(), projects: [project("blog"), project("shop")], engines: { claude: manager.recorded, codex: createMockDeveloper() }, vcs: new FakeVcs(), workspace: new FakeWorkspace() });
+    shops.push(shop);
+    const told = async (projectId: string) => {
+      await shop.desk(projectId)!.manager.handleMessage("/ping");
+      return manager.requests.at(-1)!.prompt;
+    };
+    const id = await fileAnOrder(shop, "blog", "Add an RSS feed");
+    await shop.orderService.sign(id);
+    await shop.flow.idle();
+    await shop.watcher.poll();
+
+    expect(await told("blog")).toContain(`waiting for the director to merge:\n- ${id} `);
+    expect(await told("shop")).toContain("waiting for the director to merge:\n(none)");
+  });
+
   it("keeps one conversation, one list of orders and one team per project", async () => {
     const { shop } = await openShop();
 

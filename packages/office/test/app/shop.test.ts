@@ -183,6 +183,35 @@ describe("checks on the pull request", () => {
   });
 });
 
+describe("what the Manager is told about where the shop stands", () => {
+  it("tells the Manager which pull requests wait for the director, then what was delivered and when", async () => {
+    const manager = recording(createMockManager());
+    const { shop, vcs } = await openShop(new FakeVcs(), defaultTeam, { claude: manager.recorded, codex: createMockDeveloper() });
+    const told = async () => {
+      await shop.manager.handleMessage("/ping");
+      return manager.requests.at(-1)!.prompt;
+    };
+    const id = await fileAnOrder(shop);
+    await shop.orderService.sign(id);
+    await shop.flow.idle();
+
+    expect(await told()).toContain("waiting for the director to merge:\n(none)");
+
+    await shop.watcher.poll();
+    const url = readState(shop).orders.find((order) => order.id === id)!.pullRequestUrl;
+    const waiting = await told();
+    expect(waiting).toContain(`waiting for the director to merge:\n- ${id} Export the inventory to CSV: ${url}`);
+    expect(waiting).toContain("Delivered, newest first:\n(none)");
+    expect(waiting).toMatch(/Spent today by the whole shop: \$\d+\.\d\d \(/);
+
+    vcs.setPullRequestState(shop.repo, 2, "merged");
+    await shop.watcher.poll();
+    const delivered = await told();
+    expect(delivered).toContain(`Delivered, newest first:\n- ${id} Export the inventory to CSV, delivered ${shop.orders.get(id)!.deliveredAt}`);
+    expect(delivered).toContain("waiting for the director to merge:\n(none)");
+  });
+});
+
 describe("pull requests that conflict after another merge", () => {
   const twoInReview = async () => {
     const { shop, vcs } = await openShop();

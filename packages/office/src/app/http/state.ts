@@ -4,6 +4,7 @@ import { outcomeOf } from "../../execution";
 import { SYSTEM_PROMPT } from "../../manager";
 import { renderCard } from "../../orders";
 import { describeRoles } from "../../team";
+import { readyToMerge } from "../activity";
 import { advisorSystem } from "../advisor-bench";
 import { answeredOf, inboxOf } from "../inbox";
 import type { Shop } from "../shop";
@@ -49,7 +50,7 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
       working: shop.flow.working(order.id),
       ...reported(shop.activity.linksFor(order.id)),
       blocked: blockedReason(shop, order),
-      ready: isReady(shop.activity.linksFor(order.id), reviewing),
+      ready: readyToMerge(shop.activity.linksFor(order.id), reviewing),
     })),
     chat: desk.chat.messages(),
     decisions: desk.chat.openDecisions(),
@@ -135,10 +136,4 @@ function presence(shop: Shop, projectId: string) {
 // `followingUp` only serves the recovery after a restart: the studio has no use for it.
 function reported({ followingUp: _followingUp, ...links }: ReturnType<Shop["activity"]["linksFor"]>) {
   return links;
-}
-
-// "Reviewed" means approved by an independent reviewer that could read the repository, and the pull request's checks are not red or running.
-function isReady(links: ReturnType<Shop["activity"]["linksFor"]>, reviewing: boolean): boolean {
-  const checksOk = links.checks === "none" || links.checks === "passing";
-  return links.pullRequestUrl !== null && checksOk && (!reviewing || (links.review?.verdict === "approved" && !links.review.diffOnly));
 }

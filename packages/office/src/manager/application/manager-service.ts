@@ -20,6 +20,7 @@ import {
   type MessageId,
   type ModelRunner,
   type OrderDesk,
+  type StandingSource,
   type TeamDesk,
   type WorkerDesk,
 } from "../domain";
@@ -39,6 +40,7 @@ export interface ManagerDependencies {
   briefing?: BriefingSource;
   briefingDesk?: BriefingDesk;
   workers?: WorkerDesk;
+  standing?: StandingSource;
 }
 
 export class ManagerService {
@@ -110,6 +112,7 @@ export class ManagerService {
       hireable: this.teamDesk.hireable(),
       openQuestions: chat.openDecisions().map((decision) => decision.question),
       waitingWorkers: this.workerDesk.waiting(),
+      standing: this.deps.standing?.read() ?? null,
       conversation: chat.recent(CONVERSATION_WINDOW),
       message: text,
     });

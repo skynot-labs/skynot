@@ -37,6 +37,28 @@ function oneRelay({ relays, question }: Observed, orderId: string, from: "direct
   return PASS;
 }
 
+const TO_MERGE = "WO-0012";
+const TO_MERGE_URL = "https://github.com/acme/tasks/pull/31";
+
+function readyToMerge(): EvalSeed {
+  return {
+    orders: [
+      { id: "WO-0011", title: "Sort the list by due date", status: "delivered", plan: "WO-0011" },
+      { id: TO_MERGE, title: "Export the tasks to CSV", status: "in_review", plan: TO_MERGE },
+      { id: "WO-0013", title: "Remind before a task is due", status: "in_review", plan: "WO-0013" },
+    ],
+    waiting: [],
+    conversation: [],
+    standing: {
+      at: "2026-10-13T09:00:00.000Z",
+      delivered: [{ orderId: "WO-0011", title: "Sort the list by due date", at: "2026-10-12T17:40:00.000Z" }],
+      toMerge: [{ orderId: TO_MERGE, title: "Export the tasks to CSV", url: TO_MERGE_URL }],
+      spentTodayUsd: 2.4,
+      dailyCapUsd: 10,
+    },
+  };
+}
+
 // Heuristics over free text: they catch the plain cases and are no proof either way.
 const NEGATIVE_CRITERION = /\b(not|never|no|none|nothing|without|cannot|unchanged|untouched|intact|still|remains?|stays?|keeps?|preserv\w*|only)\b|n't\b/i;
 const IMPLEMENTATION = /\b(librar\w+|framework|database|json|yaml|sqlite|file format|exit codes?|data structures?|schema|api|flags?|functions?|modules?|helpers?|refactor\w*|src\/\S*|\w+\.js)\b/i;
@@ -96,6 +118,17 @@ export const CASES: EvalCase[] = [
       const asked = [question.text, ...question.options].join(" ");
       const technical = IMPLEMENTATION.exec(asked);
       return technical ? fail(`asked the director about implementation ("${technical[0]}"): ${quote(question.text)}`) : PASS;
+    },
+  },
+  {
+    name: "what-waits-on-the-director-is-named",
+    seed: readyToMerge(),
+    message: "What is waiting on me right now?",
+    check: ({ reply, question, plans, relays }) => {
+      if (plans.length > 0) return fail("proposed a plan instead of answering");
+      if (relays.length > 0) return fail("wrote to a worker instead of answering");
+      if (question) return fail(`asked the director instead of answering: ${quote(question.text)}`);
+      return reply.includes(TO_MERGE) || reply.includes(TO_MERGE_URL) || /pull request #?31\b|csv/i.test(reply) ? PASS : fail(`does not name the pull request that waits to be merged: ${quote(reply)}`);
     },
   },
 ];

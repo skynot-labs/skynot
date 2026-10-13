@@ -5,7 +5,7 @@ import { createOrderDesk } from "../../src/app/order-desk";
 import { FakeEngine, RunScheduler } from "../../src/execution";
 import { err, fixedClock, ok, type Clock, type Result } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
-import { ChatProjection, ManagerService, SYSTEM_PROMPT, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type Relay, type TeamDesk, type TeamProposal, type WorkerDesk } from "../../src/manager";
+import { ChatProjection, ManagerService, SYSTEM_PROMPT, buildPrompt, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type Relay, type TeamDesk, type TeamProposal, type WorkerDesk } from "../../src/manager";
 import { OrderService, OrdersProjection, WorkOrderSpecSchema } from "../../src/orders";
 import { validSpec } from "../orders/fixtures";
 
@@ -745,5 +745,25 @@ describe("passing an answer on to a worker", () => {
     expect(SYSTEM_PROMPT).toContain('pass your decision on with from "manager"');
     expect(SYSTEM_PROMPT).toContain("Never present your own decision as the director's");
     expect(SYSTEM_PROMPT).toContain("ask again instead of choosing");
+  });
+});
+
+describe("where the shop stands, in the prompt", () => {
+  const context = { orders: [], openQuestions: [], conversation: [], message: "Where are we?" };
+  const standing = { at: "2026-10-13T09:00:00.000Z", delivered: [], toMerge: [], spentTodayUsd: 1.5, dailyCapUsd: 10 };
+
+  it("keeps each list to five lines however long the log is, and says how many it left out", () => {
+    const delivered = Array.from({ length: 7 }, (_, index) => ({ orderId: `WO-000${7 - index}`, title: "Export", at: `2026-10-1${7 - index > 3 ? 2 : 1}T10:00:00.000Z` }));
+
+    const prompt = buildPrompt({ ...context, standing: { ...standing, delivered } });
+
+    expect(prompt).toContain("- WO-0003 Export, delivered 2026-10-11T10:00:00.000Z\n(and 2 more)");
+    expect(prompt).not.toContain("WO-0002");
+    expect(prompt).toContain("Spent today by the whole shop: $1.50 (daily cap $10.00)");
+  });
+
+  it("says there is no cap when the policy sets none, and nothing at all when the service gives no standing", () => {
+    expect(buildPrompt({ ...context, standing: { ...standing, dailyCapUsd: null } })).toContain("$1.50 (no daily cap)");
+    expect(buildPrompt(context)).not.toContain("Where the shop stands");
   });
 });

@@ -1,7 +1,7 @@
 import { RunScheduler, type EngineFailure, type EngineName, type RoleEngine } from "../../execution";
 import { newId, ok, systemClock } from "../../kernel";
 import { attachProjection, EventLog, InMemoryEventStore, type StoredEvent } from "../../kernel/events";
-import { ChatProjection, ManagerService, type OrderOverview, type Relay, type WaitingWorker } from "../../manager";
+import { ChatProjection, ManagerService, type OrderOverview, type Relay, type Standing, type WaitingWorker } from "../../manager";
 import { WorkOrderSpecSchema, type WorkOrderSpec } from "../../orders";
 import { createManagerRunner } from "../model-runner";
 
@@ -9,6 +9,7 @@ export interface EvalSeed {
   orders: OrderOverview[];
   waiting: WaitingWorker[];
   inReview?: string[];
+  standing?: Standing;
   conversation: Array<{ author: "director" | "manager"; text: string }>;
 }
 
@@ -84,6 +85,7 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
       ...(setup.model && { model: setup.model }),
       ...(setup.maxUsd && { maxUsd: setup.maxUsd }),
     }),
+    ...(seed.standing && { standing: { read: () => seed.standing! } }),
     desk: {
       specSchema: WorkOrderSpecSchema,
       overview: () => seed.orders,

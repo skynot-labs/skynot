@@ -46,6 +46,7 @@ describe("the cases, against a scripted Manager", () => {
     ["director-answer-reaches-worker", relaying("WO-0007", "director", "Move them to an archive, I want to be able to get them back.")],
     ["vague-idea-becomes-a-plan", answer({ message: "Two steps.", orders: [validSpec(), validSpec({ title: "Filter the list" })] })],
     ["vague-idea-becomes-a-plan", asking("What gets in your way most with a long list?", ["Finding a task", "Finished ones in the way"])],
+    ["what-waits-on-the-director-is-named", answer({ message: "WO-0012 is reviewed and waits for your merge. Nothing else needs you." })],
   ])("%s passes on an answer that does the right thing", async (name, structured) => {
     expect(await runCase(caseNamed(name), managerSays(structured))).toMatchObject({ outcome: "pass" });
   });
@@ -65,6 +66,8 @@ describe("the cases, against a scripted Manager", () => {
     ["vague-idea-becomes-a-plan", answer({ orders: [validSpec(), onlyPositive] }), "no criterion for what must not happen"],
     ["vague-idea-becomes-a-plan", asking("Should the tasks move from the JSON file to a database?"), "about implementation"],
     ["vague-idea-becomes-a-plan", answer({ message: "I will think about it." }), "neither a plan nor a question"],
+    ["what-waits-on-the-director-is-named", answer({ message: "Two orders are in review. Nothing needs you yet." }), "does not name the pull request"],
+    ["what-waits-on-the-director-is-named", asking("Do you want me to list the pull requests?"), "asked the director instead"],
   ])("%s fails on the wrong thing it guards (%#)", async (name, structured, why) => {
     const result = await runCase(caseNamed(name), managerSays(structured));
 
@@ -86,10 +89,19 @@ describe("the seeded shop", () => {
     expect(request!.prompt).toContain("manager: WO-0007 has a question for you:");
     expect(request!.prompt).toMatch(/## New message from the director\nok, yes let's do that$/);
     expect(request!.access).toBe("read");
+    expect(request!.prompt).not.toContain("Where the shop stands");
     expect(request!.schema).toBeDefined();
     expect(existsSync(path.join(request!.cwd, "src/dates.js"))).toBe(true);
   });
 
+
+  it("tells the Manager where the shop stands when the case seeds it", async () => {
+    const engine = new FakeEngine(() => ({ structured: answer({ message: "WO-0012 waits for your merge." }) }));
+
+    await runCase(caseNamed("what-waits-on-the-director-is-named"), scripted(engine));
+
+    expect(engine.requests[0]!.prompt).toContain("waiting for the director to merge:\n- WO-0012 Export the tasks to CSV: https://github.com/acme/tasks/pull/31");
+  });
   it("lets the service refuse a relay to an order nobody is waiting on, as in production", async () => {
     const result = await runCase(caseNamed("vague-idea-becomes-a-plan"), managerSays(relaying("WO-0007", "manager", "Use a database.")));
 
