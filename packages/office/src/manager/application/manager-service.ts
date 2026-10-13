@@ -25,10 +25,19 @@ import {
   type WorkerDesk,
 } from "../domain";
 import type { ChatProjection } from "./chat-projection";
+import type { ReportsProjection } from "./reports-projection";
 
 const MAX_ATTEMPTS = 3;
 const CONVERSATION_WINDOW = 20;
 const TICKET_BODY_CHARS = 4000;
+
+export interface ScheduledTask {
+  readonly id: string;
+  readonly title: string;
+  readonly text: string;
+}
+
+type Say = (text: string, link?: { orderId?: string; decisionId?: DecisionId }) => Promise<void>;
 
 export interface ManagerDependencies {
   log: EventRecorder;
@@ -41,6 +50,7 @@ export interface ManagerDependencies {
   briefingDesk?: BriefingDesk;
   workers?: WorkerDesk;
   standing?: StandingSource;
+  reports?: ReportsProjection;
 }
 
 export class ManagerService {
@@ -72,6 +82,14 @@ export class ManagerService {
     return this.exclusive(() => this.takeTurn(text, ticket));
   }
 
+  // A task the director scheduled: the answer is a report to read later, so it is kept out of the conversation.
+  handleTask(task: ScheduledTask): Promise<void> {
+    const last = this.deps.reports?.lastOf(task.id);
+    const since = last ? `Your last report for this task was written at ${last.at}.` : "This is your first report for this task.";
+    const text = `A task the director scheduled is due. Do it now and put the report in "message". The director reads it later in the reports, not in this conversation: do not ask a question and do not wait for an answer. ${since}\n\nTask: ${task.title}\n\n${task.text}`;
+    return this.exclusive(() => this.takeTurn(text, undefined, task));
+  }
+
   tell(text: string, link: { orderId?: string } = {}): Promise<void> {
     return this.exclusive(() => this.reply(text, link));
   }
@@ -101,7 +119,7 @@ export class ManagerService {
   }
 
   // A title means the ticket just arrived; without one the turn goes on about a ticket already in the conversation.
-  private async takeTurn(text: string, ticket?: { number: number; title?: string }): Promise<void> {
+  private async takeTurn(text: string, ticket?: { number: number; title?: string }, task?: ScheduledTask): Promise<void> {
     const { chat, desk, log } = this.deps;
     const schemas = this.schemas();
 
@@ -116,21 +134,19 @@ export class ManagerService {
       conversation: chat.recent(CONVERSATION_WINDOW),
       message: text,
     });
-    await log.record([
-      ticket?.title
-        ? { type: "manager.ticket_received", payload: { messageId: newId("msg"), ticket: ticket.number, title: ticket.title, text } }
-        : { type: "manager.message_received", payload: { messageId: newId("msg"), text } },
-    ]);
+    if (ticket?.title) await log.record([{ type: "manager.ticket_received", payload: { messageId: newId("msg"), ticket: ticket.number, title: ticket.title, text } }]);
+    else if (!task) await log.record([{ type: "manager.message_received", payload: { messageId: newId("msg"), text } }]);
 
-    const failed = (error: string) => (ticket ? this.doubtAbout(ticket, error) : this.reply(error));
+    const say: Say = task ? (report) => this.report(task, report) : (reply, link) => this.reply(reply, link);
+    const failed = (error: string) => (ticket ? this.doubtAbout(ticket, error) : say(error));
 
     const first = await this.ask(prompt, schemas.first);
     if (!first.ok) return failed(first.error);
-    if (first.value.consult.length === 0) return this.act(first.value, ticket?.number);
+    if (first.value.consult.length === 0) return this.act(first.value, say, ticket?.number);
 
     const replies = await this.consult(first.value.consult);
     const second = await this.ask(buildAdvicePrompt(prompt, replies.map(describeReply)), schemas.final);
-    return second.ok ? this.act(second.value, ticket?.number) : failed(second.error);
+    return second.ok ? this.act(second.value, say, ticket?.number) : failed(second.error);
   }
 
   // A ticket is taken once; a failure must not lose it, so it waits for the director in the inbox.
@@ -184,34 +200,38 @@ export class ManagerService {
     return replies;
   }
 
-  private async act(answer: ManagerAnswer, ticket?: number): Promise<void> {
+  private async act(answer: ManagerAnswer, say: Say, ticket?: number): Promise<void> {
     if (answer.orders.length > 0) {
       const proposed = await this.deps.desk.propose(answer.orders, { ...(ticket && { ticket }), ...(answer.replaces && { replaces: answer.replaces }) });
-      if (proposed.ok) return this.reply(`${answer.message}\n\n${proposed.value.card}`, { orderId: proposed.value.id });
+      if (proposed.ok) return say(`${answer.message}\n\n${proposed.value.card}`, { orderId: proposed.value.id });
       const refusal = `I could not file that ${answer.orders.length > 1 ? "plan" : "order"}: ${proposed.error}`;
-      return ticket ? this.askAboutTicket(ticket, `${refusal} Tell me what you want done with ticket #${ticket}.`) : this.reply(refusal);
+      return ticket ? this.askAboutTicket(ticket, `${refusal} Tell me what you want done with ticket #${ticket}.`) : say(refusal);
     }
     if (answer.question !== null) {
       const decisionId = newId("dec");
       await this.deps.log.record([
         { type: "manager.decision_asked", payload: { decisionId, question: answer.question, options: answer.options, ...(ticket && { ticket }) } },
       ]);
-      return this.reply(answer.message, { decisionId });
+      return say(answer.message, { decisionId });
     }
     if (answer.briefing !== null) {
       const proposed = await this.briefingDesk.propose(answer.briefing);
-      return proposed.ok ? this.reply(`${answer.message}\n\n${proposed.value.text}`) : this.reply(`I could not propose that: ${proposed.error}`);
+      return proposed.ok ? say(`${answer.message}\n\n${proposed.value.text}`) : say(`I could not propose that: ${proposed.error}`);
     }
     if (answer.team !== null) {
       const { focus, ...team } = answer.team;
       const proposed = await this.teamDesk.propose({ ...team, ...(focus && { focus }) });
-      return proposed.ok ? this.reply(`${answer.message}\n\n${proposed.value.text}`) : this.reply(`I could not propose that: ${proposed.error}`);
+      return proposed.ok ? say(`${answer.message}\n\n${proposed.value.text}`) : say(`I could not propose that: ${proposed.error}`);
     }
     if (answer.relay !== null) {
       const passed = await this.workerDesk.passOn(answer.relay);
-      return this.reply(passed.ok ? answer.message : `I could not pass that on to the worker of ${answer.relay.orderId}: ${passed.error}`);
+      return say(passed.ok ? answer.message : `I could not pass that on to the worker of ${answer.relay.orderId}: ${passed.error}`);
     }
-    return this.reply(answer.message);
+    return say(answer.message);
+  }
+
+  private async report(task: ScheduledTask, text: string): Promise<void> {
+    await this.deps.log.record([{ type: "manager.reported", payload: { reportId: newId("rep"), taskId: task.id, title: task.title, text } }]);
   }
 
   private async reply(text: string, link: { orderId?: string; decisionId?: DecisionId } = {}): Promise<void> {

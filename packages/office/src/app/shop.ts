@@ -23,7 +23,7 @@ import {
 import { ActionBudget, ActionCounts, type Policy } from "../governance";
 import { systemClock, type Clock } from "../kernel";
 import { attachProjection, EventLog, inProject, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
-import { ChatProjection, ManagerService } from "../manager";
+import { ChatProjection, ManagerService, ReportsProjection } from "../manager";
 import { OrderService, OrdersProjection, type WorkOrder } from "../orders";
 import { BriefingChanges, BriefingService, withSignedChanges, type BriefingStore, type Project } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
@@ -46,6 +46,7 @@ import { PreferencesProjection } from "./preferences";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
 import { ReviewNotice } from "./review-notice";
+import { Schedule, ScheduleProjection } from "./schedule";
 import { createStanding } from "./standing";
 import { createWorkerDesk } from "./worker-desk";
 import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
@@ -81,6 +82,7 @@ export interface ProjectDesk {
   roster: RosterProjection;
   teamService: TeamService;
   chat: ChatProjection;
+  reports: ReportsProjection;
   manager: ManagerService;
   reviewer: PullRequestReview | undefined;
   workers: string[];
@@ -109,6 +111,7 @@ export interface Shop {
   flow: OrderFlow;
   watcher: MergeWatcher;
   intake: IntakeWatcher;
+  schedule: Schedule;
   cursor: LastSequence;
   repo: string;
   readiness: { findings(): readonly Finding[]; refresh(): Promise<void> };
@@ -137,7 +140,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const cursor = new LastSequence();
   const control = new ShopControl(log);
   const preferences = new PreferencesProjection();
-  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges, preferences]) await attachProjection(log, projection);
+  const timings = new ScheduleProjection();
+  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges, preferences, timings]) await attachProjection(log, projection);
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
@@ -157,7 +161,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     const scope = { id: project.id, isFirst: index === 0 };
     const roster = new RosterProjection(team, scope);
     const chat = new ChatProjection(scope);
-    for (const projection of [roster, chat]) await attachProjection(log, projection);
+    const reports = new ReportsProjection(scope);
+    for (const projection of [roster, chat, reports]) await attachProjection(log, projection);
 
     const scoped = inProject(log, project.id);
     const teamService = new TeamService(scoped, roster);
@@ -169,9 +174,11 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       roster,
       teamService,
       chat,
+      reports,
       manager: new ManagerService({
         log: scoped,
         chat,
+        reports,
         runner: createManagerRunner(scheduler, { engine: team.roles.manager.engine, ...withModel(team.roles.manager), ...reading }),
         desk: createOrderDesk(orderService, orders, project.id),
         ...(briefing && { briefing: { read: () => briefing.read(project.id) } }),
@@ -271,6 +278,15 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     targets: () => [...desks.values()].map((desk) => ({ projectId: desk.project.id, repo: desk.project.repo, handle: (ticket) => desk.manager.handleTicket(ticket) })),
     ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "intake", payload: {} } as StoredEvent) }),
   });
+  const schedule = new Schedule({
+    log,
+    timings,
+    clock,
+    projects: () => [...desks.keys()],
+    paused: (projectId) => control.pausedFor(projectId) !== null,
+    run: (projectId, task) => desks.get(projectId)!.manager.handleTask(task),
+    ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "schedule", payload: {} } as StoredEvent) }),
+  });
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repoOf: (order) => deskOf(order).project.repo, flow, progressOf: (id) => activity.linksFor(id) });
 
   return {
@@ -295,6 +311,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     flow,
     watcher,
     intake,
+    schedule,
     cursor,
     repo: first.repo,
     reviewing: firstDesk.reviewer !== undefined,
@@ -309,6 +326,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       stopMirror();
       watcher.stop();
       intake.stop();
+      schedule.stop();
     },
   };
 }

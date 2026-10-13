@@ -227,6 +227,15 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     });
   }
 
+  api.post("/api/commands/schedule-task", async (context) => {
+    const body = commands["schedule-task"].safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: "a task, on or off, and a time of day as HH:MM are required" }, 400);
+    const { project, task, on, at } = body.data;
+    if (!shop.desk(project)) return context.json({ error: `no project ${project}` }, 404);
+
+    return (await shop.schedule.set(project, task, { on, at })) ? context.json({ task, on, at }) : context.json({ error: `no task ${task}` }, 404);
+  });
+
   const registered: Project[] = [];
   api.post("/api/commands/register-project", async (context) => {
     if (!options.projects) return context.json({ error: NOT_MANAGED }, 409);

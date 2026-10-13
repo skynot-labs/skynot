@@ -54,6 +54,7 @@ function readyToMerge(): EvalSeed {
       delivered: [{ orderId: "WO-0011", title: "Sort the list by due date", at: "2026-10-12T17:40:00.000Z" }],
       toMerge: [{ orderId: TO_MERGE, title: "Export the tasks to CSV", url: TO_MERGE_URL }],
       spentTodayUsd: 2.4,
+      spentYesterdayUsd: 6.15,
       dailyCapUsd: 10,
     },
   };

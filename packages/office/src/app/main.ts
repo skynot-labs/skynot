@@ -99,6 +99,7 @@ void shop.readiness.refresh().then(() => {
 });
 shop.watcher.start(mock ? 2_000 : 30_000);
 shop.intake.start(mock ? 5_000 : 60_000);
+shop.schedule.start(mock ? 2_000 : 30_000);
 
 serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
   if (github) console.log(`GitHub: acting as ${github.identity}`);

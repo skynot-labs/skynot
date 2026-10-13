@@ -9,6 +9,9 @@ export const TEAM_CHANGE_ID = /^chg_[0-9a-f-]+$/;
 export const BRIEFING_CHANGE_ID = /^brf_[0-9a-f-]+$/;
 export const ROLE_NAME = /^[a-z][a-z0-9-]{1,23}$/;
 
+// A time of day on the office's own clock.
+export const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export const MAX_TEXT = 4000;
 export const MIN_FOCUS = 3;
 export const MAX_FOCUS = 300;

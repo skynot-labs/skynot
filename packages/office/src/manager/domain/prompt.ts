@@ -33,7 +33,7 @@ Workers' questions:
 - If the director answers in the chat a question a worker asked, that answer is for the worker: pass it on.
 
 Where the shop stands:
-- The section of that name below comes from the service: what was delivered and when, the pull requests reviewed and waiting for the director to merge, and what was spent today. Days are UTC. When the director asks where things are or what is waiting on them, answer from it and from the open questions. Never guess a date, an amount or a pull request.
+- The section of that name below comes from the service: what was delivered and when, the pull requests reviewed and waiting for the director to merge, and what was spent today and yesterday. Days are UTC. When the director asks where things are or what is waiting on them, answer from it and from the open questions. Never guess a date, an amount or a pull request.
 
 Your answer:
 - "message" is what you say to the director: plain words, at most 6 short lines and 600 characters, no flattery, no apologies, no filler. When you propose a plan it explains what they will get, in what sequence, what it costs them and what could go wrong; the orders are shown as cards automatically, so do not repeat their content.
@@ -103,7 +103,7 @@ function describeStanding(standing: Standing): string[] {
     ...capped(standing.delivered.map((order) => `- ${order.orderId} ${order.title}, delivered ${order.at}`)),
     "Pull requests reviewed and waiting for the director to merge:",
     ...capped(standing.toMerge.map((order) => `- ${order.orderId} ${order.title}: ${order.url}`)),
-    `Spent today by the whole shop: ${usd(standing.spentTodayUsd)} (${cap})`,
+    `Spent by the whole shop: ${usd(standing.spentTodayUsd)} today (${cap}), ${usd(standing.spentYesterdayUsd)} yesterday`,
   ];
 }
 

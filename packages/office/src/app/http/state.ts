@@ -11,6 +11,7 @@ import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
 const RUNS_LIMIT = 50;
+const REPORTS_LIMIT = 30;
 const COST_DAYS = 14;
 const LIVE: readonly string[] = ["signed", "on_bench", "in_review"];
 
@@ -63,6 +64,8 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
     briefingChanges: shop.briefingChanges.pendingFor(project.id),
     briefing: shop.briefingChanges.signedFor(project.id),
     hireable: desk.roster.hireable(),
+    schedule: shop.schedule.tasks(project.id),
+    reports: desk.reports.newestFirst(REPORTS_LIMIT).map((report) => ({ id: report.id, task: report.taskId, title: report.title, text: report.text, at: report.at })),
     paused: shop.control.paused(),
     projectPaused: shop.control.projectPaused(project.id),
     costs: {
