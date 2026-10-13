@@ -43,9 +43,11 @@ class TouchingWorkspace extends FakeWorkspace {
 function createCodex(searchMayFinish: Promise<void>): FakeEngine {
   return new FakeEngine(async ({ access, prompt }) => {
     if (access === "read") {
-      return prompt.includes(BANNER)
-        ? { structured: { verdict: "changes_requested", summary: "The banner ignores the dark theme.", findings: ["src/banner.ts: the color is hardcoded"] } }
-        : { structured: { verdict: "approved", summary: "Matches the order.", findings: [] } };
+      if (!prompt.includes(BANNER)) return { structured: { verdict: "approved", summary: "Matches the order.", findings: [] } };
+      const stillHardcoded = { verdict: "changes_requested", summary: "The banner ignores the dark theme.", findings: ["src/banner.ts: the color is hardcoded"] };
+      return prompt.includes("Your findings from the last round")
+        ? { structured: { ...stillHardcoded, findings: [], earlier: [{ finding: 1, status: "not_fixed", proof: "src/banner.ts:3 still sets #00ff00" }] } }
+        : { structured: stillHardcoded };
     }
     if (prompt.includes(PAYMENTS)) return { kind: "failed", message: "the sandbox refused to start", costUsd: 0.05 };
     if (prompt.includes(BANNER) && !prompt.includes("green")) return { text: "QUESTION: Which color should the banner be?" };
@@ -201,7 +203,7 @@ describe("the state an office reports", () => {
     expect(new Set(orders.map((order) => order.review?.verdict))).toEqual(new Set([undefined, "approved", "changes_requested"]));
     expect(everything.orders).toMatchObject([
       { status: "delivered", minutes: "5-15", pullRequest: 4, ready: true },
-      { status: "in_review", context: expect.any(String), answered: [{ answer: "green" }], reviews: 2, review: { findings: ["src/banner.ts: the color is hardcoded"] } },
+      { status: "in_review", context: expect.any(String), answered: [{ answer: "green" }], reviews: 2, review: { findings: [], earlier: [{ finding: "src/banner.ts: the color is hardcoded", status: "not_fixed", proof: "src/banner.ts:3 still sets #00ff00" }] } },
       { status: "on_bench", blocked: "the worker failed: the sandbox refused to start", worker: "tester" },
       { status: "discarded" },
       { status: "in_review", approvedPaths: [".github/workflows/ci.yml"] },
@@ -259,6 +261,16 @@ describe("the state an office reports", () => {
     expect(answered(StateSchema.parse(answeredBy("manager")))).toMatchObject([{ answeredBy: "manager" }]);
     expect(StateSchema.safeParse(answeredBy("the landlord")).success).toBe(true);
     expect(answered(StateSchema.parse(answeredBy("the landlord")))[0]?.answeredBy).toBeUndefined();
+  });
+
+  it("reads a fate the contract does not know for an earlier finding as absent, so a card shows the finding with no mark", () => {
+    const body = at("the whole story");
+    const withStatus = (status: string) => ({ ...body, orders: body.orders.map((order) => ({ ...order, review: order.review && { ...order.review, earlier: order.review.earlier?.map((earlier) => ({ ...earlier, status })) } })) });
+    const rechecked = (state: State) => state.orders.flatMap((order) => order.review?.earlier ?? []);
+
+    expect(rechecked(StateSchema.parse(withStatus("fixed")))).toMatchObject([{ status: "fixed" }]);
+    expect(StateSchema.safeParse(withStatus("partly_fixed")).success).toBe(true);
+    expect(rechecked(StateSchema.parse(withStatus("partly_fixed")))).toEqual([{ finding: "src/banner.ts: the color is hardcoded", proof: "src/banner.ts:3 still sets #00ff00" }]);
   });
 
   it.each<[string, (state: State) => unknown]>([

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { createCodeReviewer } from "../../src/app/code-reviewer";
-import { FakeEngine, RunScheduler, RunsProjection } from "../../src/execution";
+import { FakeEngine, RunScheduler, RunsProjection, toEngineSchema } from "../../src/execution";
 import { EventLog, InMemoryEventStore, attachProjection } from "../../src/kernel/events";
 import { fixedClock } from "../../src/kernel";
-import type { WorkItem } from "../../src/delivery";
+import { ReviewSchema, reviewPrompt, type WorkItem } from "../../src/delivery";
 
 const item: WorkItem = {
   id: "WO-0001",
@@ -36,6 +36,43 @@ describe("code reviewer", () => {
     expect(engine.requests[0]?.prompt).toContain("Archived items are not exported");
     expect(engine.requests[0]?.prompt).toContain("diff --git a/x b/x");
     expect(runs.list()[0]).toMatchObject({ role: "code_reviewer", orderId: "WO-0001" });
+  });
+
+  it("asks a first round for nothing about earlier findings", async () => {
+    const engine = new FakeEngine(() => ({ structured: { verdict: "approved", summary: "Looks right.", findings: [] } }));
+    const { reviewer } = await reviewerWith(engine);
+
+    await reviewer.review({ item, diff: "diff --git a/x b/x" });
+
+    expect(engine.requests[0]?.prompt).toBe(reviewPrompt(item, "diff --git a/x b/x"));
+    expect(engine.requests[0]?.schema).toEqual(toEngineSchema(ReviewSchema));
+  });
+
+  it("hands a later round its earlier findings and returns what became of each", async () => {
+    const engine = new FakeEngine(() => ({
+      structured: {
+        verdict: "changes_requested",
+        summary: "One is left.",
+        findings: [],
+        earlier: [{ finding: 2, status: "not_fixed", proof: "export.ts:9 still exports archived items" }, { finding: 1, status: "fixed", proof: "export.test.ts:14 covers it" }],
+      },
+    }));
+    const { reviewer } = await reviewerWith(engine);
+
+    const outcome = await reviewer.review({ item, diff: "diff --git a/x b/x", earlier: ["export.ts: add a test", "export.ts: archived items are exported"] });
+
+    expect(outcome).toMatchObject({
+      ok: true,
+      value: { earlier: [{ finding: "export.ts: add a test", status: "fixed" }, { finding: "export.ts: archived items are exported", status: "not_fixed", proof: "export.ts:9 still exports archived items" }] },
+    });
+    expect(engine.requests[0]?.prompt).toContain("1. export.ts: add a test\n2. export.ts: archived items are exported");
+    expect(engine.requests[0]?.schema).toMatchObject({ required: ["verdict", "summary", "findings", "earlier"] });
+  });
+
+  it("refuses an approval that calls an earlier finding not fixed", async () => {
+    const { reviewer } = await reviewerWith(new FakeEngine(() => ({ structured: { verdict: "approved", summary: "Good enough.", findings: [], earlier: [{ finding: 1, status: "not_fixed", proof: "export.ts:9 has no test" }] } })));
+
+    expect(await reviewer.review({ item, diff: "", earlier: ["export.ts: add a test"] })).toMatchObject({ ok: false, error: expect.stringContaining("the reviewer's answer was not usable: verdict: cannot approve while an earlier finding is not fixed") });
   });
 
   it("marks its verdict as made from the diff alone where it is told it cannot read the repository", async () => {

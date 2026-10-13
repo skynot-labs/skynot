@@ -73,7 +73,7 @@ export interface WorkerRunner {
 }
 
 export interface CodeReviewer {
-  review(input: { item: WorkItem; diff: string; signal?: AbortSignal }): Promise<Result<ReviewResult, string>>;
+  review(input: { item: WorkItem; diff: string; earlier?: readonly string[]; signal?: AbortSignal }): Promise<Result<ReviewResult, string>>;
 }
 
 export interface RepoRules {
