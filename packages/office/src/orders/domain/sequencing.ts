@@ -10,12 +10,23 @@ const overlaps = (mine: readonly string[], theirs: readonly string[]) =>
 const signedBefore = (other: WorkOrder, order: WorkOrder): boolean =>
   other.signedAt !== null && order.signedAt !== null && (other.signedAt < order.signedAt || (other.signedAt === order.signedAt && other.id < order.id));
 
+const dependsOn = (other: WorkOrder, id: string, all: readonly WorkOrder[], seen = new Set<string>()): boolean =>
+  (other.spec.dependsOn ?? []).some((dependency) => {
+    if (dependency === id) return true;
+    if (seen.has(dependency)) return false;
+    seen.add(dependency);
+    const next = all.find((candidate) => candidate.id === dependency);
+    return next !== undefined && dependsOn(next, id, all, seen);
+  });
+
 // Orders signed before this one that must be merged first: the ones it declares, and the ones touching the same files.
 export function blockersOf(order: WorkOrder, everything: readonly WorkOrder[]): string[] {
   // two projects never share files, whatever their paths say
   const all = everything.filter((other) => other.projectId === order.projectId);
   const declared = (order.spec.dependsOn ?? []).filter((id) => all.find((other) => other.id === id)?.status !== "discarded");
-  const earlier = all.filter((other) => signedBefore(other, order) && ACTIVE.includes(other.status) && overlaps(order.spec.likelyFiles, other.spec.likelyFiles));
+  // An order still waiting for this one cannot be waited for in turn: neither would ever start.
+  const waitsForThis = (other: WorkOrder) => other.status === "signed" && dependsOn(other, order.id, all);
+  const earlier = all.filter((other) => signedBefore(other, order) && ACTIVE.includes(other.status) && !waitsForThis(other) && overlaps(order.spec.likelyFiles, other.spec.likelyFiles));
   const pending = [...declared, ...earlier.map((other) => other.id)].filter((id) => all.find((other) => other.id === id)?.status !== "delivered");
   return [...new Set(pending)].sort();
 }
