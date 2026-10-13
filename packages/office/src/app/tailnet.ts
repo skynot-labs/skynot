@@ -9,6 +9,10 @@ export async function shareOnTailnet(exec: Exec, port: number): Promise<Result<s
   const status = await exec("tailscale", ["status", "--json"], { timeoutMs: 10_000 }).catch(() => null);
   if (status === null) return err("Tailscale is not installed on this machine. Install it from https://tailscale.com/download, then run:\n  " + JOIN);
 
+  if (/failed to connect to local tailscaled/i.test(`${status.stdout}\n${status.stderr}`)) {
+    return err("Tailscale is installed, but its daemon is not running, so a login it already has cannot be used. Start it and try again:\n  sudo systemctl start tailscaled\nIn the devcontainer:\n  bash .devcontainer/start-tailscale.sh");
+  }
+
   const name = dnsNameIn(status.stdout);
   if (name === null) return err(`This machine has not joined a tailnet yet. Run:\n  ${JOIN}`);
 
