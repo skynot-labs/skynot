@@ -1,7 +1,7 @@
 import { RunScheduler, type EngineFailure, type EngineName, type RoleEngine } from "../../execution";
 import { newId, ok, systemClock } from "../../kernel";
 import { attachProjection, EventLog, InMemoryEventStore, type StoredEvent } from "../../kernel/events";
-import { ChatProjection, ManagerService, type OrderOverview, type Relay, type ScheduledTask, type Standing, type WaitingWorker } from "../../manager";
+import { ChatProjection, ManagerService, ReportsProjection, type OrderOverview, type Relay, type ScheduledTask, type Standing, type WaitingWorker } from "../../manager";
 import { WorkOrderSpecSchema, type WorkOrderSpec } from "../../orders";
 import { createManagerRunner } from "../model-runner";
 
@@ -10,6 +10,8 @@ export interface EvalSeed {
   waiting: WaitingWorker[];
   inReview?: string[];
   standing?: Standing;
+  // What the Manager reported before this turn, oldest first.
+  reports?: Array<{ title: string; text: string }>;
   conversation: Array<{ author: "director" | "manager"; text: string }>;
 }
 
@@ -63,7 +65,10 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
   const { seed } = evalCase;
   const log = new EventLog(new InMemoryEventStore(), systemClock);
   const chat = new ChatProjection();
+  const reports = new ReportsProjection();
   await attachProjection(log, chat);
+  await attachProjection(log, reports);
+  await log.record((seed.reports ?? []).map((report) => ({ type: "manager.reported", payload: { reportId: newId("rep"), taskId: "seeded", ...report } })));
   await log.record(
     seed.conversation.map((entry) =>
       entry.author === "director"
@@ -79,6 +84,7 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
   const manager = new ManagerService({
     log,
     chat,
+    reports,
     runner: createManagerRunner(new RunScheduler(setup.engines, log, 1), {
       engine: setup.engine,
       cwd: async () => setup.repoDir,
