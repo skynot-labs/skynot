@@ -336,6 +336,12 @@ export const ScheduledTaskSchema = z.object({
   at: z.string(),
   nextAt: timestamp.nullable(),
   lastRun: z.object({ at: timestamp, outcome: z.enum(["fired", "skipped"]) }).nullable(),
+  // In words, as the office's clock has it: "every Fri at 09:00". Absent from an office that only had the morning report.
+  when: z.string().optional(),
+  // What the Manager will be given when it is due, and the director's message that asked for it: only for a task that was asked for.
+  text: z.string().optional(),
+  requested: z.string().optional(),
+  removable: z.boolean().optional(),
 });
 export type ScheduledTask = z.infer<typeof ScheduledTaskSchema>;
 
@@ -345,6 +351,8 @@ export const ReportSchema = z.object({
   title: z.string(),
   text: z.string(),
   at: timestamp,
+  // The director's message that asked for the task, when there was one.
+  requested: z.string().nullable().optional(),
 });
 export type Report = z.infer<typeof ReportSchema>;
 

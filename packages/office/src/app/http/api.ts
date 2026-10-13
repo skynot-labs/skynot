@@ -236,6 +236,14 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     return (await shop.schedule.set(project, task, { on, at })) ? context.json({ task, on, at }) : context.json({ error: `no task ${task}` }, 404);
   });
 
+  api.post("/api/commands/remove-task", async (context) => {
+    const body = commands["remove-task"].safeParse(await context.req.json().catch(() => null));
+    if (!body.success) return context.json({ error: "a project and a task are required" }, 400);
+    if (!shop.desk(body.data.project)) return context.json({ error: `no project ${body.data.project}` }, 404);
+
+    return (await shop.schedule.remove(body.data.project, body.data.task)) ? context.json({ removed: body.data.task }) : context.json({ error: `no task ${body.data.task} that can be removed` }, 404);
+  });
+
   const registered: Project[] = [];
   api.post("/api/commands/register-project", async (context) => {
     if (!options.projects) return context.json({ error: NOT_MANAGED }, 409);

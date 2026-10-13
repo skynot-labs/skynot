@@ -21,6 +21,10 @@ export function createMockManager(): FakeEngine {
     if (message.startsWith("A task the director scheduled is due")) {
       return { structured: { message: "Delivered: nothing since the last report.\nTo merge: nothing waits for you.\nQuestions: none.\nSpent: $0.00 yesterday, $0.00 today.\nToday I would keep the bench moving.", question: null, options: [], orders: [], consult: [], team: null } };
     }
+    if (message.toLowerCase().startsWith("/later")) {
+      const wanted = shorten(message.slice("/later".length).trim() || "the idea", 40);
+      return { structured: { message: "I will, every Friday morning.", question: null, options: [], orders: [], consult: [], team: null, schedule: { title: wanted, text: `Report on: ${wanted}`, when: { at: "09:00", days: ["fri"] } } } };
+    }
     if (message.toLowerCase().startsWith("/ping")) {
       return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], orders: [], consult: [], team: null } };
     }

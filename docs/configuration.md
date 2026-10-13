@@ -15,7 +15,8 @@ service checks every action against it, whatever the model proposed.
 - **Spending.** `run_budget` caps one run in time and in dollars, and `max_usd_per_day` the whole day. At the
   daily cap the shop pauses itself; resuming that day is your call.
 - **Writes to GitHub.** `limits` caps how many the shop makes for one order and in total per day, how many runs
-  go in parallel, and how many times a worker may retry a change that fails your checks.
+  go in parallel, and how many times a worker may retry a change that fails your checks. `max_scheduled_tasks`
+  is how many tasks the Manager may keep scheduled for one project; without it the limit is 10.
 - **Names.** `branch_prefix` is where every work branch lives. `labels` are the labels the shop puts on its
   issues and the one it listens for.
 

@@ -23,6 +23,11 @@
   color: var(--muted);
   font-size: var(--sk-type-caption);
 }
+.report-requested {
+  margin: 0 0 var(--sk-space-2);
+  color: var(--muted);
+  font-size: var(--sk-type-caption);
+}
 .report-new {
   box-shadow: inset 3px 0 0 var(--sk-color-mint);
 }
@@ -38,11 +43,23 @@
   display: grid;
   gap: var(--sk-space-4);
   padding: 18px;
-  justify-items: start;
+}
+.schedule-panel > .secondary-button,
+.scheduled-task > .secondary-button {
+  justify-self: start;
 }
 .scheduled-task {
   display: grid;
   gap: var(--sk-space-2);
+}
+.scheduled-task h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.scheduled-task + .scheduled-task {
+  padding-top: var(--sk-space-4);
+  border-top: 1px solid var(--border);
 }
 .scheduled-task-switch {
   display: flex;

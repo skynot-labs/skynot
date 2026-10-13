@@ -27,6 +27,7 @@ export function ReportsView({ project, fresh, onClock }: { project: Project; fre
               {dayTime(report.at)} · {ago(report.at)}
             </time>
           </header>
+          {report.requested && <p class="report-requested">You asked: {report.requested}</p>}
           <RichText text={report.text} />
         </article>
       ))}
@@ -42,15 +43,38 @@ const LAST_RUN: Record<NonNullable<ScheduledTask["lastRun"]>["outcome"], string>
 export function ScheduleView({ project, send, unread, onReports }: { project: Project; send: Send; unread: number; onReports: () => void }) {
   return (
     <section class="panel schedule-panel">
-      {(project.schedule ?? []).map((task) => (
-        <ScheduledTaskRow key={task.id} projectId={project.id} task={task} send={send} />
-      ))}
+      {(project.schedule ?? []).map((task) =>
+        task.removable ? <AskedTaskRow key={task.id} projectId={project.id} task={task} send={send} /> : <ScheduledTaskRow key={task.id} projectId={project.id} task={task} send={send} />,
+      )}
       <button class="secondary-button" onClick={onReports}>
         <Icon name="report" />
         Read the reports
         {unread > 0 && <b class="nav-counter">{unread}</b>}
       </button>
     </section>
+  );
+}
+
+// A task the director asked the Manager for: it is read and removed here, and changed by asking again.
+function AskedTaskRow({ projectId, task, send }: { projectId: string; task: ScheduledTask; send: Send }) {
+  return (
+    <article class="scheduled-task">
+      <h3>{task.title}</h3>
+      <p class="scheduled-task-next">
+        {task.when}
+        {task.nextAt && ` · next: ${dayTime(task.nextAt)}`}
+      </p>
+      {task.requested && <p class="scheduled-task-last">You asked: {task.requested}</p>}
+      {task.lastRun && (
+        <p class="scheduled-task-last">
+          {LAST_RUN[task.lastRun.outcome]} {dayTime(task.lastRun.at)}
+        </p>
+      )}
+      <button class="secondary-button" onClick={() => void send({ name: "remove-task", payload: { project: projectId, task: task.id } })} aria-label={`Remove the task ${task.title}`}>
+        <Icon name="close" />
+        Remove
+      </button>
+    </article>
   );
 }
 

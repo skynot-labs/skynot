@@ -14,7 +14,7 @@ export type ManagerEvent =
     }
   | { type: "manager.decision_asked"; payload: { decisionId: DecisionId; question: string; options: string[]; ticket?: number } }
   | { type: "manager.decision_answered"; payload: { decisionId: DecisionId; answer: string } }
-  | { type: "manager.reported"; payload: { reportId: ReportId; taskId: string; title: string; text: string } }
+  | { type: "manager.reported"; payload: { reportId: ReportId; taskId: string; title: string; text: string; requested?: string } }
   | { type: "manager.answer_rejected"; payload: { attempt: number; issues: string } }
   | { type: "manager.consulted"; payload: { role: string; question: string } }
   | { type: "manager.advised"; payload: { role: string; answer: string } }

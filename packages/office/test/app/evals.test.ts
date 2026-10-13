@@ -37,6 +37,8 @@ const managerSays = (structured: object) => scripted(new FakeEngine(() => ({ str
 
 const ARCHIVE_OR_NOT = asking("Should a removed task be gone for good, or go to an archive?", ["Gone for good", "Archive"]);
 const MORNING = answer({ message: "Delivered: WO-0011, sort by due date.\nTo merge: WO-0012 waits for you.\nQuestions: none.\nSpent: $6.15 yesterday, $2.40 today.\nToday I would start the reminders." });
+const FRIDAYS = answer({ message: "Every Friday at 09:00.", schedule: { title: "Stuck orders", text: "List the orders that have not moved in a week.", when: { at: "09:00", days: ["fri"] } } });
+const ON_MONDAY = answer({ message: "Monday at 10.", schedule: { title: "Importer", text: "Check the importer on big files.", when: { once: "2026-10-19T10:00" } } });
 const onlyPositive = validSpec({ acceptanceCriteria: [{ statement: "tasks list --open prints the open tasks", verification: { kind: "test", detail: "list.test.js" } }] });
 
 describe("the cases, against a scripted Manager", () => {
@@ -50,6 +52,9 @@ describe("the cases, against a scripted Manager", () => {
     ["what-waits-on-the-director-is-named", answer({ message: "WO-0012 is reviewed and waits for your merge. Nothing else needs you." })],
     ["morning-report-has-its-parts", MORNING],
     ["a-report-is-recalled-in-the-chat", answer({ message: "The importer: it failed twice this week on files over 2 MB." })],
+    ["asked-for-every-week-is-scheduled", FRIDAYS],
+    ["a-date-is-worked-out-from-the-clock", ON_MONDAY],
+    ["a-ticket-schedules-nothing", asking("What is this export for, and who may read it?")],
   ])("%s passes on an answer that does the right thing", async (name, structured) => {
     expect(await runCase(caseNamed(name), managerSays(structured))).toMatchObject({ outcome: "pass" });
   });
@@ -72,6 +77,11 @@ describe("the cases, against a scripted Manager", () => {
     ["what-waits-on-the-director-is-named", answer({ message: "Two orders are in review. Nothing needs you yet." }), "does not name the pull request"],
     ["what-waits-on-the-director-is-named", asking("Do you want me to list the pull requests?"), "asked the director instead"],
     ["a-report-is-recalled-in-the-chat", answer({ message: "I have no report from this morning." }), "does not answer from the report"],
+    ["asked-for-every-week-is-scheduled", answer({ message: "I will remember." }), "scheduled nothing"],
+    ["asked-for-every-week-is-scheduled", ON_MONDAY, "scheduled it once"],
+    ["asked-for-every-week-is-scheduled", answer({ message: "Daily.", schedule: { title: "Stuck orders", text: "List the stuck orders.", when: { at: "09:00", days: [] } } }), "not on Fridays"],
+    ["a-date-is-worked-out-from-the-clock", answer({ message: "Monday.", schedule: { title: "Importer", text: "Check the importer.", when: { once: "2026-10-20T10:00" } } }), "not for Monday 2026-10-19"],
+    ["a-date-is-worked-out-from-the-clock", FRIDAYS, "scheduled it to repeat"],
     ["morning-report-has-its-parts", answer({ message: "All quiet. WO-0012 waits for your merge." }), "does not say what was delivered"],
     ["morning-report-has-its-parts", answer({ message: "Delivered: WO-0011. To merge: WO-0012. Spent little." }), "does not say what was spent"],
     ["morning-report-has-its-parts", asking("Shall I start the reminders today?"), "nobody will answer"],
@@ -81,6 +91,15 @@ describe("the cases, against a scripted Manager", () => {
 
     expect(result).toMatchObject({ outcome: "fail" });
     expect(result.outcome === "fail" && result.why).toContain(why);
+  });
+});
+
+describe("a ticket that asks for a schedule", () => {
+  it("fails the case when the Manager tries, though the service refuses it", async () => {
+    const result = await runCase(caseNamed("a-ticket-schedules-nothing"), managerSays(FRIDAYS));
+
+    expect(result).toMatchObject({ outcome: "fail" });
+    expect(result.outcome === "fail" && result.why).toContain("tried to schedule from a ticket");
   });
 });
 

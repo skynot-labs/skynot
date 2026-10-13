@@ -1,7 +1,7 @@
 import { RunScheduler, type EngineFailure, type EngineName, type RoleEngine } from "../../execution";
 import { newId, ok, systemClock } from "../../kernel";
 import { attachProjection, EventLog, InMemoryEventStore, type StoredEvent } from "../../kernel/events";
-import { ChatProjection, ManagerService, ReportsProjection, type OrderOverview, type Relay, type ScheduledTask, type Standing, type WaitingWorker } from "../../manager";
+import { ChatProjection, ManagerService, ReportsProjection, type OrderOverview, type Relay, type ScheduledTask, type Standing, type TaskProposal, type WaitingWorker } from "../../manager";
 import { WorkOrderSpecSchema, type WorkOrderSpec } from "../../orders";
 import { createManagerRunner } from "../model-runner";
 
@@ -21,6 +21,7 @@ export interface Observed {
   plans: WorkOrderSpec[][];
   relays: Relay[];
   briefings: string[];
+  scheduled: TaskProposal[];
   // Answers the service refused before the one it acted on.
   rejected: string[];
 }
@@ -33,8 +34,8 @@ export const fail = (why: string): Verdict => ({ pass: false, why });
 export interface EvalCase {
   name: string;
   seed: EvalSeed;
-  // What the director says, or the scheduled task that is due.
-  message: string | ScheduledTask;
+  // What the director says, the scheduled task that is due, or the ticket that was filed.
+  message: string | ScheduledTask | { ticket: { number: number; title: string; body: string } };
   check(observed: Observed): Verdict;
 }
 
@@ -60,6 +61,8 @@ export interface CaseReport {
 }
 
 const ANSWER_CHARS = 400;
+// What the office's clock reads in every case: a Tuesday.
+export const EVAL_CLOCK = "Tue 2026-10-13 10:00";
 
 export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<RunResult> {
   const { seed } = evalCase;
@@ -79,7 +82,7 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
 
   const turn: StoredEvent[] = [];
   log.subscribe((event) => void turn.push(event));
-  const observed: Observed = { reply: "", question: null, plans: [], relays: [], briefings: [], rejected: [] };
+  const observed: Observed = { reply: "", question: null, plans: [], relays: [], briefings: [], scheduled: [], rejected: [] };
 
   const manager = new ManagerService({
     log,
@@ -107,6 +110,14 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
         return ok({ text: "(briefing change filed)" });
       },
     },
+    tasks: {
+      clock: () => EVAL_CLOCK,
+      scheduled: () => [],
+      async schedule(proposal) {
+        observed.scheduled.push(proposal);
+        return ok({ text: "(task scheduled)" });
+      },
+    },
     workers: {
       waiting: () => seed.waiting,
       inReview: () => seed.inReview ?? [],
@@ -118,7 +129,8 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
   });
 
   try {
-    await (typeof evalCase.message === "string" ? manager.handleMessage(evalCase.message) : manager.handleTask(evalCase.message));
+    const { message } = evalCase;
+    await (typeof message === "string" ? manager.handleMessage(message) : "ticket" in message ? manager.handleTicket(message.ticket) : manager.handleTask(message));
   } catch (error) {
     return { outcome: "error", message: (error as Error).message, ...spentIn(turn) };
   }
@@ -164,6 +176,7 @@ function describe(observed: Observed): string {
     ...observed.relays.map((relay) => `relay to ${relay.orderId} from ${relay.from}: ${relay.text}`),
     ...observed.plans.map((plan) => `plan: ${plan.map((order) => order.title).join("; ")}`),
     ...observed.briefings.map((text) => `briefing: ${text}`),
+    ...observed.scheduled.map((task) => `scheduled: ${task.title} ${JSON.stringify(task.when)}`),
     ...observed.rejected.map((issues) => `rejected first: ${issues}`),
   ];
   const text = parts.join(" / ").replace(/\s+/g, " ");

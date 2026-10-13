@@ -1,6 +1,6 @@
 import type { Page } from "@playwright/test";
 import { floorPoint, officeLayout } from "../src/ui/office-layout";
-import { closeDialog, dialog, expect, openProject, openView, test } from "./support";
+import { closeDialog, dialog, expect, openProject, openView, tellTheManager, test } from "./support";
 
 async function clickOffice(page: Page, [x, y]: [number, number]): Promise<void> {
   const stage = page.locator(".office-stage canvas");
@@ -52,5 +52,20 @@ test.describe("the clock and the reports", () => {
     await expect(reports).not.toContainText("1");
     await reports.click();
     await expect(dialog(page).getByRole("article")).not.toContainText("New");
+  });
+
+  test("a task asked for in the chat shows at the clock, with what asked for it, and is removed there", async ({ page }) => {
+    await openProject(page, "alpha");
+    const chat = await tellTheManager(page, "/later the stuck orders");
+    await expect(chat).toContainText('Scheduled "the stuck orders": every Fri at 09:00.', { timeout: 20_000 });
+
+    await page.getByRole("button", { name: "Open the scheduled tasks" }).click();
+    const task = dialog(page).getByRole("article").filter({ hasText: "the stuck orders" });
+    await expect(task).toContainText("every Fri at 09:00 · next:");
+    await expect(task).toContainText("You asked: /later the stuck orders");
+
+    await task.getByRole("button", { name: "Remove the task the stuck orders" }).click();
+    await expect(task).toHaveCount(0);
+    await expect(dialog(page).getByRole("switch", { name: "Morning report" })).toBeVisible();
   });
 });

@@ -34,6 +34,27 @@ export interface StandingSource {
   read(): Standing;
 }
 
+export const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+
+export interface TaskProposal {
+  readonly title: string;
+  readonly text: string;
+  // `once` is a date and a time on the office's own clock, "YYYY-MM-DDTHH:MM"; no day in `days` means every day.
+  readonly when: { readonly once: string } | { readonly at: string; readonly days: readonly Weekday[] };
+  // The director's message that asked for it.
+  readonly requested: string;
+}
+
+export interface TaskDesk {
+  // What the office's own clock reads, so "on Monday" means a date.
+  clock(): string;
+  scheduled(): Array<{ title: string; when: string }>;
+  schedule(proposal: TaskProposal): Promise<Result<{ text: string }, string>>;
+}
+
+export const NO_TASK_DESK: TaskDesk = { clock: () => "", scheduled: () => [], schedule: async () => err("nothing can be scheduled here") };
+
 export interface AdvisorInfo {
   readonly name: string;
   readonly description: string;
