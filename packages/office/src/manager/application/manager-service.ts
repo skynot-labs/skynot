@@ -30,6 +30,7 @@ import type { ReportsProjection } from "./reports-projection";
 const MAX_ATTEMPTS = 3;
 const CONVERSATION_WINDOW = 20;
 const TICKET_BODY_CHARS = 4000;
+const REPORTS_RECALLED = 2;
 
 export interface ScheduledTask {
   readonly id: string;
@@ -131,6 +132,7 @@ export class ManagerService {
       openQuestions: chat.openDecisions().map((decision) => decision.question),
       waitingWorkers: this.workerDesk.waiting(),
       standing: this.deps.standing?.read() ?? null,
+      reports: this.deps.reports?.newestFirst(REPORTS_RECALLED) ?? [],
       conversation: chat.recent(CONVERSATION_WINDOW),
       message: text,
     });

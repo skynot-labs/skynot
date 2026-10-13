@@ -134,6 +134,21 @@ export const CASES: EvalCase[] = [
     },
   },
   {
+    name: "a-report-is-recalled-in-the-chat",
+    seed: {
+      orders: [{ id: "WO-0015", title: "Repeat a task every week", status: "on_bench", plan: "WO-0015" }],
+      waiting: [],
+      conversation: [],
+      reports: [{ title: "Morning report", text: "Delivered: nothing since the last report.\nTo merge: nothing waits for you.\nQuestions: none.\nSpent: $1.10 yesterday, $0.00 today.\nToday I would look at the importer: it has failed on files over 2 MB twice this week." }],
+    },
+    message: "In your report this morning you wanted to look at something today. What was it, and why?",
+    check: ({ reply, question, plans }) => {
+      if (plans.length > 0) return fail("proposed a plan instead of answering");
+      if (question && !/import/i.test(reply)) return fail(`asked instead of answering: ${quote(question.text)}`);
+      return /import/i.test(reply) && /2 ?MB|fail|twice/i.test(reply) ? PASS : fail(`does not answer from the report: ${quote(reply)}`);
+    },
+  },
+  {
     name: "morning-report-has-its-parts",
     seed: readyToMerge(),
     message: MORNING_REPORT,

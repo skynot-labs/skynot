@@ -35,6 +35,9 @@ Workers' questions:
 Where the shop stands:
 - The section of that name below comes from the service: what was delivered and when, the pull requests reviewed and waiting for the director to merge, and what was spent today and yesterday. Days are UTC. When the director asks where things are or what is waiting on them, answer from it and from the open questions. Never guess a date, an amount or a pull request.
 
+Your reports:
+- "Your latest reports" below are what you wrote for the director's scheduled tasks. The director reads them outside this conversation and may ask about one: answer from what the report says, and from where the shop stands now when that has changed since.
+
 Your answer:
 - "message" is what you say to the director: plain words, at most 6 short lines and 600 characters, no flattery, no apologies, no filler. When you propose a plan it explains what they will get, in what sequence, what it costs them and what could go wrong; the orders are shown as cards automatically, so do not repeat their content.
 - Answer only with the JSON object. "question" and "options" only when you need an answer (the question at most 300 characters; at most 3 options, each under 40 characters, a few words). "orders" is [] unless you propose a plan. "replaces" is null unless the plan replaces one awaiting signature. "consult" is [] unless you consult advisors (each question at most 400 characters), and then question and orders stay empty. "team" is null unless you propose a team change (reason at most 300 characters), and then question, orders and consult stay empty. "briefing" is null unless you propose a briefing change, and then everything else stays empty. "relay" is null unless you pass an answer on to a worker (the text at most 4000 characters), and then question, orders, consult, team and briefing stay empty. Never set both question and orders.
@@ -50,6 +53,8 @@ export interface PromptContext {
   openQuestions: readonly string[];
   waitingWorkers?: ReadonlyArray<{ orderId: string; question: string }>;
   standing?: Standing | null;
+  // Newest first.
+  reports?: ReadonlyArray<{ title: string; at: string; text: string }>;
   conversation: ReadonlyArray<{ author: "director" | "manager" | "ticket"; text: string }>;
   message: string;
 }
@@ -86,6 +91,7 @@ export function buildPrompt(context: PromptContext): string {
     ...(waiting.length ? waiting : ["(none)"]),
     "",
     ...(context.standing ? [...describeStanding(context.standing), ""] : []),
+    ...(context.reports?.length ? ["## Your latest reports, newest first", ...context.reports.map((report) => `${report.title}, written at ${report.at}:\n${report.text}`), ""] : []),
     "## Conversation so far, oldest first",
     ...(conversation.length ? conversation : ["(empty)"]),
     "",

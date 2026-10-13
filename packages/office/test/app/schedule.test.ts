@@ -113,6 +113,25 @@ describe("the morning report on a schedule", () => {
     expect(second).toContain(`Your last report for this task was written at ${october(13, 9).toISOString()}.`);
   });
 
+  it("gives the Manager its last two reports when the director writes in the chat, and keeps them out of the chat", async () => {
+    const shop = await openShop();
+    await shop.schedule.set("blog", MORNING_REPORT.id, { on: true, at: "09:00" });
+    for (const day of [13, 14, 15]) {
+      now = october(day, 9);
+      await shop.schedule.poll();
+    }
+
+    await shop.desk("blog")!.manager.handleMessage("/ping");
+    await shop.desk("shop")!.manager.handleMessage("/ping");
+
+    const [inShop, inBlog] = asked.map((request) => request.prompt).reverse();
+    expect(inBlog).toContain(`## Your latest reports, newest first\nMorning report, written at ${october(15, 9).toISOString()}:\nDelivered:`);
+    expect(inBlog).toContain(`written at ${october(14, 9).toISOString()}`);
+    expect(inBlog).not.toContain(`written at ${october(13, 9).toISOString()}`);
+    expect(inShop).not.toContain("Your latest reports");
+    expect(shop.desk("blog")!.chat.messages().map((message) => message.author)).toEqual(["director", "manager"]);
+  });
+
   it("does not fire for a time that had already passed when it was switched on, nor in another project", async () => {
     const shop = await openShop();
     now = october(13, 10);
