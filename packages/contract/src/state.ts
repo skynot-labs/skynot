@@ -328,6 +328,26 @@ export const ActivitySchema = z.object({
 export type Activity = z.infer<typeof ActivitySchema>;
 
 // One project's view of the office: `projects`, `readiness`, `paused`, `preferences` and `cursor` are the same whichever project is asked for.
+export const ScheduledTaskSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  on: z.boolean(),
+  // "HH:MM" on the office's own clock.
+  at: z.string(),
+  nextAt: timestamp.nullable(),
+  lastRun: z.object({ at: timestamp, outcome: z.enum(["fired", "skipped"]) }).nullable(),
+});
+export type ScheduledTask = z.infer<typeof ScheduledTaskSchema>;
+
+export const ReportSchema = z.object({
+  id: z.string(),
+  task: z.string(),
+  title: z.string(),
+  text: z.string(),
+  at: timestamp,
+});
+export type Report = z.infer<typeof ReportSchema>;
+
 export const StateSchema = z.object({
   project: ProjectSchema,
   projects: z.array(ProjectSummarySchema),
@@ -356,6 +376,10 @@ export const StateSchema = z.object({
   preferences: PreferencesSchema,
   presence: PresenceSchema,
   activity: z.array(ActivitySchema).readonly(),
+  // Absent from an office built before it had a schedule.
+  schedule: z.array(ScheduledTaskSchema).optional(),
+  // Newest first.
+  reports: z.array(ReportSchema).optional(),
   simulated: z.boolean(),
 });
 export type State = z.infer<typeof StateSchema>;

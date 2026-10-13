@@ -14,6 +14,7 @@ import {
   ROLE_NAME,
   RUN_ID,
   TEAM_CHANGE_ID,
+  TIME_OF_DAY,
 } from "./formats";
 
 const text = z.string().trim().min(1).max(MAX_TEXT);
@@ -65,6 +66,8 @@ export const commands = {
   }),
   "describe-project": z.object({ project: projectId, name: z.string().nullable().optional(), description: z.string().nullable().optional() }),
   "set-preference": z.object({ key: z.string().regex(PREFERENCE_KEY), value: z.record(z.string(), z.unknown()).nullable() }),
+
+  "schedule-task": z.object({ project: projectId, task: z.string().min(1), on: z.boolean(), at: z.string().regex(TIME_OF_DAY) }),
 
   "set-focus": z.object({ project: projectId, role: roleName, focus: z.string().trim().min(MIN_FOCUS).max(MAX_FOCUS) }),
   "sign-team-change": oneTeamChange,

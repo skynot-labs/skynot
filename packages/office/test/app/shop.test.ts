@@ -202,7 +202,7 @@ describe("what the Manager is told about where the shop stands", () => {
     const waiting = await told();
     expect(waiting).toContain(`waiting for the director to merge:\n- ${id} Export the inventory to CSV: ${url}`);
     expect(waiting).toContain("Delivered, newest first:\n(none)");
-    expect(waiting).toMatch(/Spent today by the whole shop: \$\d+\.\d\d \(/);
+    expect(waiting).toMatch(/Spent by the whole shop: \$\d+\.\d\d today \(.*\), \$0\.00 yesterday/);
 
     vcs.setPullRequestState(shop.repo, 2, "merged");
     await shop.watcher.poll();

@@ -18,6 +18,9 @@ export function createMockManager(): FakeEngine {
       const steps = [`Lay the ground for ${wanted}`, `Build ${wanted}`].map((title) => mockOrder(title));
       return { structured: { message: "Two steps, the second on top of the first. Sign the plan and they start in that sequence.", question: null, options: [], orders: [steps[0], { ...steps[1], needs: [1] }], consult: [], team: null } };
     }
+    if (message.startsWith("A task the director scheduled is due")) {
+      return { structured: { message: "Delivered: nothing since the last report.\nTo merge: nothing waits for you.\nQuestions: none.\nSpent: $0.00 yesterday, $0.00 today.\nToday I would keep the bench moving.", question: null, options: [], orders: [], consult: [], team: null } };
+    }
     if (message.toLowerCase().startsWith("/ping")) {
       return { structured: { message: "Nothing on the bench but the paperwork.", question: null, options: [], orders: [], consult: [], team: null } };
     }

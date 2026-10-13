@@ -25,6 +25,7 @@ export interface Standing {
   readonly delivered: ReadonlyArray<{ orderId: string; title: string; at: string }>;
   readonly toMerge: ReadonlyArray<{ orderId: string; title: string; url: string }>;
   readonly spentTodayUsd: number;
+  readonly spentYesterdayUsd: number;
   readonly dailyCapUsd: number | null;
 }
 

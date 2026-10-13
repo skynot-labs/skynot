@@ -750,7 +750,7 @@ describe("passing an answer on to a worker", () => {
 
 describe("where the shop stands, in the prompt", () => {
   const context = { orders: [], openQuestions: [], conversation: [], message: "Where are we?" };
-  const standing = { at: "2026-10-13T09:00:00.000Z", delivered: [], toMerge: [], spentTodayUsd: 1.5, dailyCapUsd: 10 };
+  const standing = { at: "2026-10-13T09:00:00.000Z", delivered: [], toMerge: [], spentTodayUsd: 1.5, spentYesterdayUsd: 4, dailyCapUsd: 10 };
 
   it("keeps each list to five lines however long the log is, and says how many it left out", () => {
     const delivered = Array.from({ length: 7 }, (_, index) => ({ orderId: `WO-000${7 - index}`, title: "Export", at: `2026-10-1${7 - index > 3 ? 2 : 1}T10:00:00.000Z` }));
@@ -759,11 +759,11 @@ describe("where the shop stands, in the prompt", () => {
 
     expect(prompt).toContain("- WO-0003 Export, delivered 2026-10-11T10:00:00.000Z\n(and 2 more)");
     expect(prompt).not.toContain("WO-0002");
-    expect(prompt).toContain("Spent today by the whole shop: $1.50 (daily cap $10.00)");
+    expect(prompt).toContain("Spent by the whole shop: $1.50 today (daily cap $10.00), $4.00 yesterday");
   });
 
   it("says there is no cap when the policy sets none, and nothing at all when the service gives no standing", () => {
-    expect(buildPrompt({ ...context, standing: { ...standing, dailyCapUsd: null } })).toContain("$1.50 (no daily cap)");
+    expect(buildPrompt({ ...context, standing: { ...standing, dailyCapUsd: null } })).toContain("$1.50 today (no daily cap)");
     expect(buildPrompt(context)).not.toContain("Where the shop stands");
   });
 });
