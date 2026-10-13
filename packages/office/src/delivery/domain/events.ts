@@ -17,6 +17,7 @@ export type DeliveryEvent =
   | { type: "delivery.worker_assigned"; payload: { orderId: string; worker: string } }
   | { type: "delivery.wait_skipped"; payload: { orderId: string } }
   | { type: "delivery.work_retried"; payload: { orderId: string } }
+  | { type: "delivery.pull_request_reopened"; payload: { orderId: string; number: number } }
   | { type: "delivery.follow_up_requested"; payload: { orderId: string; instruction: string } }
   | { type: "delivery.pull_request_updated"; payload: { orderId: string; number: number } }
   | { type: "delivery.pull_request_opened"; payload: { orderId: string; repo: string; number: number; url: string } };

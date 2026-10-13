@@ -41,7 +41,10 @@ export class MergeWatcher {
       try {
         const state = await vcs.pullRequestState(repoOf(order), order.pullRequest!);
         if (state === "merged") await orderService.deliver(order.id);
-        if (state === "open") await this.reportChecks(order, order.pullRequest!);
+        if (state === "open") {
+          if (progressOf(order.id).blocked === CLOSED_UNMERGED) await log.record([{ type: "delivery.pull_request_reopened", payload: { orderId: order.id, number: order.pullRequest! } }]);
+          await this.reportChecks(order, order.pullRequest!);
+        }
         if (state === "closed" && progressOf(order.id).blocked !== CLOSED_UNMERGED) {
           await log.record([{ type: "delivery.work_blocked", payload: { orderId: order.id, reason: CLOSED_UNMERGED } }]);
         }

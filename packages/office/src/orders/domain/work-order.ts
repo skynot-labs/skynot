@@ -97,7 +97,7 @@ export const discard = (order: WorkOrder) =>
   });
 
 export const abandon = (order: WorkOrder) =>
-  transition(order, "abandon", ["on_bench"], { type: "orders.discarded", payload: { orderId: order.id } });
+  transition(order, "abandon", ["on_bench", "in_review"], { type: "orders.discarded", payload: { orderId: order.id } });
 
 export const startWork = (order: WorkOrder) =>
   transition(order, "start work on", ["signed"], { type: "orders.work_started", payload: { orderId: order.id } });
