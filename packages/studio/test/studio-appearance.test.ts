@@ -63,6 +63,8 @@ const project: Project = {
   briefing: null,
   hireable: [],
   activity: [],
+  schedule: null,
+  reports: [],
   runs: [],
   answered: [],
   spentUsd: 0,

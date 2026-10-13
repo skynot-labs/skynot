@@ -53,6 +53,7 @@ export function StudioHero({
   onOrders,
   onActivity,
   onStats,
+  onClock,
   onContext,
   dock,
   dockCalls,
@@ -75,6 +76,7 @@ export function StudioHero({
   onOrders: () => void;
   onActivity: () => void;
   onStats: () => void;
+  onClock: () => void;
   onContext: () => void;
   dock: DockCard;
   // Counts every time a card is asked for, so one that is already open still answers.
@@ -218,6 +220,7 @@ export function StudioHero({
     onBoard: onOrders,
     onManager,
     onStats,
+    onClock,
   };
   function openBubble(agent: Agent) {
     const target = agentBubble(project, agent, unread)?.open;
@@ -280,6 +283,15 @@ export function StudioHero({
             >
               <Icon name="team" />
             </button>
+            {project.schedule && (
+              <button
+                onClick={onClock}
+                aria-label="Open the scheduled tasks"
+                title="Scheduled tasks"
+              >
+                <Icon name="clock" />
+              </button>
+            )}
             {live && (
               <button
                 onClick={() => holdStill(!still)}

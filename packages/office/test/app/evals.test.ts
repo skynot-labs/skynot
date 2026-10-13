@@ -36,6 +36,7 @@ function scripted(engine: FakeEngine): EvalSetup {
 const managerSays = (structured: object) => scripted(new FakeEngine(() => ({ structured })));
 
 const ARCHIVE_OR_NOT = asking("Should a removed task be gone for good, or go to an archive?", ["Gone for good", "Archive"]);
+const MORNING = answer({ message: "Delivered: WO-0011, sort by due date.\nTo merge: WO-0012 waits for you.\nQuestions: none.\nSpent: $6.15 yesterday, $2.40 today.\nToday I would start the reminders." });
 const onlyPositive = validSpec({ acceptanceCriteria: [{ statement: "tasks list --open prints the open tasks", verification: { kind: "test", detail: "list.test.js" } }] });
 
 describe("the cases, against a scripted Manager", () => {
@@ -47,6 +48,7 @@ describe("the cases, against a scripted Manager", () => {
     ["vague-idea-becomes-a-plan", answer({ message: "Two steps.", orders: [validSpec(), validSpec({ title: "Filter the list" })] })],
     ["vague-idea-becomes-a-plan", asking("What gets in your way most with a long list?", ["Finding a task", "Finished ones in the way"])],
     ["what-waits-on-the-director-is-named", answer({ message: "WO-0012 is reviewed and waits for your merge. Nothing else needs you." })],
+    ["morning-report-has-its-parts", MORNING],
   ])("%s passes on an answer that does the right thing", async (name, structured) => {
     expect(await runCase(caseNamed(name), managerSays(structured))).toMatchObject({ outcome: "pass" });
   });
@@ -68,6 +70,10 @@ describe("the cases, against a scripted Manager", () => {
     ["vague-idea-becomes-a-plan", answer({ message: "I will think about it." }), "neither a plan nor a question"],
     ["what-waits-on-the-director-is-named", answer({ message: "Two orders are in review. Nothing needs you yet." }), "does not name the pull request"],
     ["what-waits-on-the-director-is-named", asking("Do you want me to list the pull requests?"), "asked the director instead"],
+    ["morning-report-has-its-parts", answer({ message: "All quiet. WO-0012 waits for your merge." }), "does not say what was delivered"],
+    ["morning-report-has-its-parts", answer({ message: "Delivered: WO-0011. To merge: WO-0012. Spent little." }), "does not say what was spent"],
+    ["morning-report-has-its-parts", asking("Shall I start the reminders today?"), "nobody will answer"],
+    ["morning-report-has-its-parts", answer({ message: "Delivered WO-0011, WO-0012 to merge, $6.15 and $2.40.", orders: [validSpec()] }), "proposed a plan from a report"],
   ])("%s fails on the wrong thing it guards (%#)", async (name, structured, why) => {
     const result = await runCase(caseNamed(name), managerSays(structured));
 

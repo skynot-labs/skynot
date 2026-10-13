@@ -29,6 +29,8 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     briefing: state.briefing,
     hireable: state.hireable,
     activity: state.activity,
+    schedule: state.schedule ?? null,
+    reports: state.reports ?? [],
     runs: state.runs,
     answered: state.answered,
     spentUsd: state.costs.project,

@@ -1,7 +1,7 @@
 import { RunScheduler, type EngineFailure, type EngineName, type RoleEngine } from "../../execution";
 import { newId, ok, systemClock } from "../../kernel";
 import { attachProjection, EventLog, InMemoryEventStore, type StoredEvent } from "../../kernel/events";
-import { ChatProjection, ManagerService, type OrderOverview, type Relay, type Standing, type WaitingWorker } from "../../manager";
+import { ChatProjection, ManagerService, type OrderOverview, type Relay, type ScheduledTask, type Standing, type WaitingWorker } from "../../manager";
 import { WorkOrderSpecSchema, type WorkOrderSpec } from "../../orders";
 import { createManagerRunner } from "../model-runner";
 
@@ -31,7 +31,8 @@ export const fail = (why: string): Verdict => ({ pass: false, why });
 export interface EvalCase {
   name: string;
   seed: EvalSeed;
-  message: string;
+  // What the director says, or the scheduled task that is due.
+  message: string | ScheduledTask;
   check(observed: Observed): Verdict;
 }
 
@@ -111,7 +112,7 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
   });
 
   try {
-    await manager.handleMessage(evalCase.message);
+    await (typeof evalCase.message === "string" ? manager.handleMessage(evalCase.message) : manager.handleTask(evalCase.message));
   } catch (error) {
     return { outcome: "error", message: (error as Error).message, ...spentIn(turn) };
   }
@@ -121,7 +122,7 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
   if (failure) return { outcome: "error", message: (failure.payload as { failure: EngineFailure }).failure.message, ...spent };
 
   for (const event of turn) {
-    if (event.type === "manager.replied") observed.reply = (event.payload as { text: string }).text;
+    if (event.type === "manager.replied" || event.type === "manager.reported") observed.reply = (event.payload as { text: string }).text;
     if (event.type === "manager.answer_rejected") observed.rejected.push((event.payload as { issues: string }).issues);
     if (event.type === "manager.decision_asked") {
       const { question, options } = event.payload as { question: string; options: string[] };

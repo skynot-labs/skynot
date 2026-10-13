@@ -121,6 +121,8 @@ No secrets in memory. Each important note links its source (issue, PR or directo
 
 Phase 5 has the contract, the session and the published studio ([ADR 0002](adr/0002-studio-office-and-a-contract.md)); the setup command and the demo are open issues. It also took the place of a deploy phase: an office already runs on a [server](running-on-a-server.md).
 
+Phase 7's daily report came early: a project's Manager writes a morning report at a time the director sets at the clock on the studio's wall, and the report waits in a section of its own. The heartbeat and curated memory are still ahead.
+
 ## Not included for now
 
 Autonomy levels per task type, voice notes, local models, and any framework for multi-agent orchestration.

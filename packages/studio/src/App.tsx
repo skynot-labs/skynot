@@ -29,7 +29,9 @@ import {
 import { AvatarEditor, Modal, RegisterProject } from "./ui/Dialogs";
 import { OrderDetail } from "./ui/OrderDetail";
 import { AgentDesk } from "./ui/AgentDesk";
+import { ReportsView, ScheduleView } from "./ui/Reports";
 import { useUnreadReplies } from "./application/unread";
+import { useUnreadReports } from "./application/unread-reports";
 import { usd } from "./ui/format";
 import { announceArrival } from "./ui/arrival";
 import { StudioCustomizer } from "./ui/StudioCustomizer";
@@ -49,12 +51,13 @@ type Tab =
   | "orders"
   | "agents"
   | "activity"
+  | "reports"
   | "context"
   | "costs";
 type Dialog =
   | { kind: "agent"; id: string }
   | { kind: "order"; id: string }
-  | { kind: "studio" | "register" }
+  | { kind: "studio" | "register" | "schedule" }
   | Panel
   | null;
 // The panels have an address: the fragment says which one is open, so a reload or a shared link opens it again.
@@ -65,7 +68,7 @@ type Alert = {
   attention?: boolean;
   action?: { label: string; icon: string; waits?: boolean; run: () => void };
 };
-const panels = ["activity", "board", "context", "costs", "agents"] as const;
+const panels = ["activity", "reports", "board", "context", "costs", "agents"] as const;
 type Panel = { kind: (typeof panels)[number] };
 const isPanel = (name: string | undefined): name is Panel["kind"] =>
   (panels as readonly string[]).includes(name ?? "");
@@ -83,6 +86,7 @@ const tabs: Array<{ id: Tab; name: string; icon: string }> = [
   { id: "orders", name: "Work orders", icon: "orders" },
   { id: "agents", name: "Agents", icon: "team" },
   { id: "activity", name: "Activity", icon: "activity" },
+  { id: "reports", name: "Reports", icon: "report" },
   { id: "context", name: "Context", icon: "context" },
   { id: "costs", name: "Costs", icon: "usage" },
 ];
@@ -321,6 +325,11 @@ function Console({
     project?.chat ?? [],
     dock === "manager" && dialog === null,
   );
+  const reports = useUnreadReports(
+    project?.id,
+    project?.reports ?? [],
+    panelOf(dialog)?.kind === "reports",
+  );
   const openManager = () => {
     closePanel();
     callDock("manager");
@@ -422,6 +431,7 @@ function Console({
     orders: "board",
     agents: "agents",
     activity: "activity",
+    reports: "reports",
     context: "context",
     costs: "costs",
   };
@@ -726,6 +736,9 @@ function Console({
                 {t.id === "orders" && toSign > 0 && (
                   <b class="nav-counter">{toSign}</b>
                 )}
+                {t.id === "reports" && reports.unread > 0 && (
+                  <b class="nav-counter">{reports.unread}</b>
+                )}
               </button>
             ))}
           </nav>
@@ -812,6 +825,7 @@ function Console({
               onOrders={() => setDialog({ kind: "board" })}
               onActivity={() => setDialog({ kind: "activity" })}
               onStats={() => setDialog({ kind: "costs" })}
+              onClock={() => setDialog({ kind: "schedule" })}
               onContext={() => setDialog({ kind: "context" })}
               dock={dock}
               dockCalls={dockCalls}
@@ -881,6 +895,21 @@ function Console({
                 "Style saved for this project.",
               )
             }
+          />
+        </Modal>
+      )}
+      {dialog?.kind === "schedule" && project && (
+        <Modal
+          notice={dialogNotice}
+          title="On the clock."
+          eyebrow={`${project.name.toUpperCase()} · SCHEDULED TASKS`}
+          onClose={() => setDialog(null)}
+        >
+          <ScheduleView
+            project={project}
+            send={send}
+            unread={reports.unread}
+            onReports={() => setDialog({ kind: "reports" })}
           />
         </Modal>
       )}
@@ -957,6 +986,22 @@ function Console({
         >
           {stats}
           <UsageView project={project} costs={snapshot.costs} />
+        </Modal>
+      )}
+      {panel?.kind === "reports" && project && (
+        <Modal
+          notice={panelNotice}
+          title="What the Manager reported."
+          eyebrow={`${project.name.toUpperCase()} · REPORTS`}
+          onClose={closePanel}
+          size="full"
+          covered={underDialog}
+        >
+          <ReportsView
+            project={project}
+            fresh={reports.fresh}
+            onClock={() => setDialog({ kind: "schedule" })}
+          />
         </Modal>
       )}
       {panel?.kind === "activity" && project && (
