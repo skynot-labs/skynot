@@ -115,7 +115,7 @@ export function flowStats(events: readonly StoredEvent[], firstProject = "defaul
         tally.firstVerdict ??= payload.verdict as Verdict;
         break;
       case "delivery.work_blocked": {
-        const reason = String(payload.reason);
+        const reason = String(payload.reason).split("\n")[0]!.trim();
         tally.blocks++;
         blockReasons.set(reason, (blockReasons.get(reason) ?? 0) + 1);
         break;
