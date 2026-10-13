@@ -47,7 +47,7 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
       deliveredAt: order.deliveredAt,
       spentUsd: shop.runs.spentOnOrder(order.id),
       working: shop.flow.working(order.id),
-      ...shop.activity.linksFor(order.id),
+      ...reported(shop.activity.linksFor(order.id)),
       blocked: blockedReason(shop, order),
       ready: isReady(shop.activity.linksFor(order.id), reviewing),
     })),
@@ -130,6 +130,11 @@ function presence(shop: Shop, projectId: string) {
       .filter((run) => run.status === "queued")
       .map((run) => ({ runId: run.id, role: run.role, orderId: run.orderId, position: shop.runs.queuePosition(run.id) })),
   };
+}
+
+// `followingUp` only serves the recovery after a restart: the studio has no use for it.
+function reported({ followingUp: _followingUp, ...links }: ReturnType<Shop["activity"]["linksFor"]>) {
+  return links;
 }
 
 // "Reviewed" means approved by an independent reviewer that could read the repository, and the pull request's checks are not red or running.

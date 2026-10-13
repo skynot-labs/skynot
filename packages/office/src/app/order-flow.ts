@@ -1,6 +1,7 @@
 import { followUpFromReview, type Implementer, type IssueFiler, type PullRequestReview, type WorkItem } from "../delivery";
 import { err, ok, type Result } from "../kernel";
 import type { EventLog, StoredEvent } from "../kernel/events";
+import { CONFLICT_INSTRUCTION } from "./merge-watcher";
 import { blockersOf, renderCard, type OrderError, type OrderService, type OrderStatus, type WorkOrder } from "../orders";
 
 // the reviewer's first findings go back to the worker once; after that the director decides
@@ -30,6 +31,7 @@ export interface OrderFlowDependencies {
     reviews: number;
     findingsToRecheck: readonly string[];
     question: string | null;
+    followingUp: string | null;
     answers: readonly string[];
   };
 }
@@ -44,8 +46,10 @@ export class OrderFlow {
   // A restart drops the runs in flight; an order they left half done would show no way out.
   async recover(): Promise<void> {
     for (const order of this.deps.listOrders()) {
-      const unfinished = order.status === "signed" || order.status === "on_bench";
-      const { blocked, waitingOn, question } = this.deps.progressOf(order.id);
+      const { blocked, waitingOn, question, followingUp } = this.deps.progressOf(order.id);
+      // the merge watcher asks again for the follow-up on a conflict, so only the others would be lost
+      const droppedFollowUp = order.status === "in_review" && followingUp !== null && followingUp !== CONFLICT_INSTRUCTION;
+      const unfinished = order.status === "signed" || order.status === "on_bench" || droppedFollowUp;
       if (!unfinished || this.running.has(order.id) || blocked !== null || question !== null) continue;
       if (order.status === "signed" && waitingOn.length > 0) {
         await this.consider(order.id);
