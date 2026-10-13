@@ -167,6 +167,27 @@ describe("flow stats", () => {
     ]);
   });
 
+  it("does not count a first review made from the diff alone for or against its author", async () => {
+    const { at, order, propose, review, run, stats } = openLog();
+    await at(0, propose("WO-0001"), propose("WO-0002"), propose("WO-0003"));
+    for (const id of ["WO-0001", "WO-0002", "WO-0003"]) await run(1, 1, { orderId: id }, { costUsd: 0.1, model: "sonnet" });
+    await at(5, review("WO-0001", "approved", { diffOnly: true }), review("WO-0002", "approved"), review("WO-0003", "changes_requested", { diffOnly: true }));
+    await at(6, review("WO-0003", "approved"));
+
+    const report = await stats();
+
+    expect(report.orders.map((flow) => [flow.firstVerdict, flow.firstReviewDiffOnly, flow.reviewRounds, flow.diffOnlyReviews])).toEqual([
+      ["approved", true, 1, 1],
+      ["approved", false, 1, 0],
+      ["changes_requested", true, 2, 1],
+    ]);
+    expect(report.authors).toMatchObject([{ author: "developer · sonnet", orders: 3, reviewed: 1, approvedFirst: 1 }]);
+    const printed = formatFlowStats(report);
+    expect(printed).toMatch(/^WO-0001 .* 1, 1 diff only +approved, diff only /m);
+    expect(printed).toMatch(/^WO-0002 .* 1 +approved +0 /m);
+    expect(printed).toMatch(/^developer · sonnet +3 +0 +1 of 1 /m);
+  });
+
   it("prints unknown times and unreported costs as a dash, never as zero", async () => {
     const { at, order, propose, run, stats } = openLog();
     await at(0, propose("WO-0001", "Add a flag"));
