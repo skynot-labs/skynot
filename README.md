@@ -52,6 +52,11 @@ npm run test:e2e       # builds the console and walks it in a browser against a 
 npm run dev:console    # the console with hot reload on :5173, against the shop on :4747
 ```
 
+`npm run evals` runs the Manager's real prompt against a real engine on a few seeded cases, several times each,
+and prints how many runs did what the prompt promises. It spends your quota, so it is yours to run and CI never
+does: `npm run evals -- --case ambiguous-reply-is-asked-again --runs 5` for one case, `--engine`, `--model`,
+`--min` and `--max-usd` (per call to the engine, 0.50 unless you say) for the rest. Run it before and after a change to a prompt and compare the numbers.
+
 The code is three packages under `packages/`: `office` is the service, `studio` the console in the browser, and
 `contract` what the two exchange ([why](docs/adr/0002-studio-office-and-a-contract.md)). Every command runs from
 the repository root.

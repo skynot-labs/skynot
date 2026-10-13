@@ -117,7 +117,7 @@ export interface Shop {
   stop(): void;
 }
 
-const MANAGER_TIMEOUT_MS = 180_000;
+export const MANAGER_TIMEOUT_MS = 180_000;
 
 export async function createShop(config: ShopConfig): Promise<Shop> {
   const { policy, dataDir } = config;
