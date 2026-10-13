@@ -15,7 +15,7 @@ export type {
   WorkerRunner,
   Workspace,
 } from "./ports";
-export { MAX_DIFF_CHARS, REVIEW_SYSTEM, ReviewSchema, DIFF_ONLY_NOTE, followUpFromReview, reviewComment, reviewPrompt, type Review, type ReviewResult } from "./review";
+export { MAX_DIFF_CHARS, REVIEW_SYSTEM, ReviewSchema, DIFF_ONLY_NOTE, followUpFromReview, outstandingFindings, readReview, reviewComment, reviewPrompt, reviewSchemaFor, type EarlierFinding, type Review, type ReviewResult } from "./review";
 export {
   MAX_QUESTION,
   QUESTION_MARK,

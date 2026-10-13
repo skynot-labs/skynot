@@ -3,9 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ActivityProjection } from "../../src/app/activity";
 import { createDeliveryRules } from "../../src/app/delivery-rules";
 import { projectsFromPolicy } from "../../src/app/projects";
+import { createCodeReviewer } from "../../src/app/code-reviewer";
 import { OrderFlow } from "../../src/app/order-flow";
 import { createWorkerRunner } from "../../src/app/worker-runner";
-import { FakeVcs, GitWorkspace, Implementer, IssueFiler, PullRequestReview, type CodeReviewer, type Review } from "../../src/delivery";
+import { FakeVcs, GitWorkspace, Implementer, IssueFiler, PullRequestReview, followUpFromReview, type CodeReviewer, type Review } from "../../src/delivery";
 import { ok } from "../../src/kernel";
 import { FakeEngine, RunScheduler, RunsProjection, type EngineRequest } from "../../src/execution";
 import { ActionBudget, ActionCounts, type Policy } from "../../src/governance";
@@ -45,7 +46,7 @@ const WORKERS = { developer: { engine: "claude" as const }, careful: { engine: "
 
 type WorkerWork = (dir: string, request?: EngineRequest) => Promise<void>;
 
-async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string; reviews?: Array<Review | string>; report?: (request: EngineRequest) => string } = {}) {
+async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: string; reviews?: Array<Review | string>; reviewEngine?: FakeEngine; report?: (request: EngineRequest) => string } = {}) {
   const policy = options.policy ?? shopPolicy();
   const clock = fixedClock(new Date("2026-10-09T12:00:00.000Z"));
   const log = new EventLog(new InMemoryEventStore(), clock);
@@ -59,7 +60,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
     await work(request.cwd, request);
     return { text: options.report?.(request) ?? "evidence: test -f src/feature.txt" };
   });
-  const scheduler = new RunScheduler({ claude: engine }, log, policy.limits.max_parallel);
+  const scheduler = new RunScheduler({ claude: engine, ...(options.reviewEngine && { codex: options.reviewEngine }) }, log, policy.limits.max_parallel);
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projectsFromPolicy(policy));
   const vcs = new FakeVcs();
   const workspace = new GitWorkspace({ root: path.join(sandbox.root, "shop"), clone: cloneFrom(sandbox.origin) });
@@ -67,15 +68,16 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
   const orderService = new OrderService(log, orders);
 
   const verdicts = [...(options.reviews ?? [])];
-  const reviewer: CodeReviewer = {
+  const scripted: CodeReviewer = {
     review: async () => {
       const next = verdicts.shift() ?? "no verdict scripted";
       return typeof next === "string" ? { ok: false, error: next } : ok(next);
     },
   };
+  const reviewer = options.reviewEngine ? createCodeReviewer(scheduler, { engine: "codex", cwd: async () => sandbox.root, timeoutMs: 1000 }) : scripted;
 
   const flow = new OrderFlow({
-    ...(options.reviews && { reviewerFor: () => new PullRequestReview({ log, vcs, reviewer }) }),
+    ...((options.reviews || options.reviewEngine) && { reviewerFor: () => new PullRequestReview({ log, vcs, reviewer }) }),
     log,
     orders: orderService,
     filer: new IssueFiler({ log, vcs, rules }),
@@ -84,7 +86,7 @@ async function createShop(work: WorkerWork, options: { policy?: Policy; repo?: s
     findOrder: (id) => orders.get(id),
     listOrders: () => orders.list(),
     workersOf: () => Object.keys(WORKERS),
-    progressOf: (id) => activity.linksFor(id),
+    progressOf: (id) => ({ ...activity.linksFor(id), findingsToRecheck: activity.findingsToRecheck(id) }),
   });
   flow.start();
 
@@ -254,6 +256,92 @@ describe("order flow", () => {
 
       expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "changes_requested" });
       expect(shop.activity.recent(50).some((entry) => entry.text.startsWith("follow-up requested"))).toBe(false);
+    });
+
+    describe("on a later round", () => {
+      const EMPTY_CASE = "src/feature.txt: no test for the empty case";
+      const NO_HEADER = "src/feature.txt: the header row is missing";
+      const RECHECK = "## Your findings from the last round";
+      const answersInTurn = (answers: object[]) => {
+        let turn = 0;
+        return new FakeEngine(() => ({ structured: answers[turn++] ?? {} }));
+      };
+      const fixesSomething = () => {
+        let runs = 0;
+        return (dir: string) => addFiles(dir, { [++runs === 1 ? "src/feature.txt" : `src/fix-${runs}.txt`]: "feature\n" });
+      };
+
+      it("is asked what became of each earlier finding, and does not approve while one is not fixed", async () => {
+        const reviewEngine = answersInTurn([
+          { verdict: "changes_requested", summary: "Two things are missing.", findings: [EMPTY_CASE, NO_HEADER] },
+          {
+            verdict: "changes_requested",
+            summary: "One of the two is done.",
+            findings: [],
+            earlier: [
+              { finding: 1, status: "fixed", proof: "src/fix-2.txt:1 covers the empty case" },
+              { finding: 2, status: "not_fixed", proof: "src/feature.txt:1 still has no header" },
+            ],
+          },
+          { verdict: "approved", summary: "The header is there.", findings: [], earlier: [{ finding: 1, status: "fixed", proof: "src/fix-3.txt:1 adds the header" }] },
+        ]);
+        const shop = await createShop(fixesSomething(), { reviewEngine });
+
+        const id = await proposeAndSign(shop);
+
+        const [first, second] = reviewEngine.requests.map((request) => request.prompt);
+        expect(first).not.toContain(RECHECK);
+        expect(second).toContain(`${RECHECK}\n1. ${EMPTY_CASE}\n2. ${NO_HEADER}\n`);
+        const marks = [
+          { finding: EMPTY_CASE, status: "fixed", proof: "src/fix-2.txt:1 covers the empty case" },
+          { finding: NO_HEADER, status: "not_fixed", proof: "src/feature.txt:1 still has no header" },
+        ];
+        expect(await reviewsOf(shop, id)).toMatchObject([{ round: 1, verdict: "changes_requested" }, { round: 2, verdict: "changes_requested", earlier: marks }]);
+        expect(await reviewsOf(shop, id).then(([round]) => round)).not.toHaveProperty("earlier");
+        expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "changes_requested", findings: [], earlier: marks });
+        expect(shop.orders.get(id)?.status).toBe("in_review");
+        expect(shop.vcs.comments.at(-1)?.text).toContain(`- **Fixed:** ${EMPTY_CASE} (src/fix-2.txt:1 covers the empty case)\n- **Not fixed:** ${NO_HEADER} (src/feature.txt:1 still has no header)`);
+
+        await shop.flow.followUp(id, followUpFromReview(shop.activity.linksFor(id).review!));
+        await shop.flow.idle();
+
+        const told = shop.engine.requests.at(-1)!.prompt;
+        expect(told).toContain(`- ${NO_HEADER} (still not fixed: src/feature.txt:1 still has no header)`);
+        expect(told).not.toContain(EMPTY_CASE);
+        expect(reviewEngine.requests[2]?.prompt).toContain(`${RECHECK}\n1. ${NO_HEADER}\n`);
+        expect(reviewEngine.requests[2]?.prompt).not.toContain(EMPTY_CASE);
+        expect(shop.activity.linksFor(id).review).toMatchObject({ verdict: "approved" });
+      });
+
+      it("refuses an answer that leaves an earlier finding out, and the order stays unreviewed", async () => {
+        const reviewEngine = answersInTurn([
+          { verdict: "changes_requested", summary: "Two things are missing.", findings: [EMPTY_CASE, NO_HEADER] },
+          { verdict: "approved", summary: "All good now.", findings: [], earlier: [{ finding: 1, status: "fixed", proof: "src/fix-2.txt:1 covers the empty case" }] },
+        ]);
+        const shop = await createShop(fixesSomething(), { reviewEngine });
+
+        const id = await proposeAndSign(shop);
+
+        expect(await reviewsOf(shop, id)).toHaveLength(1);
+        expect(shop.activity.linksFor(id).review).toBeNull();
+        expect(shop.activity.recent(50).map((entry) => entry.text)).toContainEqual(expect.stringContaining("the review failed: the reviewer's answer was not usable: earlier: earlier finding 2 must be accounted for once, not 0 times"));
+      });
+
+      it("is asked about nothing after an approval, whose findings were only remarks", async () => {
+        const remark = { verdict: "approved", summary: "Matches the criteria.", findings: ["src/feature.txt: the name could say more"] };
+        const reviewEngine = answersInTurn([remark, remark]);
+        const shop = await createShop(createsFeature, { reviewEngine });
+        const id = await proposeAndSign(shop);
+
+        shop.flow.requestReview(id);
+        await shop.flow.idle();
+
+        expect(reviewEngine.requests).toHaveLength(2);
+        expect(reviewEngine.requests[1]?.prompt).toBe(reviewEngine.requests[0]?.prompt);
+        expect(reviewEngine.requests[1]?.schema).toEqual(reviewEngine.requests[0]?.schema);
+        expect(shop.activity.linksFor(id)).toMatchObject({ reviews: 2, review: { verdict: "approved" } });
+        expect(shop.activity.linksFor(id).review).not.toHaveProperty("earlier");
+      });
     });
 
     it("does nothing, and says so, when the team has no reviewer", async () => {

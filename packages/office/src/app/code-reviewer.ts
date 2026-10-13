@@ -1,4 +1,4 @@
-import { REVIEW_SYSTEM, ReviewSchema, reviewPrompt, type CodeReviewer } from "../delivery";
+import { REVIEW_SYSTEM, readReview, reviewPrompt, reviewSchemaFor, type CodeReviewer } from "../delivery";
 import { toEngineSchema, type EngineName, type RunScheduler } from "../execution";
 import { err, ok } from "../kernel";
 
@@ -15,7 +15,7 @@ export interface CodeReviewerOptions {
 
 export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewerOptions): CodeReviewer {
   return {
-    async review({ item, diff, signal }) {
+    async review({ item, diff, earlier = [], signal }) {
       let cwd: string;
       try {
         cwd = await options.cwd();
@@ -29,11 +29,11 @@ export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewe
         orderId: item.id,
         ...(options.projectId && { projectId: options.projectId }),
         request: {
-          prompt: reviewPrompt(item, diff),
+          prompt: reviewPrompt(item, diff, earlier),
           system: REVIEW_SYSTEM,
           cwd,
           access: "read",
-          schema: toEngineSchema(ReviewSchema),
+          schema: toEngineSchema(reviewSchemaFor(earlier)),
           timeoutMs: options.timeoutMs,
           ...(signal && { signal }),
           ...(options.model && { model: options.model }),
@@ -42,8 +42,8 @@ export function createCodeReviewer(scheduler: RunScheduler, options: CodeReviewe
       });
       if (!outcome.ok) return err(outcome.error.message);
 
-      const parsed = ReviewSchema.safeParse(outcome.value.structured ?? parseJson(outcome.value.text));
-      return parsed.success ? ok({ ...parsed.data, ...(options.diffOnly?.() && { diffOnly: true }) }) : err(`the reviewer's answer was not usable: ${parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
+      const review = readReview(outcome.value.structured ?? parseJson(outcome.value.text), earlier);
+      return review.ok ? ok({ ...review.value, ...(options.diffOnly?.() && { diffOnly: true }) }) : err(`the reviewer's answer was not usable: ${review.error}`);
     },
   };
 }

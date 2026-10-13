@@ -1,3 +1,4 @@
+import { outstandingFindings, type EarlierFinding } from "../delivery";
 import { reportedCost, type EngineName } from "../execution";
 import type { Projection, StoredEvent } from "../kernel/events";
 import { DEFAULT_WORKER } from "./worker-runner";
@@ -38,7 +39,7 @@ export interface OrderLinks {
   readonly answers: readonly string[];
   readonly answered: readonly AnsweredQuestion[];
   readonly reviews: number;
-  readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[]; readonly diffOnly: boolean } | null;
+  readonly review: { readonly verdict: "approved" | "changes_requested"; readonly summary: string; readonly findings: readonly string[]; readonly diffOnly: boolean; readonly earlier?: readonly EarlierFinding[] } | null;
   readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
@@ -75,6 +76,7 @@ const answeredBy = (payload: Payload): AnsweredQuestion["answeredBy"] =>
 export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
   private readonly links = new Map<string, OrderLinks>();
+  private readonly unresolved = new Map<string, readonly string[]>();
   private readonly runOrders = new Map<string, { role: string; engine: EngineName; orderId: string | null }>();
   private readonly orderProjects = new Map<string, string>();
   private readonly runProjects = new Map<string, string>();
@@ -123,6 +125,11 @@ export class ActivityProjection implements Projection {
 
   linksFor(orderId: string): OrderLinks {
     return this.links.get(orderId) ?? NO_LINKS;
+  }
+
+  // What the last review left open. It outlives the update that clears `review`, so the next round can be asked about it.
+  findingsToRecheck(orderId: string): readonly string[] {
+    return this.unresolved.get(orderId) ?? [];
   }
 
   private describe(event: StoredEvent, payload: Payload): Described | null {
@@ -271,13 +278,13 @@ export class ActivityProjection implements Projection {
       case "delivery.worker_assigned":
         this.links.set(orderId, { ...current, worker: payload.worker as string });
         break;
-      case "delivery.review_completed":
-        this.links.set(orderId, {
-          ...current,
-          reviews: current.reviews + 1,
-          review: { verdict: payload.verdict as "approved" | "changes_requested", summary: payload.summary as string, findings: payload.findings as string[], diffOnly: payload.diffOnly === true },
-        });
+      case "delivery.review_completed": {
+        const earlier = payload.earlier as EarlierFinding[] | undefined;
+        const review = { verdict: payload.verdict as "approved" | "changes_requested", summary: payload.summary as string, findings: payload.findings as string[], diffOnly: payload.diffOnly === true, ...(earlier && { earlier }) };
+        this.links.set(orderId, { ...current, reviews: current.reviews + 1, review });
+        this.unresolved.set(orderId, outstandingFindings(review));
         break;
+      }
       case "delivery.checks_changed":
         this.links.set(orderId, { ...current, checks: payload.state as OrderLinks["checks"] });
         break;

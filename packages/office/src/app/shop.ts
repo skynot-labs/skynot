@@ -213,7 +213,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     listOrders: () => orders.list(),
     workersOf: (order) => deskOf(order).workers,
     ...(config.reportError && { onError: config.reportError }),
-    progressOf: (id) => activity.linksFor(id),
+    progressOf: (id) => ({ ...activity.linksFor(id), findingsToRecheck: activity.findingsToRecheck(id) }),
   });
   const stopFlow = flow.start();
   const stopCostGuard = new CostGuard({

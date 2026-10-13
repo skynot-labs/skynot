@@ -53,11 +53,24 @@ export const CriterionSchema = z.object({
 });
 export type Criterion = z.infer<typeof CriterionSchema>;
 
+export const EarlierFindingStatusSchema = z.enum(["fixed", "not_fixed"]);
+export type EarlierFindingStatus = z.infer<typeof EarlierFindingStatusSchema>;
+
+// A status a later office adds reads as absent, so an earlier studio shows the finding without claiming what became of it.
+export const EarlierFindingSchema = z.object({
+  finding: z.string(),
+  status: EarlierFindingStatusSchema.optional().catch(undefined),
+  proof: z.string(),
+});
+export type EarlierFinding = z.infer<typeof EarlierFindingSchema>;
+
 export const ReviewSchema = z.object({
   verdict: z.enum(["approved", "changes_requested"]),
   summary: z.string(),
   findings: z.array(z.string()).readonly(),
   diffOnly: z.boolean(),
+  // What the reviewer says became of the findings of its round before; absent on a first round, and `findings` never repeats one of them.
+  earlier: z.array(EarlierFindingSchema).readonly().optional(),
 });
 export type Review = z.infer<typeof ReviewSchema>;
 

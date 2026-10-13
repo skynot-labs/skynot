@@ -28,6 +28,7 @@ export interface OrderFlowDependencies {
     approvedPaths: readonly string[];
     waitingOn: readonly string[];
     reviews: number;
+    findingsToRecheck: readonly string[];
     question: string | null;
     answers: readonly string[];
   };
@@ -252,8 +253,8 @@ export class OrderFlow {
     const reviewer = order && this.deps.reviewerFor?.(order);
     if (!reviewer || order?.status !== "in_review" || order.pullRequest === null || signal.aborted) return;
 
-    const { reviews, issue } = progressOf(orderId);
-    const outcome = await reviewer.run(this.itemOf(order), repoOf(order), order.pullRequest, reviews + 1, signal);
+    const { reviews, issue, findingsToRecheck } = progressOf(orderId);
+    const outcome = await reviewer.run(this.itemOf(order), repoOf(order), order.pullRequest, reviews + 1, signal, findingsToRecheck);
     if (!outcome.ok || !mayRequestChanges || outcome.value.verdict === "approved" || reviews >= AUTOMATIC_ROUNDS || signal.aborted || issue === null) return;
 
     const instruction = followUpFromReview(outcome.value);
