@@ -135,8 +135,7 @@ describe("flow stats", () => {
 
     expect(runs).toEqual([
       { role: "developer", engine: "claude", model: "claude-sonnet-5-5", runs: 3, unfinished: 1, spentUsd: 0.6000000000000001, usage: { inputTokens: 2000, outputTokens: 200, cachedInputTokens: null }, medianMs: 3 * MINUTE, medianTurns: 6 },
-      { role: "code_reviewer", engine: "codex", model: "gpt", runs: 1, unfinished: 0, spentUsd: null, usage: null, medianMs: MINUTE, medianTurns: 1 },
-      { role: "code_reviewer", engine: "codex", model: null, runs: 1, unfinished: 1, spentUsd: null, usage: null, medianMs: null, medianTurns: null },
+      { role: "code_reviewer", engine: "codex", model: "gpt", runs: 2, unfinished: 1, spentUsd: null, usage: null, medianMs: MINUTE, medianTurns: 1 },
     ]);
     expect(spentUsd).toBeCloseTo(0.6);
   });
@@ -201,6 +200,41 @@ describe("flow stats", () => {
     expect(report).toMatch(/^developer +codex +gpt +1 +0 +1m +1 +- +- +-$/m);
     expect(formatFlowStats(flowStats([]))).toBe("The log has no orders and no runs yet.");
     expect([null, 0, 59_400, 59 * MINUTE, 565 * MINUTE].map(formatDuration)).toEqual(["-", "0s", "59s", "59m", "9h 25m"]);
+  });
+});
+
+describe.each([
+  ["an alias in team.yaml", "sonnet"],
+  ["no model in team.yaml", undefined],
+])("one worker on one model, with %s", (_name, requested) => {
+  it("is one author and one row of runs, whether a run finished or not", async () => {
+    const { at, propose, run, stats } = openLog();
+    const asked = (orderId: string) => ({ orderId, ...(requested && { model: requested }) });
+    await at(0, propose("WO-0001"), propose("WO-0002"));
+    await run(1, 1, asked("WO-0001"), { costUsd: 0.1, model: "claude-sonnet-5-5" });
+    await run(3, 1, asked("WO-0002"), "fail");
+    await run(5, 1, asked("WO-0002"), { costUsd: 0.1, model: "claude-sonnet-5-5" });
+
+    const { authors, runs } = await stats();
+
+    expect(runs.map((group) => ({ model: group.model, runs: group.runs, unfinished: group.unfinished }))).toEqual([{ model: "claude-sonnet-5-5", runs: 3, unfinished: 1 }]);
+    expect(authors.map((author) => ({ author: author.author, orders: author.orders }))).toEqual([{ author: "developer · claude-sonnet-5-5", orders: 2 }]);
+  });
+});
+
+describe("a run that never completed, asked for a model its role later changed", () => {
+  it("is counted under the model reported nearest before it, not the newest", async () => {
+    const { run, stats } = openLog();
+    await run(1, 1, { model: "sonnet" }, { costUsd: 0.1, model: "claude-sonnet-5-4" });
+    await run(3, 1, { model: "sonnet" }, "fail");
+    await run(5, 1, { model: "sonnet" }, { costUsd: 0.1, model: "claude-sonnet-5-5" });
+    await run(7, 1, { role: "ana", model: "opus" }, "fail");
+
+    expect((await stats()).runs.map((group) => [group.role, group.model, group.runs, group.unfinished])).toEqual([
+      ["developer", "claude-sonnet-5-4", 2, 1],
+      ["developer", "claude-sonnet-5-5", 1, 0],
+      ["ana", "opus", 1, 1],
+    ]);
   });
 });
 

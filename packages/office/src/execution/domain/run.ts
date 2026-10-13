@@ -21,7 +21,9 @@ export interface Run {
   readonly finishedAt: string | null;
   readonly costUsd: number | null;
   readonly turns: number | null;
+  // What the engine reported once the run completed; until then, and for a run that never did, what was asked for.
   readonly model: string | null;
+  readonly requestedModel: string | null;
   readonly usage: TokenUsage | null;
   readonly failure: EngineFailure | null;
 }
@@ -53,6 +55,7 @@ export function evolve(run: Run | null, event: RunEvent, at: string, firstProjec
       costUsd: null,
       turns: null,
       model: model ?? null,
+      requestedModel: model ?? null,
       usage: null,
       failure: null,
     };
