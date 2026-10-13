@@ -109,6 +109,19 @@ describe("flow stats", () => {
     expect(result.refusedAnswers).toBe(1);
   });
 
+  it("counts blocks that differ only in the output they quote as one reason", async () => {
+    const { at, order, propose, stats } = openLog();
+    const failing = (output: string) => order("delivery.work_blocked", "WO-0001", { reason: `verification still fails after 2 rounds: \n${output}` });
+    await at(0, propose("WO-0001"));
+    await at(1, failing("Error: ENOENT /tmp/a"));
+    await at(2, failing("AssertionError: expected 1 to be 2"));
+
+    const report = await stats();
+
+    expect(report.blockReasons).toEqual([{ reason: "verification still fails after 2 rounds:", count: 2 }]);
+    expect(formatFlowStats(report)).toMatch(/^Blocks\n  2  verification still fails after 2 rounds:$/m);
+  });
+
   it("groups runs by role, engine and model, and never reads a missing cost as zero", async () => {
     const { run, stats } = openLog();
     const usage = { inputTokens: 1000, outputTokens: 100, cachedInputTokens: null };
