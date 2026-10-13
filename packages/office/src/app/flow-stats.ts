@@ -20,6 +20,8 @@ export interface OrderFlow {
   readonly totalMs: number | null;
   readonly reviewRounds: number;
   readonly firstVerdict: Verdict | null;
+  readonly firstReviewDiffOnly: boolean;
+  readonly diffOnlyReviews: number;
   readonly blocks: number;
   readonly retries: number;
   readonly followUps: number;
@@ -74,6 +76,8 @@ interface Tally {
   pullRequestAt: string | null;
   readyAt: string | null;
   firstVerdict: Verdict | null;
+  firstReviewDiffOnly: boolean;
+  diffOnlyReviews: number;
   reviewRounds: number;
   blocks: number;
   retries: number;
@@ -81,7 +85,7 @@ interface Tally {
   questions: number;
 }
 
-const newTally = (): Tally => ({ pullRequestAt: null, readyAt: null, firstVerdict: null, reviewRounds: 0, blocks: 0, retries: 0, followUps: 0, questions: 0 });
+const newTally = (): Tally => ({ pullRequestAt: null, readyAt: null, firstVerdict: null, firstReviewDiffOnly: false, diffOnlyReviews: 0, reviewRounds: 0, blocks: 0, retries: 0, followUps: 0, questions: 0 });
 
 // Stricter than the card's "ready": an order nobody reviewed never counts, so its review and merge times stay unknown.
 const reviewedAndGreen = (links: OrderLinks): boolean =>
@@ -101,7 +105,7 @@ export function flowStats(events: readonly StoredEvent[], firstProject = "defaul
     activity.apply(event);
     if (event.type === "manager.answer_rejected") refusedAnswers++;
 
-    const payload = event.payload as { orderId?: unknown; reason?: unknown; verdict?: unknown };
+    const payload = event.payload as { orderId?: unknown; reason?: unknown; verdict?: unknown; diffOnly?: unknown };
     if (typeof payload.orderId !== "string") continue;
     const tally = tallies.get(payload.orderId) ?? newTally();
     tallies.set(payload.orderId, tally);
@@ -111,6 +115,8 @@ export function flowStats(events: readonly StoredEvent[], firstProject = "defaul
         tally.pullRequestAt ??= event.occurredAt;
         break;
       case "delivery.review_completed":
+        if (tally.reviewRounds === 0) tally.firstReviewDiffOnly = payload.diffOnly === true;
+        if (payload.diffOnly === true) tally.diffOnlyReviews++;
         tally.reviewRounds++;
         tally.firstVerdict ??= payload.verdict as Verdict;
         break;
@@ -154,6 +160,8 @@ export function flowStats(events: readonly StoredEvent[], firstProject = "defaul
       totalMs: between(order.signedAt, order.deliveredAt),
       reviewRounds: tally.reviewRounds,
       firstVerdict: tally.firstVerdict,
+      firstReviewDiffOnly: tally.firstReviewDiffOnly,
+      diffOnlyReviews: tally.diffOnlyReviews,
       blocks: tally.blocks,
       retries: tally.retries,
       followUps: tally.followUps,
@@ -207,6 +215,9 @@ function groupRuns(runs: readonly Run[]): RunGroup[] {
   });
 }
 
+// A first review made from the diff alone says nothing about the work: it could not read the repository or run a command.
+const readTheRepository = (flow: OrderFlow): boolean => flow.firstVerdict !== null && !flow.firstReviewDiffOnly;
+
 function groupAuthors(flows: readonly OrderFlow[]): AuthorGroup[] {
   const groups = new Map<string, OrderFlow[]>();
   for (const flow of flows) if (flow.author) groups.set(flow.author, [...(groups.get(flow.author) ?? []), flow]);
@@ -216,8 +227,8 @@ function groupAuthors(flows: readonly OrderFlow[]): AuthorGroup[] {
       author,
       orders: group.length,
       delivered: group.filter((flow) => flow.status === "delivered").length,
-      reviewed: group.filter((flow) => flow.firstVerdict !== null).length,
-      approvedFirst: group.filter((flow) => flow.firstVerdict === "approved").length,
+      reviewed: group.filter(readTheRepository).length,
+      approvedFirst: group.filter((flow) => readTheRepository(flow) && flow.firstVerdict === "approved").length,
       medianBuildMs: median(group.map((flow) => flow.buildMs)),
       usdPerOrder: costs.length === 0 ? null : costs.reduce((total, cost) => total + cost, 0) / costs.length,
     };
@@ -302,8 +313,8 @@ export function formatFlowStats(stats: FlowStats): string {
           formatDuration(order.reviewMs),
           formatDuration(order.mergeMs),
           formatDuration(order.totalMs),
-          String(order.reviewRounds),
-          order.firstVerdict ?? "-",
+          order.diffOnlyReviews === 0 ? String(order.reviewRounds) : `${order.reviewRounds}, ${order.diffOnlyReviews} diff only`,
+          order.firstVerdict === null ? "-" : order.firstReviewDiffOnly ? `${order.firstVerdict}, diff only` : order.firstVerdict,
           String(order.blocks),
           String(order.retries),
           String(order.followUps),
@@ -314,7 +325,7 @@ export function formatFlowStats(stats: FlowStats): string {
       ),
     ].join("\n"),
     [
-      "By author (the worker and model of an order's first writing run)",
+      "By author (the worker and model of an order's first writing run; a first review made from the diff alone is not counted)",
       table(
         ["author", "orders", "delivered", "approved first", "build", "cost per order"],
         stats.authors.map((author) => [
