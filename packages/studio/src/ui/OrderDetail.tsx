@@ -30,6 +30,11 @@ const CHECKS_LABEL = {
   failing: "checks failing",
 } as const;
 
+const EARLIER_FINDING = {
+  fixed: "Fixed.",
+  not_fixed: "Not fixed.",
+} as const;
+
 const ANSWERED_BY = {
   manager: "Answered by the Manager",
   director_via_manager: "Passed on by the Manager",
@@ -376,13 +381,26 @@ function Verdict({
         <div class="order-notice blocked">
           <strong>Reviewer asks for changes.</strong>{" "}
           <RichLine text={review.summary} />
-          <ol>
-            {review.findings.map((finding) => (
-              <li key={finding}>
-                <RichLine text={finding} />
-              </li>
-            ))}
-          </ol>
+          {review.earlier && review.earlier.length > 0 && (
+            <ul class="earlier-findings">
+              {review.earlier.map(({ finding, status, proof }) => (
+                <li key={finding} class={status && `finding-${status}`}>
+                  {status && <strong>{EARLIER_FINDING[status]}</strong>}{" "}
+                  <RichLine text={finding} />
+                  <small>{proof}</small>
+                </li>
+              ))}
+            </ul>
+          )}
+          {review.findings.length > 0 && (
+            <ol>
+              {review.findings.map((finding) => (
+                <li key={finding}>
+                  <RichLine text={finding} />
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
       {checks && checks !== "none" && (
