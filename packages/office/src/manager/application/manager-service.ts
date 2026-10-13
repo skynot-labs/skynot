@@ -119,7 +119,7 @@ export class ManagerService {
         : { type: "manager.message_received", payload: { messageId: newId("msg"), text } },
     ]);
 
-    const failed = (error: string) => (ticket?.title ? this.doubtAbout(ticket as { number: number; title: string }, error) : this.reply(error));
+    const failed = (error: string) => (ticket ? this.doubtAbout(ticket, error) : this.reply(error));
 
     const first = await this.ask(prompt, schemas.first);
     if (!first.ok) return failed(first.error);
@@ -131,10 +131,14 @@ export class ManagerService {
   }
 
   // A ticket is taken once; a failure must not lose it, so it waits for the director in the inbox.
-  private async doubtAbout(ticket: { number: number; title: string }, error: string): Promise<void> {
-    const question = `I could not turn ticket #${ticket.number} "${ticket.title}" into an order (${error}) Tell me what you want done with it.`;
+  private async doubtAbout(ticket: { number: number; title?: string }, error: string): Promise<void> {
+    const named = ticket.title ? `#${ticket.number} "${ticket.title}"` : `#${ticket.number}`;
+    return this.askAboutTicket(ticket.number, `I could not turn ticket ${named} into an order (${error}) Tell me what you want done with it.`);
+  }
+
+  private async askAboutTicket(ticket: number, question: string): Promise<void> {
     const decisionId = newId("dec");
-    await this.deps.log.record([{ type: "manager.decision_asked", payload: { decisionId, question, options: [], ticket: ticket.number } }]);
+    await this.deps.log.record([{ type: "manager.decision_asked", payload: { decisionId, question, options: [], ticket } }]);
     return this.reply(question, { decisionId });
   }
 
@@ -180,9 +184,9 @@ export class ManagerService {
   private async act(answer: ManagerAnswer, ticket?: number): Promise<void> {
     if (answer.orders.length > 0) {
       const proposed = await this.deps.desk.propose(answer.orders, { ...(ticket && { ticket }), ...(answer.replaces && { replaces: answer.replaces }) });
-      return proposed.ok
-        ? this.reply(`${answer.message}\n\n${proposed.value.card}`, { orderId: proposed.value.id })
-        : this.reply(`I could not file that ${answer.orders.length > 1 ? "plan" : "order"}: ${proposed.error}`);
+      if (proposed.ok) return this.reply(`${answer.message}\n\n${proposed.value.card}`, { orderId: proposed.value.id });
+      const refusal = `I could not file that ${answer.orders.length > 1 ? "plan" : "order"}: ${proposed.error}`;
+      return ticket ? this.askAboutTicket(ticket, `${refusal} Tell me what you want done with ticket #${ticket}.`) : this.reply(refusal);
     }
     if (answer.question !== null) {
       const decisionId = newId("dec");
