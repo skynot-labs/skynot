@@ -1,0 +1,69 @@
+.reports-panel {
+  display: grid;
+  gap: 1px;
+  background: var(--border);
+}
+.report {
+  padding: var(--sk-space-4) 18px;
+  background: var(--panel);
+}
+.report header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sk-space-2);
+  margin-bottom: var(--sk-space-2);
+}
+.report h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.report time {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: var(--sk-type-caption);
+}
+.report-new {
+  box-shadow: inset 3px 0 0 var(--sk-color-mint);
+}
+.report-mark {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--sk-color-mint);
+  color: var(--sk-color-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+.schedule-panel {
+  display: grid;
+  gap: var(--sk-space-4);
+  padding: 18px;
+  justify-items: start;
+}
+.scheduled-task {
+  display: grid;
+  gap: var(--sk-space-2);
+}
+.scheduled-task-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--sk-space-2);
+  font-size: 15px;
+  font-weight: 600;
+}
+.scheduled-task-time {
+  display: flex;
+  align-items: center;
+  gap: var(--sk-space-2);
+  font-size: 13px;
+}
+.scheduled-task-time small,
+.scheduled-task-last {
+  color: var(--muted);
+  font-size: var(--sk-type-caption);
+}
+.scheduled-task-next,
+.scheduled-task-last {
+  margin: 0;
+  font-size: 13px;
+}

@@ -33,6 +33,10 @@ spent. Walk one order through, because the real shop works the same way:
 That is the whole loop: you decide what gets built and what gets merged, and the team does the rest. **Costs**
 shows what each run spent, and **Activity** is the log of everything that happened.
 
+The clock on the office's wall switches on a **morning report**: every day at the time you set, the Manager
+writes what was delivered, what waits for you and what it would do next. It lands in **Reports**, unread until
+you open it.
+
 The simulated shop keeps its state in `data/mock`. Delete that folder to start over.
 
 ## 2. Run it on a repository of yours

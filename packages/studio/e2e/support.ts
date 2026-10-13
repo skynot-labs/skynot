@@ -1,7 +1,7 @@
 import { expect, test as base, type Locator, type Page } from "@playwright/test";
 import { StateSchema, commandPath, type Order, type State } from "@skynot/contract";
 
-export type ProjectView = "The studio" | "Decisions" | "Work orders" | "Agents" | "Activity" | "Context" | "Costs";
+export type ProjectView = "The studio" | "Decisions" | "Work orders" | "Agents" | "Activity" | "Reports" | "Context" | "Costs";
 
 export const test = base.extend<{ browserErrors: string[] }>({
   browserErrors: [

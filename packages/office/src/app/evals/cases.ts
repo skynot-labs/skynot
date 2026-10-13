@@ -1,3 +1,4 @@
+import { MORNING_REPORT } from "../schedule";
 import { fail, PASS, type EvalCase, type EvalSeed, type Observed, type Verdict } from "./harness";
 
 const quote = (text: string) => `"${text.length > 120 ? `${text.slice(0, 120)}…` : text}"`;
@@ -130,6 +131,19 @@ export const CASES: EvalCase[] = [
       if (relays.length > 0) return fail("wrote to a worker instead of answering");
       if (question) return fail(`asked the director instead of answering: ${quote(question.text)}`);
       return reply.includes(TO_MERGE) || reply.includes(TO_MERGE_URL) || /pull request #?31\b|csv/i.test(reply) ? PASS : fail(`does not name the pull request that waits to be merged: ${quote(reply)}`);
+    },
+  },
+  {
+    name: "morning-report-has-its-parts",
+    seed: readyToMerge(),
+    message: MORNING_REPORT,
+    check: ({ reply, question, plans, relays }) => {
+      if (plans.length > 0) return fail("proposed a plan from a report");
+      if (relays.length > 0) return fail("wrote to a worker from a report");
+      if (question) return fail(`asked the director a question nobody will answer: ${quote(question.text)}`);
+      if (!/WO-0011|sort/i.test(reply)) return fail(`does not say what was delivered: ${quote(reply)}`);
+      if (!(reply.includes(TO_MERGE) || /pull request #?31\b|csv/i.test(reply))) return fail(`does not name the pull request that waits to be merged: ${quote(reply)}`);
+      return /6\.15/.test(reply) && /2\.40?\b/.test(reply) ? PASS : fail(`does not say what was spent yesterday and today: ${quote(reply)}`);
     },
   },
 ];

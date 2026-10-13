@@ -21,6 +21,7 @@ export type StageHandlers = {
   onBoard: () => void;
   onManager: () => void;
   onStats: () => void;
+  onClock: () => void;
 };
 
 const FRAME = { width: officeLayout.width, height: officeLayout.height };
@@ -37,6 +38,8 @@ const OPEN_HAUNTS: Haunt[] = [
 ];
 // The frame on the back wall, in tiles along it and pixels above the floor.
 const HONORS = { u: 7.75, width: 0.95, bottom: 58, top: 124 };
+// The clock on the back wall, in tiles along it and pixels above the floor.
+const CLOCK = { u: 16.6, z: 96, radius: 18 };
 // Where the board stands, outside the front edge of the room.
 const BOARD_AT = { u: 2.57, v: officeLayout.room.depth + 0.64 };
 const SOLES = 27;
@@ -67,6 +70,9 @@ export class OfficeStage {
   private readonly board: Hotspot;
   private readonly lead: Hotspot;
   private readonly honors: Hotspot;
+  private readonly clock: Hotspot;
+  private readonly clockFace = new Graphics();
+  private clockShows = "";
   // The framed portrait on the wall: whoever ran the most this month.
   private readonly portrait = new Sprite();
   private readonly plaque = new Graphics();
@@ -118,6 +124,18 @@ export class OfficeStage {
     const onWall = (du: number, z: number) => floorPoint(HONORS.u + du, 0.04, z);
     const wallPatch = [onWall(-0.12, HONORS.top + 8), onWall(HONORS.width + 0.12, HONORS.top + 8), onWall(HONORS.width + 0.12, HONORS.bottom - 8), onWall(-0.12, HONORS.bottom - 8)];
     this.honors = new Hotspot(wallPatch, onWall(HONORS.width / 2, HONORS.top + 8), () => this.tap(() => this.handlers().onStats()));
+    const clockAt = (du: number, dz: number) => floorPoint(CLOCK.u + du, 0.04, CLOCK.z + dz);
+    const reach = CLOCK.radius + 7;
+    const span = reach / officeLayout.projection.tileWidth;
+    this.clock = new Hotspot([clockAt(-span, reach), clockAt(span, reach), clockAt(span, -reach), clockAt(-span, -reach)], clockAt(0, reach), () =>
+      this.tap(() => this.handlers().onClock()),
+    );
+    // The wall runs down to the right at half a pixel per pixel; the face leans with it.
+    this.clockFace.skew.y = Math.atan(0.5);
+    this.clockFace.position.set(...clockAt(0, 0));
+    this.clockFace.eventMode = "none";
+    this.clockFace.zIndex = BEHIND + 2;
+    this.scenery.addChild(this.clockFace);
     const inner = [onWall(0.07, HONORS.top - 5), onWall(HONORS.width - 0.07, HONORS.top - 5), onWall(HONORS.width - 0.07, HONORS.bottom + 5), onWall(0.07, HONORS.bottom + 5)];
     this.plaque
       .poly([onWall(0, HONORS.top), onWall(HONORS.width, HONORS.top), onWall(HONORS.width, HONORS.bottom), onWall(0, HONORS.bottom)].flat())
@@ -136,7 +154,7 @@ export class OfficeStage {
       piece.zIndex = BEHIND + 2;
       this.scenery.addChild(piece);
     }
-    for (const spot of [this.desk, this.board, this.lead, this.honors]) {
+    for (const spot of [this.desk, this.board, this.lead, this.honors, this.clock]) {
       spot.glow.zIndex = BEHIND + 1;
       this.scenery.addChild(spot.glow);
       this.signs.addChild(spot.tip);
@@ -234,6 +252,9 @@ export class OfficeStage {
     this.portrait.visible = busiest !== undefined;
     if (busiest) this.portrait.texture = this.figure(busiest, false, 0);
     this.honors.say(busiest ? `Employee of the month: ${busiest.name} · stats and costs` : "Stats and costs");
+    this.clock.glow.visible = this.clockFace.visible = scene.clock !== undefined;
+    if (scene.clock) this.clock.say(scene.clock);
+    this.tell(new Date());
     const unseated = scene.agents.length - seated.size;
     this.more.visible = unseated > 0;
     this.more.write(`+${unseated} MORE ON THE TEAM`);
@@ -266,6 +287,26 @@ export class OfficeStage {
   private redraw(): void {
     this.frame();
     if (this.still && !this.covered) this.app.render();
+  }
+
+  // The hands are redrawn when the minute changes, not on every frame.
+  private tell(now: Date): void {
+    const shows = `${now.getHours()}:${now.getMinutes()}`;
+    if (shows === this.clockShows) return;
+    this.clockShows = shows;
+    const hand = (turn: number, length: number): [number, number] => [Math.sin(turn * 2 * Math.PI) * length, -Math.cos(turn * 2 * Math.PI) * length];
+    const minutes = now.getMinutes() / 60;
+    this.clockFace
+      .clear()
+      .circle(0, 0, CLOCK.radius)
+      .fill("#f1eee9")
+      .stroke({ color: "#39404d", width: 3 })
+      .moveTo(0, 0)
+      .lineTo(...hand((now.getHours() % 12) / 12 + minutes / 12, CLOCK.radius * 0.5))
+      .stroke({ color: "#39404d", width: 2.5 })
+      .moveTo(0, 0)
+      .lineTo(...hand(minutes, CLOCK.radius * 0.78))
+      .stroke({ color: "#39404d", width: 1.5 });
   }
 
   private air(scene: SceneState): void {
@@ -357,6 +398,7 @@ export class OfficeStage {
     const time = this.still ? 0 : performance.now();
     const elapsed = Math.min(MAX_FRAME_MS, Math.max(0, time - this.lastFrame));
     this.lastFrame = time;
+    this.tell(new Date());
     if (this.gliding) this.look(this.still ? HOME : glide(this.gliding.from, HOME, time - this.gliding.since));
     if (this.view === HOME) this.gliding = null;
     const poses = new Map<string, IdlePose>();

@@ -60,6 +60,8 @@ export type SceneState = {
   pending: number;
   openOrders: number;
   delivered?: number;
+  // What the clock on the wall says under the pointer; absent when the office has no schedule.
+  clock?: string;
   settings?: StudioPreferences;
 };
 export type BubbleTone = "ask" | "alert" | "done" | "busy" | "wait";

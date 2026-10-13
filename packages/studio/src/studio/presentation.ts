@@ -1,4 +1,4 @@
-import type { Project, Agent } from "../contracts";
+import type { Project, Agent, ScheduledTask } from "../contracts";
 import { agentAppearance, type Appearance } from "../application/appearance";
 import { defaultStudioPreferences, type StudioPreferences } from "./model";
 import { ambientAvatar } from "./wardrobe";
@@ -101,6 +101,11 @@ export function studioAgentAppearance(
         : ambientAvatar(base.avatar, settings),
   };
 }
+function clockTip(schedule: readonly ScheduledTask[]): string {
+  const next = schedule.filter((task) => task.on).sort((a, b) => (a.nextAt ?? "").localeCompare(b.nextAt ?? ""))[0];
+  return next ? `${next.title} every day at ${next.at} · scheduled tasks` : "Nothing scheduled · scheduled tasks";
+}
+
 export function studioScene(
   project: Project,
   appearance: Appearance,
@@ -117,6 +122,7 @@ export function studioScene(
       (order) => !CLOSED.includes(order.status),
     ).length,
     delivered: project.orders.filter((order) => order.status === "delivered").length,
+    ...(project.schedule && { clock: clockTip(project.schedule) }),
     settings,
     agents: project.agents.map((agent) => ({
       id: agent.id,
