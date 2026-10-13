@@ -142,7 +142,7 @@ export function flowStats(events: readonly StoredEvent[], firstProject = "defaul
     else tally.readyAt ??= event.occurredAt;
   }
 
-  const allRuns = runs.list();
+  const allRuns = withReportedModels(runs.list());
   const flows = orders.list().map((order): OrderFlow => {
     const tally = tallies.get(order.id) ?? newTally();
     const ofOrder = allRuns.filter((run) => run.orderId === order.id);
@@ -189,6 +189,25 @@ export function flowStats(events: readonly StoredEvent[], firstProject = "defaul
     refusedAnswers,
     spentUsd: reported(allRuns),
   };
+}
+
+// A run that never completed only knows the model it was asked for, an alias or none. It is counted under the
+// model its role reported on the nearest completed run asked the same way, or it would read as another worker.
+function withReportedModels(runs: readonly Run[]): Run[] {
+  const asked = (run: Run) => `${run.role}\n${run.engine}\n${run.requestedModel ?? ""}`;
+  const completed = runs.filter((run) => outcomeOf(run) === "completed" && run.model !== null);
+  const first = new Map<string, string>();
+  for (const run of completed.toReversed()) first.set(asked(run), run.model!);
+
+  const latest = new Map<string, string>();
+  return runs.map((run) => {
+    if (completed.includes(run)) {
+      latest.set(asked(run), run.model!);
+      return run;
+    }
+    const reported = latest.get(asked(run)) ?? first.get(asked(run));
+    return reported ? { ...run, model: reported } : run;
+  });
 }
 
 const authorOf = (run: Run): string => `${run.role} · ${run.model ?? `${run.engine} default`}`;
