@@ -34,10 +34,21 @@ describe("sharing the office on a tailnet", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("says to start the daemon when it is down, and not to join again", async () => {
+    const down = answer("", 1, "failed to connect to local tailscaled (no tailscaled process found): Failed to connect to local Tailscale daemon for /localapi/v0/status; not running?");
+    const { exec, calls } = tailscale({ status: down });
+
+    const shared = await shareOnTailnet(exec, 4747);
+
+    expect(shared).toMatchObject({ ok: false, error: expect.stringContaining("its daemon is not running") });
+    expect(shared).not.toMatchObject({ error: expect.stringContaining("tailscale up") });
+    expect(calls).toHaveLength(1);
+  });
+
   it.each([
     ["logged out", answer(JSON.stringify({ BackendState: "NeedsLogin", Self: { DNSName: "" } }))],
     ["stopped", answer(JSON.stringify({ BackendState: "Stopped", Self: { DNSName: "skynot-dev.tail1234.ts.net." } }))],
-    ["answering with something that is not its status", answer("failed to connect to local tailscaled", 1)],
+    ["answering with something that is not its status", answer("not a status", 1)],
   ])("says how to join when Tailscale is %s, and shares nothing", async (_state, status) => {
     const { exec, calls } = tailscale({ status });
 
