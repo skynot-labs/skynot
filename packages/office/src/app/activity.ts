@@ -251,7 +251,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, pullRequestUrl: payload.url as string, ...UNBLOCKED });
         break;
       case "delivery.work_blocked":
-        this.links.set(orderId, { ...current, blocked: payload.reason as string });
+        this.links.set(orderId, { ...current, blocked: payload.reason as string, waitingOn: [] });
         break;
       case "delivery.protected_paths_found":
         this.links.set(orderId, { ...current, protectedPaths: payload.paths as string[] });
