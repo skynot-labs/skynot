@@ -32,6 +32,7 @@ Hexagonal, light DDD, event-driven. Details in `docs/vision.md`.
 - Node 22, strict TypeScript, Vitest, zod.
 - Keep the console thin: no business rules in UI code.
 - Tests exercise real behavior with real objects and temp directories; mock only boundaries we do not own (CLIs, GitHub, clock).
+- Unit tests gate every pull request, and are where a change proves itself. The browser tests (`npm run test:e2e`) do not run on a pull request: run them yourself when a change touches `packages/studio`, and before a release. CI runs them on demand, with the `e2e` workflow.
 - Write self-explanatory code; comment only a hidden constraint or a non-obvious why.
 - Do not add a dependency, layer or abstraction without a concrete pain it solves.
 - `policy.yaml` is the director's own file, untracked; `policy.example.yaml` is the tracked template. Only the director edits it. Memory never changes policy.
