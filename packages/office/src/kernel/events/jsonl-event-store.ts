@@ -41,7 +41,10 @@ export class JsonlEventStore implements EventStore {
   private async load(): Promise<StoredEvent[]> {
     if (this.loaded) return this.loaded;
 
-    const lines = (await this.readLines()).filter((line) => line.length > 0);
+    const raw = await this.readLines();
+    // a complete last line without its newline would be glued to the next event appended
+    const unterminated = raw.length > 0 && raw.at(-1) !== "";
+    const lines = raw.filter((line) => line.length > 0);
     const events: StoredEvent[] = [];
     let truncatedTail = false;
 
@@ -54,7 +57,7 @@ export class JsonlEventStore implements EventStore {
       }
     });
 
-    if (truncatedTail) {
+    if (truncatedTail || unterminated) {
       await writeFile(this.filePath, events.map((event) => `${JSON.stringify(event)}\n`).join(""));
     }
     this.loaded = events;
