@@ -13,7 +13,7 @@ export interface MergeWatcherDependencies {
   progressOf(id: string): { blocked: string | null; checks: string | null; question: string | null };
 }
 
-const CONFLICT_INSTRUCTION =
+export const CONFLICT_INSTRUCTION =
   "Other work was merged into the base branch and this pull request now conflicts with it. Bring the branch up to date and resolve the conflicts, keeping what the merged changes did and what this order asked for.";
 
 const CLOSED_UNMERGED = "the pull request was closed without merging";

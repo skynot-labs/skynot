@@ -36,6 +36,8 @@ export interface OrderLinks {
   readonly worker: string | null;
   readonly question: string | null;
   readonly questionAt: string | null;
+  // The instruction of a follow-up that was started and has not yet updated the pull request, blocked or asked.
+  readonly followingUp: string | null;
   readonly answers: readonly string[];
   readonly answered: readonly AnsweredQuestion[];
   readonly reviews: number;
@@ -43,7 +45,7 @@ export interface OrderLinks {
   readonly checks: "none" | "pending" | "passing" | "failing" | null;
 }
 
-const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, question: null, questionAt: null, answers: [], answered: [], reviews: 0, review: null, checks: null };
+const NO_LINKS: OrderLinks = { issue: null, issueUrl: null, pullRequestUrl: null, blocked: null, protectedPaths: [], approvedPaths: [], waitingOn: [], worker: null, question: null, questionAt: null, followingUp: null, answers: [], answered: [], reviews: 0, review: null, checks: null };
 const UNBLOCKED = { blocked: null, protectedPaths: [] };
 
 type Payload = Record<string, unknown>;
@@ -253,7 +255,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, pullRequestUrl: payload.url as string, ...UNBLOCKED });
         break;
       case "delivery.work_blocked":
-        this.links.set(orderId, { ...current, blocked: payload.reason as string, waitingOn: [] });
+        this.links.set(orderId, { ...current, blocked: payload.reason as string, waitingOn: [], followingUp: null });
         break;
       case "delivery.protected_paths_found":
         this.links.set(orderId, { ...current, protectedPaths: payload.paths as string[] });
@@ -272,6 +274,7 @@ export class ActivityProjection implements Projection {
           ...current,
           question: null,
           questionAt: null,
+          followingUp: current.pullRequestUrl === null ? null : answer,
           answers: [...current.answers, `${question} → ${answer}${by === "manager" ? " (decided by the Manager, not the director)" : ""}`],
           answered: [...current.answered, { question, answer, from: current.worker ?? "developer", ...(by && { answeredBy: by }), askedAt: current.questionAt ?? at, answeredAt: at }],
         });
@@ -291,7 +294,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, checks: payload.state as OrderLinks["checks"] });
         break;
       case "delivery.pull_request_updated":
-        this.links.set(orderId, { ...current, ...UNBLOCKED, review: null, checks: null });
+        this.links.set(orderId, { ...current, ...UNBLOCKED, review: null, checks: null, followingUp: null });
         break;
       case "delivery.work_waiting":
         this.links.set(orderId, { ...current, waitingOn: payload.on as string[] });
@@ -305,7 +308,7 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, ...UNBLOCKED });
         break;
       case "delivery.follow_up_requested":
-        this.links.set(orderId, { ...current, ...UNBLOCKED, question: null, questionAt: null });
+        this.links.set(orderId, { ...current, ...UNBLOCKED, question: null, questionAt: null, followingUp: payload.instruction as string });
         break;
     }
   }
