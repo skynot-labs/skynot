@@ -38,6 +38,9 @@
 .order-notice ul {
   margin: 6px 0 0 16px;
 }
+.order-notice .finding-fixed strong {
+  color: var(--mint);
+}
 .order-inline-actions {
   display: flex;
   flex-wrap: wrap;

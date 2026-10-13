@@ -185,6 +185,30 @@ test.describe.serial("a work order on every surface that shows it", () => {
     expect(checks.top - notice.bottom).toBeGreaterThanOrEqual(8);
   });
 
+  test("a later review says which earlier findings were fixed, and leaves unmarked one whose fate it cannot read", async ({ page }) => {
+    await stage(page, (state) => {
+      const earlier = [
+        { finding: "The footer overlaps the total", status: "fixed", proof: "src/footer.css:12 clears the total" },
+        { finding: "The total has no test", status: "not_fixed", proof: "test/footer.test.ts has no case for it" },
+        { finding: "The footer ignores print", status: "partly_fixed", proof: "src/print.css:4 hides it only" },
+      ];
+      state.reviewing = true;
+      Object.assign(state.orders.find((order) => order.id === orderId)!, { status: "in_review", signedAt: AT, review: { verdict: "changes_requested", summary: "One is left.", findings: [], diffOnly: false, earlier } });
+    });
+    await openProject(page, PROJECT);
+    await openView(page, "Work orders");
+    await boardColumn(page, "In review").getByRole("button", { name: orderId }).click();
+    const notice = dialog(page).locator(".order-notice").filter({ hasText: "Reviewer asks for changes." });
+    const finding = (text: string) => notice.getByRole("listitem").filter({ hasText: text });
+
+    await expect(finding("The footer overlaps the total")).toContainText("Fixed.");
+    await expect(finding("The footer overlaps the total")).toContainText("src/footer.css:12 clears the total");
+    await expect(finding("The total has no test")).toContainText("Not fixed.");
+    await expect(finding("The footer ignores print")).toBeVisible();
+    await expect(finding("The footer ignores print")).not.toContainText("ixed.");
+    await expect(notice.getByRole("listitem")).toHaveCount(3);
+  });
+
   test("a team change and a briefing change read the same in their own panels as at the desk", async ({ page }) => {
     await stage(page, (state) => {
       state.teamChanges = [{ id: "chg_0001", action: "refocus", role: "developer", reason: "The invoices need care.", focus: "Billing", status: "pending", proposedAt: AT }];
