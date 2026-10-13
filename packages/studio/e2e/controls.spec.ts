@@ -283,7 +283,7 @@ test.describe("where the keyboard is after a command", () => {
     await dialog(page).getByRole("button", { name: /^Send/ }).click();
 
     await expect(dialog(page)).toBeHidden();
-    expect(new URL(page.url()).hash).toBe("");
+    await expect.poll(() => new URL(page.url()).hash).toBe("");
     const box = page.getByRole("region", { name: "Your Manager" }).getByLabel("Message to the Manager");
     await box.focus();
     await expect(box).toBeFocused();
