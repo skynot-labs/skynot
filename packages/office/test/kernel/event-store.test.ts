@@ -90,6 +90,18 @@ describe("jsonl event store", () => {
     expect((await new JsonlEventStore(file).readAfter(0)).map((event) => `${event.sequence}:${event.type}`)).toEqual(["1:a", "2:b", "3:c"]);
   });
 
+  it("keeps a last line that is complete but lost its newline, and what is appended after it", async () => {
+    const file = path.join(dir, "events.jsonl");
+    await new JsonlEventStore(file).append([pending("a"), pending("b")]);
+    await writeFile(file, (await readFile(file, "utf8")).trimEnd());
+
+    const running = new JsonlEventStore(file);
+    await running.append([pending("c")]);
+
+    expect((await running.readAfter(0)).map((event) => event.type)).toEqual(["a", "b", "c"]);
+    expect((await new JsonlEventStore(file).readAfter(0)).map((event) => event.type)).toEqual(["a", "b", "c"]);
+  });
+
   it("refuses a log corrupted before its last line", async () => {
     const file = path.join(dir, "events.jsonl");
     await writeFile(file, `not json\n${JSON.stringify({ ...pending("a"), sequence: 1 })}\n`);
