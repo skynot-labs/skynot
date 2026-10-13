@@ -46,7 +46,7 @@ const repoDir = await mkdtemp(join(tmpdir(), "skynot-evals-"));
 const reports: CaseReport[] = [];
 try {
   await writeSeededRepo(repoDir);
-  console.log(`The Manager's prompt on ${engine}, ${model ?? "the CLI's default model"}: ${cases.length} case(s), ${runs} run(s) each, at most ${maxUsd.toFixed(2)} per call. This spends quota.\n`);
+  console.log(`The Manager's prompt on ${engine}, ${model ?? "the CLI's default model"}: ${cases.length} case(s), ${runs} run(s) each, at most $${maxUsd.toFixed(2)} per call. This spends quota.\n`);
   for (const evalCase of cases) {
     const report = await runTimes(evalCase, { engines: { claude: new ClaudeEngine(), codex: new CodexEngine() }, engine, repoDir, timeoutMs: MANAGER_TIMEOUT_MS, maxUsd, ...(model && { model }) }, runs);
     reports.push(report);
