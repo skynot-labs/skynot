@@ -19,6 +19,20 @@ export interface OrderDesk {
   overview(): OrderOverview[];
 }
 
+export interface Standing {
+  readonly at: string;
+  // Newest first.
+  readonly delivered: ReadonlyArray<{ orderId: string; title: string; at: string }>;
+  readonly toMerge: ReadonlyArray<{ orderId: string; title: string; url: string }>;
+  readonly spentTodayUsd: number;
+  readonly dailyCapUsd: number | null;
+}
+
+// What the service knows beyond the list of orders. The Manager is told it and works none of it out.
+export interface StandingSource {
+  read(): Standing;
+}
+
 export interface AdvisorInfo {
   readonly name: string;
   readonly description: string;

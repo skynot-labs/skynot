@@ -75,6 +75,12 @@ const ANSWERED = { director: "the director answered", director_via_manager: "the
 const answeredBy = (payload: Payload): AnsweredQuestion["answeredBy"] =>
   payload.answeredBy === "manager" || payload.answeredBy === "director_via_manager" ? payload.answeredBy : undefined;
 
+// "Reviewed" means approved by an independent reviewer that could read the repository, and the pull request's checks are not red or running.
+export function readyToMerge(links: OrderLinks, reviewing: boolean): boolean {
+  const checksOk = links.checks === "none" || links.checks === "passing";
+  return links.pullRequestUrl !== null && checksOk && (!reviewing || (links.review?.verdict === "approved" && !links.review.diffOnly));
+}
+
 export class ActivityProjection implements Projection {
   private readonly entries: ActivityEntry[] = [];
   private readonly links = new Map<string, OrderLinks>();

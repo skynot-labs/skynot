@@ -46,6 +46,7 @@ import { PreferencesProjection } from "./preferences";
 import { createTeamDesk } from "./team-desk";
 import { OrderFlow } from "./order-flow";
 import { ReviewNotice } from "./review-notice";
+import { createStanding } from "./standing";
 import { createWorkerDesk } from "./worker-desk";
 import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
 
@@ -178,6 +179,15 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         team: createTeamDesk(teamService, roster),
         workers: createWorkerDesk({ flow: () => flow, orders, questionOf: (id) => activity.linksFor(id).question, projectId: project.id }),
         advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
+        standing: createStanding({
+          orders,
+          linksFor: (id) => activity.linksFor(id),
+          spentOn: (day) => runs.spentOn(day),
+          clock,
+          projectId: project.id,
+          reviewing: reviewerRole !== undefined,
+          ...(policy.run_budget.max_usd_per_day !== undefined && { maxUsdPerDay: policy.run_budget.max_usd_per_day }),
+        }),
       }),
       reviewer: reviewerRole
         ? new PullRequestReview({ log, vcs, reviewer: createCodeReviewer(scheduler, { engine: reviewerRole.engine, ...withModel(reviewerRole), ...reading, diffOnly: () => reviewerRole.engine === "codex" && sandboxBroken() }) })
