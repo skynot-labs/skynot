@@ -63,6 +63,9 @@ function readyToMerge(): EvalSeed {
   };
 }
 
+// The director is told in plain words, so "read the same way the due date is" says the decision as much as "reuse parseDate" does.
+const DECISION_TOLD = /parseDate|Date\.parse|helper|existing|built-in|reus|same (way|as)|due date/i;
+
 // Heuristics over free text: they catch the plain cases and are no proof either way.
 const NEGATIVE_CRITERION = /\b(not|never|no|none|nothing|without|cannot|unchanged|untouched|intact|still|remains?|stays?|keeps?|preserv\w*|only)\b|n't\b/i;
 const IMPLEMENTATION = /\b(librar\w+|framework|database|json|yaml|sqlite|file format|exit codes?|data structures?|schema|api|flags?|functions?|modules?|helpers?|refactor\w*|src\/\S*|\w+\.js)\b/i;
@@ -86,7 +89,7 @@ export const CASES: EvalCase[] = [
     check: (observed) => {
       const relayed = oneRelay(observed, TECHNICAL_ORDER, "manager");
       if (!relayed.pass) return relayed;
-      return /parseDate|Date\.parse|helper|existing|built-in|reus/i.test(observed.reply) ? PASS : fail(`its message does not say what it decided: ${quote(observed.reply)}`);
+      return DECISION_TOLD.test(observed.reply) ? PASS : fail(`its message does not say what it decided: ${quote(observed.reply)}`);
     },
   },
   {
