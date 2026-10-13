@@ -69,6 +69,8 @@ export const commands = {
 
   "schedule-task": z.object({ project: projectId, task: z.string().min(1), on: z.boolean(), at: z.string().regex(TIME_OF_DAY) }),
 
+  "remove-task": z.object({ project: projectId, task: z.string().min(1) }),
+
   "set-focus": z.object({ project: projectId, role: roleName, focus: z.string().trim().min(MIN_FOCUS).max(MAX_FOCUS) }),
   "sign-team-change": oneTeamChange,
   "discard-team-change": oneTeamChange,

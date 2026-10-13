@@ -7,6 +7,7 @@ import { describeRoles } from "../../team";
 import { readyToMerge } from "../activity";
 import { advisorSystem } from "../advisor-bench";
 import { answeredOf, inboxOf } from "../inbox";
+import { describeWhen } from "../schedule";
 import type { Shop } from "../shop";
 
 const ACTIVITY_LIMIT = 100;
@@ -64,8 +65,8 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
     briefingChanges: shop.briefingChanges.pendingFor(project.id),
     briefing: shop.briefingChanges.signedFor(project.id),
     hireable: desk.roster.hireable(),
-    schedule: shop.schedule.tasks(project.id),
-    reports: desk.reports.newestFirst(REPORTS_LIMIT).map((report) => ({ id: report.id, task: report.taskId, title: report.title, text: report.text, at: report.at })),
+    schedule: scheduleOf(shop, project.id),
+    reports: desk.reports.newestFirst(REPORTS_LIMIT).map((report) => ({ id: report.id, task: report.taskId, title: report.title, text: report.text, at: report.at, requested: report.requested })),
     paused: shop.control.paused(),
     projectPaused: shop.control.projectPaused(project.id),
     costs: {
@@ -134,6 +135,20 @@ function presence(shop: Shop, projectId: string) {
       .filter((run) => run.status === "queued")
       .map((run) => ({ runId: run.id, role: run.role, orderId: run.orderId, position: shop.runs.queuePosition(run.id) })),
   };
+}
+
+function scheduleOf(shop: Shop, projectId: string) {
+  return shop.schedule.entries(projectId).map((entry) => ({
+    id: entry.task.id,
+    title: entry.task.title,
+    on: entry.on,
+    at: "at" in entry.when ? entry.when.at : "",
+    nextAt: shop.schedule.next(entry)?.toISOString() ?? null,
+    lastRun: entry.lastRun && { at: entry.lastRun.due, outcome: entry.lastRun.outcome },
+    when: describeWhen(entry.when),
+    removable: !entry.builtIn,
+    ...(!entry.builtIn && { text: entry.task.text, requested: entry.task.requested ?? "" }),
+  }));
 }
 
 // `followingUp` only serves the recovery after a restart: the studio has no use for it.

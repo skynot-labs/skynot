@@ -23,6 +23,8 @@ limits:
   actions_per_day: 60
   max_parallel: 4
   max_rounds: 2
+  # How many tasks the Manager may keep scheduled for one project. Optional: 10 without it.
+  max_scheduled_tasks: 10
 
 run_budget:
   timeout_seconds: 900

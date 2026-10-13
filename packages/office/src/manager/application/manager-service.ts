@@ -3,6 +3,7 @@ import type { EventRecorder } from "../../kernel/events";
 import {
   NO_ADVISORS,
   NO_BRIEFING_DESK,
+  NO_TASK_DESK,
   NO_TEAM_DESK,
   NO_WORKER_DESK,
   SYSTEM_PROMPT,
@@ -21,6 +22,7 @@ import {
   type ModelRunner,
   type OrderDesk,
   type StandingSource,
+  type TaskDesk,
   type TeamDesk,
   type WorkerDesk,
 } from "../domain";
@@ -36,6 +38,8 @@ export interface ScheduledTask {
   readonly id: string;
   readonly title: string;
   readonly text: string;
+  // The director's message that asked for it.
+  readonly requested?: string;
 }
 
 type Say = (text: string, link?: { orderId?: string; decisionId?: DecisionId }) => Promise<void>;
@@ -52,6 +56,7 @@ export interface ManagerDependencies {
   workers?: WorkerDesk;
   standing?: StandingSource;
   reports?: ReportsProjection;
+  tasks?: TaskDesk;
 }
 
 export class ManagerService {
@@ -60,12 +65,14 @@ export class ManagerService {
   private readonly teamDesk: TeamDesk;
   private readonly briefingDesk: BriefingDesk;
   private readonly workerDesk: WorkerDesk;
+  private readonly taskDesk: TaskDesk;
 
   constructor(private readonly deps: ManagerDependencies) {
     this.bench = deps.advisors ?? NO_ADVISORS;
     this.teamDesk = deps.team ?? NO_TEAM_DESK;
     this.briefingDesk = deps.briefingDesk ?? NO_BRIEFING_DESK;
     this.workerDesk = deps.workers ?? NO_WORKER_DESK;
+    this.taskDesk = deps.tasks ?? NO_TASK_DESK;
   }
 
   async idle(): Promise<void> {
@@ -108,21 +115,22 @@ export class ManagerService {
   }
 
   // The team changes while the shop runs, so the rules for an answer are built for every turn.
-  private schemas() {
+  private schemas(maySchedule: boolean) {
     const onTeam = this.bench.roster().map((advisor) => advisor.name);
     const choices = { hire: this.teamDesk.hireable().map((role) => role.name), dismiss: onTeam, refocus: onTeam };
     const openPlans = [...new Set(this.deps.desk.overview().filter((order) => order.status === "awaiting_signature").map((order) => order.plan))];
     const relayTargets = { waiting: this.workerDesk.waiting().map((worker) => worker.orderId), inReview: this.workerDesk.inReview() };
     return {
-      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices, openPlans, relayTargets),
-      final: createAnswerSchema(this.deps.desk.specSchema, [], choices, openPlans, relayTargets),
+      first: createAnswerSchema(this.deps.desk.specSchema, onTeam, choices, openPlans, relayTargets, maySchedule),
+      final: createAnswerSchema(this.deps.desk.specSchema, [], choices, openPlans, relayTargets, maySchedule),
     };
   }
 
   // A title means the ticket just arrived; without one the turn goes on about a ticket already in the conversation.
   private async takeTurn(text: string, ticket?: { number: number; title?: string }, task?: ScheduledTask): Promise<void> {
     const { chat, desk, log } = this.deps;
-    const schemas = this.schemas();
+    const schemas = this.schemas(!ticket && !task);
+    const clock = this.taskDesk.clock();
 
     const prompt = buildPrompt({
       briefing: await this.deps.briefing?.read().catch(() => null) ?? null,
@@ -133,6 +141,7 @@ export class ManagerService {
       waitingWorkers: this.workerDesk.waiting(),
       standing: this.deps.standing?.read() ?? null,
       reports: this.deps.reports?.newestFirst(REPORTS_RECALLED) ?? [],
+      ...(clock && { clock, tasks: this.taskDesk.scheduled() }),
       conversation: chat.recent(CONVERSATION_WINDOW),
       message: text,
     });
@@ -144,11 +153,11 @@ export class ManagerService {
 
     const first = await this.ask(prompt, schemas.first);
     if (!first.ok) return failed(first.error);
-    if (first.value.consult.length === 0) return this.act(first.value, say, ticket?.number);
+    if (first.value.consult.length === 0) return this.act(first.value, say, text, ticket?.number);
 
     const replies = await this.consult(first.value.consult);
     const second = await this.ask(buildAdvicePrompt(prompt, replies.map(describeReply)), schemas.final);
-    return second.ok ? this.act(second.value, say, ticket?.number) : failed(second.error);
+    return second.ok ? this.act(second.value, say, text, ticket?.number) : failed(second.error);
   }
 
   // A ticket is taken once; a failure must not lose it, so it waits for the director in the inbox.
@@ -202,7 +211,7 @@ export class ManagerService {
     return replies;
   }
 
-  private async act(answer: ManagerAnswer, say: Say, ticket?: number): Promise<void> {
+  private async act(answer: ManagerAnswer, say: Say, said: string, ticket?: number): Promise<void> {
     if (answer.orders.length > 0) {
       const proposed = await this.deps.desk.propose(answer.orders, { ...(ticket && { ticket }), ...(answer.replaces && { replaces: answer.replaces }) });
       if (proposed.ok) return say(`${answer.message}\n\n${proposed.value.card}`, { orderId: proposed.value.id });
@@ -229,11 +238,15 @@ export class ManagerService {
       const passed = await this.workerDesk.passOn(answer.relay);
       return say(passed.ok ? answer.message : `I could not pass that on to the worker of ${answer.relay.orderId}: ${passed.error}`);
     }
+    if (answer.schedule !== null) {
+      const scheduled = await this.taskDesk.schedule({ ...answer.schedule, requested: said });
+      return say(scheduled.ok ? `${answer.message}\n\n${scheduled.value.text}` : `I could not schedule that: ${scheduled.error}`);
+    }
     return say(answer.message);
   }
 
   private async report(task: ScheduledTask, text: string): Promise<void> {
-    await this.deps.log.record([{ type: "manager.reported", payload: { reportId: newId("rep"), taskId: task.id, title: task.title, text } }]);
+    await this.deps.log.record([{ type: "manager.reported", payload: { reportId: newId("rep"), taskId: task.id, title: task.title, text, ...(task.requested && { requested: task.requested }) } }]);
   }
 
   private async reply(text: string, link: { orderId?: string; decisionId?: DecisionId } = {}): Promise<void> {

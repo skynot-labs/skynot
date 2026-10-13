@@ -7,6 +7,8 @@ export interface Report {
   readonly title: string;
   readonly text: string;
   readonly at: string;
+  // The director's message that asked for the task; absent for a task of the office's own.
+  readonly requested: string | null;
 }
 
 // What the Manager wrote for a scheduled task: read later, never answered, so it stays out of the chat.
@@ -18,8 +20,8 @@ export class ReportsProjection implements Projection {
   apply(stored: StoredEvent): void {
     const event = asManagerEvent(stored);
     if (event?.type !== "manager.reported" || !inScope(stored, this.scope)) return;
-    const { reportId, taskId, title, text } = event.payload;
-    this.reports.push({ id: reportId, taskId, title, text, at: stored.occurredAt });
+    const { reportId, taskId, title, text, requested } = event.payload;
+    this.reports.push({ id: reportId, taskId, title, text, at: stored.occurredAt, requested: requested ?? null });
   }
 
   newestFirst(count: number): Report[] {

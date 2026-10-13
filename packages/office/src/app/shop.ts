@@ -48,6 +48,7 @@ import { OrderFlow } from "./order-flow";
 import { ReviewNotice } from "./review-notice";
 import { Schedule, ScheduleProjection } from "./schedule";
 import { createStanding } from "./standing";
+import { createTaskDesk } from "./task-desk";
 import { createWorkerDesk } from "./worker-desk";
 import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
 
@@ -156,6 +157,16 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const briefing = config.briefing && withSignedChanges(config.briefing, briefingChanges, policy.memory.max_memory_chars);
 
   const desks = new Map<string, ProjectDesk>();
+  const schedule = new Schedule({
+    log,
+    timings,
+    clock,
+    ...(policy.limits.max_scheduled_tasks !== undefined && { maxTasks: policy.limits.max_scheduled_tasks }),
+    projects: () => [...desks.keys()],
+    paused: (projectId) => control.pausedFor(projectId) !== null,
+    run: (projectId, task) => desks.get(projectId)!.manager.handleTask(task),
+    ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "schedule", payload: {} } as StoredEvent) }),
+  });
   for (const [index, project] of projects.entries()) {
     const team = config.teams?.[project.id] ?? config.team;
     const scope = { id: project.id, isFirst: index === 0 };
@@ -186,6 +197,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         team: createTeamDesk(teamService, roster),
         workers: createWorkerDesk({ flow: () => flow, orders, questionOf: (id) => activity.linksFor(id).question, projectId: project.id }),
         advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
+        tasks: createTaskDesk(schedule, project.id),
         standing: createStanding({
           orders,
           linksFor: (id) => activity.linksFor(id),
@@ -277,15 +289,6 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     label: policy.labels.intake ?? `${policy.labels.prefix}ready`,
     targets: () => [...desks.values()].map((desk) => ({ projectId: desk.project.id, repo: desk.project.repo, handle: (ticket) => desk.manager.handleTicket(ticket) })),
     ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "intake", payload: {} } as StoredEvent) }),
-  });
-  const schedule = new Schedule({
-    log,
-    timings,
-    clock,
-    projects: () => [...desks.keys()],
-    paused: (projectId) => control.pausedFor(projectId) !== null,
-    run: (projectId, task) => desks.get(projectId)!.manager.handleTask(task),
-    ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "schedule", payload: {} } as StoredEvent) }),
   });
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repoOf: (order) => deskOf(order).project.repo, flow, progressOf: (id) => activity.linksFor(id) });
 

@@ -35,7 +35,8 @@ shows what each run spent, and **Activity** is the log of everything that happen
 
 The clock on the office's wall switches on a **morning report**: every day at the time you set, the Manager
 writes what was delivered, what waits for you and what it would do next. It lands in **Reports**, unread until
-you open it.
+you open it. You can also ask the Manager in the chat for something later, once or on chosen days: it schedules
+it, the task shows at the clock where you can remove it, and its answer lands in Reports too.
 
 The simulated shop keeps its state in `data/mock`. Delete that folder to start over.
 

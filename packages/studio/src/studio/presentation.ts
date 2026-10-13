@@ -103,7 +103,7 @@ export function studioAgentAppearance(
 }
 function clockTip(schedule: readonly ScheduledTask[]): string {
   const next = schedule.filter((task) => task.on).sort((a, b) => (a.nextAt ?? "").localeCompare(b.nextAt ?? ""))[0];
-  return next ? `${next.title} every day at ${next.at} · scheduled tasks` : "Nothing scheduled · scheduled tasks";
+  return next ? `Next: ${next.title} · scheduled tasks` : "Nothing scheduled · scheduled tasks";
 }
 
 export function studioScene(
