@@ -10,7 +10,7 @@ export interface MergeWatcherDependencies {
   orderService: OrderService;
   repoOf(order: WorkOrder): string;
   flow: Pick<OrderFlow, "followUp">;
-  progressOf(id: string): { blocked: string | null; checks: string | null };
+  progressOf(id: string): { blocked: string | null; checks: string | null; question: string | null };
 }
 
 const CONFLICT_INSTRUCTION =
@@ -68,7 +68,9 @@ export class MergeWatcher {
 
     for (const order of open) {
       const merges = mergesIn(order.projectId);
-      if ((this.syncedAt.get(order.id) ?? 0) >= merges || progressOf(order.id).blocked !== null) continue;
+      const { blocked, question } = progressOf(order.id);
+      // a worker that stopped to ask is waiting for the director, not for a rebase
+      if ((this.syncedAt.get(order.id) ?? 0) >= merges || blocked !== null || question !== null) continue;
       try {
         if (!(await vcs.pullRequestConflicts(repoOf(order), order.pullRequest!))) continue;
         const started = await flow.followUp(order.id, CONFLICT_INSTRUCTION);

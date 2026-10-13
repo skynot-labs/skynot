@@ -299,8 +299,10 @@ export class ActivityProjection implements Projection {
         this.links.set(orderId, { ...current, ...UNBLOCKED, waitingOn: [] });
         break;
       case "delivery.work_retried":
-      case "delivery.follow_up_requested":
         this.links.set(orderId, { ...current, ...UNBLOCKED });
+        break;
+      case "delivery.follow_up_requested":
+        this.links.set(orderId, { ...current, ...UNBLOCKED, question: null, questionAt: null });
         break;
     }
   }
