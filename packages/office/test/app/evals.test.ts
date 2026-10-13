@@ -45,6 +45,7 @@ describe("the cases, against a scripted Manager", () => {
   it.each([
     ["product-question-is-asked", ARCHIVE_OR_NOT],
     ["technical-question-is-settled", relaying("WO-0004", "manager", "Reuse parseDate from src/dates.js.", "I told the worker to reuse the existing date helper.")],
+    ["technical-question-is-settled", relaying("WO-0004", "manager", "Reuse parseDate from src/dates.js.", "I settled it: the reminder date will be read the same way the due date already is.")],
     ["ambiguous-reply-is-asked-again", ARCHIVE_OR_NOT],
     ["director-answer-reaches-worker", relaying("WO-0007", "director", "Move them to an archive, I want to be able to get them back.")],
     ["vague-idea-becomes-a-plan", answer({ message: "Two steps.", orders: [validSpec(), validSpec({ title: "Filter the list" })] })],
@@ -65,6 +66,7 @@ describe("the cases, against a scripted Manager", () => {
     ["product-question-is-asked", asking("Which color should the list be?"), "asked about something else"],
     ["technical-question-is-settled", relaying("WO-0004", "director", "Reuse parseDate.", "The worker will reuse the existing helper."), "as the director's"],
     ["technical-question-is-settled", relaying("WO-0004", "manager", "Reuse parseDate."), "does not say what it decided"],
+    ["technical-question-is-settled", relaying("WO-0004", "manager", "Reuse parseDate.", "I decided it for the shop and told the worker. Nothing is needed from you."), "does not say what it decided"],
     ["technical-question-is-settled", answer({ message: "I would reuse the existing helper." }), "passed nothing on"],
     ["technical-question-is-settled", asking("Should the worker reuse parseDate or call Date.parse?"), "asked the director instead"],
     ["ambiguous-reply-is-asked-again", relaying("WO-0007", "director", "ok, yes let's do that"), "instead of asking"],
