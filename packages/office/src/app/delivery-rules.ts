@@ -3,6 +3,9 @@ import { checkBranch, checkLabel, protectedPathsTouched, type ActionBudget, type
 import { err, ok, type Result } from "../kernel";
 import type { Project } from "../projects";
 
+// Without --prefix, npm in a folder with no package.json installs into the nearest parent that has one: the office's own checkout.
+const NPM_INSTALL = "npm install --no-audit --no-fund --prefix .";
+
 const asMessage = <T>(result: Result<T, PolicyViolation>): Result<T, string> => (result.ok ? result : err(result.error.message));
 
 export function createDeliveryRules(policy: Policy, budget: ActionBudget, projects: readonly Project[]): DeliveryRules {
@@ -14,7 +17,7 @@ export function createDeliveryRules(policy: Policy, budget: ActionBudget, projec
     repo(name) {
       const project = projects.find((candidate) => candidate.repo === name);
       if (!project) return err(`repository "${name}" belongs to no project`);
-      return ok({ baseBranch: project.baseBranch, setupCommand: project.setupCommand, verifyCommands: project.verifyCommands, protectedPaths: project.protectedPaths });
+      return ok({ baseBranch: project.baseBranch, setupCommand: project.setupCommand, installCommand: NPM_INSTALL, verifyCommands: project.verifyCommands, protectedPaths: project.protectedPaths });
     },
 
     branchFor(orderId) {

@@ -37,6 +37,13 @@ describe("work order card", () => {
     expect(card).toContain("+2 more in the issue");
   });
 
+  it("names the dependencies the order installs, so they are signed with it, and says nothing when there are none", () => {
+    const card = renderCard(orderWith([], validSpec({ dependencies: [{ name: "zod", dev: false }, { name: "vitest", dev: true }] })));
+
+    expect(card).toContain("installs zod, vitest (dev)");
+    expect(renderCard(orderWith([]))).not.toContain("installs");
+  });
+
   it("wraps a long title under the id instead of cutting it", () => {
     const title = "Add pagination and sorting to the inventory table on the items page";
     const card = renderCard(orderWith([], validSpec({ title })));

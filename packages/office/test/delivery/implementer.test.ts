@@ -1,4 +1,4 @@
-import { readdir, rm, stat } from "node:fs/promises";
+import { readFile, readdir, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -25,6 +25,8 @@ const item: WorkItem = {
   card: "WO-0001  Add the feature",
 };
 
+const FAKE_NPM_INSTALL = `node ${path.resolve("packages/office/test/delivery/fake-npm-install.mjs")}`;
+
 function createRules(overrides: Partial<DeliveryRules> = {}): DeliveryRules {
   return {
     maxRounds: 2,
@@ -32,7 +34,7 @@ function createRules(overrides: Partial<DeliveryRules> = {}): DeliveryRules {
     workerMaxUsd: 1,
     repo: (name) =>
       name === "acme/widgets"
-        ? ok({ baseBranch: "main", setupCommand: null, verifyCommands: ["test -f src/feature.txt"], protectedPaths: [".github/"] })
+        ? ok({ baseBranch: "main", setupCommand: null, installCommand: FAKE_NPM_INSTALL, verifyCommands: ["test -f src/feature.txt"], protectedPaths: [".github/"] })
         : err(`${name} is not in policy.yaml`),
     branchFor: (orderId) => ok(`taller/${orderId.toLowerCase()}`),
     triggerLabel: () => ok("taller:implement"),
@@ -143,7 +145,7 @@ describe("implementer", () => {
   it("blocks what the verify commands write, not only what the worker wrote", async () => {
     const script = "mkdir -p .github && echo 'on: push' > .github/sneaky.yml && rm test/app.test.txt";
     const rules = createRules({
-      repo: () => ok({ baseBranch: "main", setupCommand: null, verifyCommands: ["sh ./check.sh"], protectedPaths: [".github/"] }),
+      repo: () => ok({ baseBranch: "main", setupCommand: null, installCommand: FAKE_NPM_INSTALL, verifyCommands: ["sh ./check.sh"], protectedPaths: [".github/"] }),
     });
     const { implementer, vcs, originBranches } = await setup([writes({ "check.sh": script })], rules);
 
@@ -194,6 +196,66 @@ describe("implementer", () => {
 
     expect(outcome.ok).toBe(true);
     expect(vcs.pullRequests).toHaveLength(1);
+  });
+
+  describe("dependencies", () => {
+    const needsLibraries: WorkItem = { ...item, dependencies: [{ name: "zod", dev: false }, { name: "@types/node", dev: true }] };
+    const seesLibraries = createRules({
+      repo: () => ok({ baseBranch: "main", setupCommand: null, installCommand: FAKE_NPM_INSTALL, verifyCommands: ["test -f node_modules/zod/index.js", "test -f node_modules/@types/node/index.js"], protectedPaths: [".github/"] }),
+    });
+
+    it("installs the dependencies the order declares before the worker starts, and its verification sees them", async () => {
+      const seen: string[] = [];
+      const { implementer, vcs } = await setup([async (dir) => (seen.push(await readFile(path.join(dir, "package.json"), "utf8")), ok("done"))], seesLibraries);
+
+      const outcome = await implementer.implement(needsLibraries, "acme/widgets", 7);
+
+      expect(outcome.ok).toBe(true);
+      expect(JSON.parse(seen[0]!)).toEqual({ dependencies: { zod: "^1.0.0" }, devDependencies: { "@types/node": "^1.0.0" } });
+      expect(vcs.pullRequests).toHaveLength(1);
+    });
+
+    it("tells the worker what was installed, and that it may add nothing else", async () => {
+      const { implementer, prompts } = await setup([writes({ "src/feature.txt": "x" })]);
+
+      await implementer.implement({ ...item, dependencies: [{ name: "zod", dev: false }] }, "acme/widgets", 7);
+
+      expect(prompts[0]).toContain("installed zod before you started");
+    });
+
+    it("refuses a change that adds a dependency the order did not declare", async () => {
+      const sneaks = writes({ "src/feature.txt": "x", "package.json": JSON.stringify({ dependencies: { zod: "^1.0.0", "left-pad": "^1.3.0" } }) });
+      const { implementer, vcs, events } = await setup([sneaks], seesLibraries);
+
+      const outcome = await implementer.implement({ ...item, dependencies: [{ name: "zod", dev: false }] }, "acme/widgets", 7);
+
+      expect(outcome).toEqual({ ok: false, error: "it adds left-pad to the dependencies, which the order did not declare" });
+      expect(vcs.pullRequests).toHaveLength(0);
+      expect(await events()).toContain("delivery.work_blocked");
+    });
+
+    it("runs no install command for an order that declares nothing, and still refuses a dependency the worker adds", async () => {
+      const { implementer, vcs } = await setup([writes({ "src/feature.txt": "x", "package.json": JSON.stringify({ devDependencies: { vitest: "^4.0.0" } }) })], createRules({
+        repo: () => ok({ baseBranch: "main", setupCommand: null, installCommand: `echo installed >> ${path.join(sandbox.root, "ran.txt")}`, verifyCommands: ["test -f src/feature.txt"], protectedPaths: [] }),
+      }));
+
+      const outcome = await implementer.implement(item, "acme/widgets", 7);
+
+      await expect(stat(path.join(sandbox.root, "ran.txt"))).rejects.toThrow();
+      expect(outcome).toEqual({ ok: false, error: "it adds vitest to the dependencies, which the order did not declare" });
+      expect(vcs.pullRequests).toHaveLength(0);
+    });
+
+    it("blocks before the worker runs when the install fails", async () => {
+      const { implementer, prompts } = await setup([writes({ "src/feature.txt": "x" })], createRules({
+        repo: () => ok({ baseBranch: "main", setupCommand: null, installCommand: "false", verifyCommands: ["true"], protectedPaths: [] }),
+      }));
+
+      const outcome = await implementer.implement(needsLibraries, "acme/widgets", 7);
+
+      expect(outcome).toMatchObject({ ok: false, error: expect.stringContaining("installing zod failed") });
+      expect(prompts).toEqual([]);
+    });
   });
 
   it("gives the worker the failed verification output and accepts the repaired attempt", async () => {

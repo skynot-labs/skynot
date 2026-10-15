@@ -128,6 +128,20 @@ export const CASES: EvalCase[] = [
     },
   },
   {
+    name: "a-library-it-needs-is-declared",
+    seed: NOTHING_GOING_ON,
+    message: "Move the tests to vitest, the team keeps tripping over node --test. Nothing else changes.",
+    check: ({ plans, question }) => {
+      if (question) return fail(`asked instead of planning: ${quote(question.text)}`);
+      const orders = plans.flat();
+      if (orders.length === 0) return fail("proposed no plan");
+      const declared = orders.flatMap((order) => order.dependencies ?? []);
+      const vitest = declared.find((dependency) => dependency.name === "vitest");
+      if (!vitest) return fail(`no order declares vitest; declared: ${declared.map((dependency) => dependency.name).join(", ") || "nothing"}`);
+      return vitest.dev ? PASS : fail("declares vitest as needed at run time, not only to test");
+    },
+  },
+  {
     name: "what-waits-on-the-director-is-named",
     seed: readyToMerge(),
     message: "What is waiting on me right now?",

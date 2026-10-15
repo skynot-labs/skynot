@@ -298,6 +298,12 @@ export function OrderDetail({
           <p class="mono order-files">{order.likelyFiles.join(" · ")}</p>
         </section>
       )}
+      {order.dependencies && order.dependencies.length > 0 && (
+        <section class="order-section">
+          <h4>DEPENDENCIES IT INSTALLS</h4>
+          <p class="mono order-files">{order.dependencies.map((dependency) => (dependency.dev ? `${dependency.name} (dev)` : dependency.name)).join(" · ")}</p>
+        </section>
+      )}
       <section class="order-section">
         <h4>ACCEPTANCE CRITERIA</h4>
         <ul>

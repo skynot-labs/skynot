@@ -26,6 +26,7 @@ export {
   pullRequestBody,
   workerPrompt,
   workerStandingRules,
+  type Dependency,
   type FileChange,
   type WorkItem,
   type WorkerRules,

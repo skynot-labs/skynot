@@ -37,6 +37,7 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
       context: order.spec.context ?? null,
       approach: order.spec.approach,
       likelyFiles: order.spec.likelyFiles,
+      dependencies: order.spec.dependencies ?? [],
       risk: order.spec.risk,
       criteria: order.spec.acceptanceCriteria,
       outOfScope: order.spec.outOfScope,
