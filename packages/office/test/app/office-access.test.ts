@@ -104,6 +104,14 @@ describe("an office that answers at an address", () => {
     await events.body?.cancel();
   });
 
+  it("asks a session for an order's changes too", async () => {
+    const api = open();
+    const token = await paired(api);
+
+    expect((await call(api, "/api/orders/WO-0001/changes")).status).toBe(401);
+    expect((await call(api, "/api/orders/WO-0001/changes", { session: token })).status).toBe(404);
+  });
+
   it("refuses a wrong secret, a session past its date, one signed by another office and one that was altered", async () => {
     const api = open();
     const token = await paired(api);

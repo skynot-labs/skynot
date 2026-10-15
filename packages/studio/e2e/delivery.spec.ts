@@ -107,6 +107,11 @@ test.describe.serial("an order's life in alpha", () => {
     await expect(detail.getByText("Ready to merge")).toBeVisible();
     await expect(detail.getByRole("link", { name: "Issue" })).toHaveAttribute("href", /acme\/alpha\/issues\/\d+$/);
     await expect(detail.getByRole("link", { name: "Pull request" })).toHaveAttribute("href", /acme\/alpha\/pull\/\d+$/);
+
+    await detail.getByRole("button", { name: "Show the changes" }).click();
+    const changes = detail.getByLabel(`Changes of ${orderId}`);
+    await expect(changes).toContainText("diff --git a/src/feature.txt");
+    await expect(changes.locator(".diff-added")).toHaveText("+feature\n");
   });
 
   test("merging delivers the order and the console records the minutes it cost", async ({ page }) => {

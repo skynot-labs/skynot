@@ -116,6 +116,41 @@
 .order-section .checks-pending {
   color: var(--peach);
 }
+.order-diff {
+  font: 11px/1.6 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 60vh;
+  overflow: auto;
+  background: #1e1d28;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin: 0;
+}
+.order-diff .diff-file {
+  color: var(--text);
+  font-weight: 600;
+}
+.order-diff .diff-hunk {
+  color: var(--muted);
+}
+.order-diff .diff-added {
+  color: #a5d7b8;
+  background: #a5d7b812;
+}
+.order-diff .diff-removed {
+  color: #d9adba;
+  background: #d6969c12;
+}
+.order-diff .diff-context {
+  color: #b9adca;
+}
+.order-changes-problem {
+  margin: 6px 0 0;
+  color: #d9adba;
+  font-size: 12px;
+}
 .order-raw {
   margin-top: 22px;
   font-size: 10px;

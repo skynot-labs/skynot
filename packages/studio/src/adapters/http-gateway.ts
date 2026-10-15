@@ -1,4 +1,4 @@
-import { MetaSchema, RefusalSchema, StateSchema, StreamEventSchema, commandPath, type Meta } from "@skynot/contract";
+import { MetaSchema, OrderChangesSchema, RefusalSchema, StateSchema, StreamEventSchema, commandPath, type Meta, type OrderChanges } from "@skynot/contract";
 import type { Connection } from "../application/connection";
 import { config, defaultAvatar } from "../config";
 import type { Agent, AgentStatus, Command, Project, ProjectSummary, ShopState, Snapshot } from "../contracts";
@@ -124,6 +124,14 @@ export class HttpGateway {
     const snapshot = readSnapshot(await response.json());
     this.cursor = Math.max(this.cursor, snapshot.cursor);
     return snapshot;
+  }
+
+  async changes(orderId: string): Promise<OrderChanges> {
+    const response = await this.request(`/api/orders/${encodeURIComponent(orderId)}/changes`);
+    if (!response.ok) throw new Error(await errorOf(response, `The office did not send the changes (${response.status}).`));
+    const changes = OrderChangesSchema.safeParse(await response.json().catch(() => null));
+    if (!changes.success) throw new Error("The office sent changes this studio cannot read: update whichever is older.");
+    return changes.data;
   }
 
   async send(command: Command): Promise<void> {
