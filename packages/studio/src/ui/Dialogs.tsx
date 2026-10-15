@@ -1,3 +1,4 @@
+import { MAX_SPEC, SPEC_FILE } from "@skynot/contract";
 import type { ComponentChildren } from "preact";
 import {
   useEffect,
@@ -302,7 +303,10 @@ export function RegisterProject({
   onClose: () => void;
 }) {
   const [id, setId] = useState("");
+  const [local, setLocal] = useState(false);
   const [repo, setRepo] = useState("");
+  const [spec, setSpec] = useState<{ name: string; text: string } | null>(null);
+  const [specProblem, setSpecProblem] = useState<string | null>(null);
   const [baseBranch, setBaseBranch] = useState("main");
   const [verify, setVerify] = useState("");
   const [setup, setSetup] = useState("");
@@ -312,7 +316,31 @@ export function RegisterProject({
   const [registered, setRegistered] = useState<string | null>(null);
   const verifyCommands = lines(verify);
   const ready =
-    id.trim() && repo.trim() && baseBranch.trim() && verifyCommands.length > 0;
+    id.trim() &&
+    (local || repo.trim()) &&
+    baseBranch.trim() &&
+    verifyCommands.length > 0 &&
+    specProblem === null;
+  function choose(here: boolean) {
+    setLocal(here);
+    // An empty project has nothing to check yet; the Manager proposes real commands once it has.
+    if (here && !verify.trim()) setVerify("true");
+  }
+  async function pickSpec(file: File | undefined) {
+    setSpec(null);
+    setSpecProblem(null);
+    if (!file) return;
+    if (!SPEC_FILE.test(file.name))
+      return setSpecProblem("A spec is a .md, .markdown or .txt file.");
+    const text = await file.text();
+    if (text.length > MAX_SPEC)
+      return setSpecProblem(
+        `A spec has at most ${MAX_SPEC.toLocaleString("en")} characters.`,
+      );
+    if (!text.trim() || text.includes("\u0000"))
+      return setSpecProblem("That file is empty or not text.");
+    setSpec({ name: file.name, text });
+  }
   async function submit(event: Event) {
     event.preventDefault();
     if (!ready || busy) return;
@@ -321,7 +349,7 @@ export function RegisterProject({
       name: "register-project",
       payload: {
         id: id.trim(),
-        repo: repo.trim(),
+        ...(local ? { local: true as const, ...(spec && { spec }) } : { repo: repo.trim() }),
         baseBranch: baseBranch.trim(),
         verifyCommands,
         ...(setup.trim() && { setupCommand: setup.trim() }),
@@ -354,9 +382,31 @@ export function RegisterProject({
     );
   return (
     <form class="register-project" onSubmit={submit}>
+      <fieldset class="register-project-where">
+        <legend class="form-label">WHERE IT LIVES</legend>
+        <label>
+          <input
+            type="radio"
+            name="registerWhere"
+            checked={!local}
+            onChange={() => choose(false)}
+          />
+          On GitHub
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="registerWhere"
+            checked={local}
+            onChange={() => choose(true)}
+          />
+          On this machine, from nothing
+        </label>
+      </fieldset>
       <p class="form-note">
-        For a repository that already exists. This does not create one: it gives
-        the shop a project that works on it.
+        {local
+          ? "The office keeps the repository itself and you merge from the studio. Publish it later by pushing a clone to GitHub."
+          : "For a repository that already exists. This does not create one: it gives the shop a project that works on it."}
       </p>
       <div class="register-project-row">
         <div>
@@ -378,23 +428,25 @@ export function RegisterProject({
             onInput={(event) => setId(event.currentTarget.value)}
           />
         </div>
-        <div>
-          <label class="form-label" for="registerRepo">
-            REPOSITORY
-          </label>
-          <input
-            id="registerRepo"
-            type="text"
-            required
-            pattern="[\w.\-]+/[\w.\-]+"
-            title="owner/name"
-            placeholder="owner/name"
-            autocomplete="off"
-            spellcheck={false}
-            value={repo}
-            onInput={(event) => setRepo(event.currentTarget.value)}
-          />
-        </div>
+        {!local && (
+          <div>
+            <label class="form-label" for="registerRepo">
+              REPOSITORY
+            </label>
+            <input
+              id="registerRepo"
+              type="text"
+              required
+              pattern="[\w.\-]+/[\w.\-]+"
+              title="owner/name"
+              placeholder="owner/name"
+              autocomplete="off"
+              spellcheck={false}
+              value={repo}
+              onInput={(event) => setRepo(event.currentTarget.value)}
+            />
+          </div>
+        )}
         <div>
           <label class="form-label" for="registerBranch">
             BASE BRANCH
@@ -410,6 +462,25 @@ export function RegisterProject({
           />
         </div>
       </div>
+      {local && (
+        <>
+          <label class="form-label" for="registerSpec">
+            SPEC · OPTIONAL, THE FIRST COMMIT
+          </label>
+          <input
+            id="registerSpec"
+            type="file"
+            accept=".md,.markdown,.txt,text/markdown,text/plain"
+            aria-describedby={specProblem ? "registerSpecProblem" : undefined}
+            onChange={(event) => void pickSpec(event.currentTarget.files?.[0])}
+          />
+          {specProblem && (
+            <p id="registerSpecProblem" class="form-error" role="alert">
+              {specProblem}
+            </p>
+          )}
+        </>
+      )}
       <label class="form-label" for="registerVerify">
         VERIFY COMMANDS · ONE PER LINE
       </label>

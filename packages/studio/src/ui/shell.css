@@ -136,6 +136,29 @@
 .register-project > .form-note {
   margin-top: 0;
 }
+.register-project-where {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+.register-project-where legend {
+  width: 100%;
+  padding: 0;
+}
+.register-project-where label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.register-project .form-error {
+  margin: 6px 0 0;
+  color: #d9adba;
+  font-size: 12px;
+}
 .register-project-row {
   display: grid;
   grid-template-columns: 1fr 1.3fr 0.8fr;

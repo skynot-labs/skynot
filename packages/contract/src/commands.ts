@@ -5,6 +5,7 @@ import {
   MAX_FOCUS,
   MAX_PROJECT_DESCRIPTION,
   MAX_PROJECT_NAME,
+  MAX_SPEC,
   MAX_TEXT,
   MIN_FOCUS,
   MINUTES_BUCKETS,
@@ -12,6 +13,7 @@ import {
   PREFERENCE_KEY,
   PROJECT_ID,
   REPOSITORY,
+  SPEC_FILE,
   ROLE_NAME,
   RUN_ID,
   TEAM_CHANGE_ID,
@@ -56,16 +58,27 @@ export const commands = {
   "pause-project": oneProject,
   "resume-project": oneProject,
 
-  "register-project": z.object({
-    id: projectId,
-    repo: z.string().regex(REPOSITORY),
-    baseBranch: z.string().min(1),
-    verifyCommands: z.array(line).min(1),
-    setupCommand: line.optional(),
-    protectedPaths: z.array(line).optional(),
-    name: z.string().trim().min(1).max(MAX_PROJECT_NAME).optional(),
-    description: z.string().trim().min(1).max(MAX_PROJECT_DESCRIPTION).optional(),
-  }),
+  // On GitHub with `repo`, or on the office's machine with `local`, which may start from a spec.
+  "register-project": z
+    .object({
+      id: projectId,
+      repo: z.string().regex(REPOSITORY).optional(),
+      local: z.literal(true).optional(),
+      spec: z
+        .object({
+          name: z.string().regex(SPEC_FILE),
+          text: z.string().min(1).max(MAX_SPEC).refine((text) => !text.includes("\u0000"), "a spec is text"),
+        })
+        .optional(),
+      baseBranch: z.string().min(1),
+      verifyCommands: z.array(line).min(1),
+      setupCommand: line.optional(),
+      protectedPaths: z.array(line).optional(),
+      name: z.string().trim().min(1).max(MAX_PROJECT_NAME).optional(),
+      description: z.string().trim().min(1).max(MAX_PROJECT_DESCRIPTION).optional(),
+    })
+    .refine((project) => (project.repo === undefined) !== (project.local === undefined), { message: "name a repository or ask for a project on this machine", path: ["repo"] })
+    .refine((project) => project.spec === undefined || project.local === true, { message: "only a project on this machine starts from a spec", path: ["spec"] }),
   "describe-project": z.object({ project: projectId, name: z.string().nullable().optional(), description: z.string().nullable().optional() }),
   "set-preference": z.object({ key: z.string().regex(PREFERENCE_KEY), value: z.record(z.string(), z.unknown()).nullable() }),
 
