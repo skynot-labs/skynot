@@ -50,6 +50,7 @@ export type Project = {
   name: string;
   description: string | null;
   repo: string;
+  local: boolean;
   accent: string;
   paused: PauseState | null;
   reviewing: boolean;

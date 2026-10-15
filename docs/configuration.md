@@ -38,6 +38,18 @@ Several folders are several projects, each with its own conversation with the Ma
 briefing. A repository belongs to one project. A project can also be registered from the console; it is
 picked up at the next start.
 
+### A project without GitHub
+
+`local: true` in place of `repo` starts a project from nothing, on the office's machine. At its first start
+the office creates `<data>/origins/<id>.git`, a bare repository with one empty commit on `base_branch`, and
+the shop works on it as it would on GitHub: an order's pull request is its branch there, the reviewer reads
+the branch against the base, and you merge from the order in the studio, which squashes it onto the base.
+There are no checks, no issues to take work from and no board. To read or run the work, clone that path; to
+publish it, add a GitHub remote to your clone and push ([ADR 0003](adr/0003-projects-on-this-machine.md)).
+
+Nothing installs a dependency yet, so a project started empty needs a `setup_command` and `verify_commands`
+that work before any code exists, such as `true`, until the first orders give it something to run.
+
 ## `team.yaml`: who does the work
 
 Copied from [team.example.yaml](../team.example.yaml).

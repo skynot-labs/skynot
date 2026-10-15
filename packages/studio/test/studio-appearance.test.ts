@@ -49,6 +49,7 @@ const project: Project = {
   name: "one",
   description: null,
   repo: "skynot-labs/one",
+  local: false,
   accent: "#a5d7b8",
   paused: null,
   reviewing: false,

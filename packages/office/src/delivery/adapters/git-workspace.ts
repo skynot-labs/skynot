@@ -14,6 +14,8 @@ export interface GitWorkspaceOptions {
   root: string;
   execute?: Exec;
   clone?: (repo: string, dir: string) => Promise<void>;
+  // The path of a repository kept on this machine, cloned with git instead of from GitHub.
+  localOrigin?: (repo: string) => string | undefined;
 }
 
 export class GitWorkspace implements Workspace {
@@ -28,7 +30,11 @@ export class GitWorkspace implements Workspace {
     this.options = { ...options, root: resolve(options.root) };
     this.execute = options.execute ?? exec;
     this.cloneRepo =
-      options.clone ?? (async (repo, dir) => void (await run(this.execute, "gh", ["repo", "clone", repo, dir, "--", "--quiet"])));
+      options.clone ??
+      (async (repo, dir) => {
+        const origin = options.localOrigin?.(repo);
+        await (origin ? run(this.execute, "git", ["clone", "--quiet", origin, dir]) : run(this.execute, "gh", ["repo", "clone", repo, dir, "--", "--quiet"]));
+      });
   }
 
   readingCopy(repo: string, baseBranch: string): Promise<string> {

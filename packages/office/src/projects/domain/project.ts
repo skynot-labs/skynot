@@ -7,7 +7,8 @@ export const ProjectFileSchema = z.strictObject({
   version: z.literal(1),
   name: z.string().trim().min(1, "a name cannot be empty").max(MAX_PROJECT_NAME, `a name has at most ${MAX_PROJECT_NAME} characters`).optional(),
   description: z.string().trim().max(MAX_PROJECT_DESCRIPTION, `a description has at most ${MAX_PROJECT_DESCRIPTION} characters`).optional(),
-  repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "a repository is written owner/name"),
+  repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "a repository is written owner/name").optional(),
+  local: z.literal(true).optional(),
   base_branch: z.string().min(1),
   setup_command: z.string().min(1).nullable(),
   verify_commands: z.array(z.string().min(1)).min(1),
@@ -19,7 +20,7 @@ export const ProjectFileSchema = z.strictObject({
       columns: z.strictObject({ proposed: z.string(), in_progress: z.string(), in_review: z.string(), done: z.string() }).partial().optional(),
     })
     .optional(),
-});
+}).refine((file) => (file.repo === undefined) !== (file.local === undefined), { message: "name a repository with repo: owner/name, or say local: true to keep it on this machine", path: ["repo"] });
 
 export type ProjectFile = z.infer<typeof ProjectFileSchema>;
 
@@ -29,7 +30,9 @@ export interface Project {
   readonly id: string;
   readonly name: string | null;
   readonly description: string | null;
+  // owner/name on GitHub; for a project on this machine, its id, which no GitHub repository can match
   readonly repo: string;
+  readonly local?: boolean;
   readonly baseBranch: string;
   readonly setupCommand: string | null;
   readonly verifyCommands: readonly string[];
@@ -60,7 +63,8 @@ export function toProject(id: string, file: ProjectFile): Project {
     id,
     name: file.name ?? null,
     description: file.description || null,
-    repo: file.repo,
+    repo: file.repo ?? id,
+    ...(file.local && { local: true }),
     baseBranch: file.base_branch,
     setupCommand: file.setup_command,
     verifyCommands: file.verify_commands,

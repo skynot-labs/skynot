@@ -11,6 +11,8 @@ export type EngineName = z.infer<typeof EngineNameSchema>;
 export const ProjectSchema = z.object({
   id: z.string(),
   repo: z.string(),
+  // Kept on the office's machine instead of GitHub: its pull requests are merged from the studio.
+  local: z.boolean().optional(),
   name: z.string().nullable(),
   description: z.string().nullable(),
 });

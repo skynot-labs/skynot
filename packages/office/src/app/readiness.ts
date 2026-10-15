@@ -62,7 +62,7 @@ export async function checkShopReadiness({ exec, execFor, engines, teams, dataDi
   const shared = await Promise.all([checkNode(), checkGit(exec), checkDataDir(dataDir), ...checkEngines({ engines, usage, exec })]);
   const perProject = await Promise.all(
     teams.map(async ({ project }) => {
-      const found = await checkGithub(execFor?.(ownerOf(project.repo)) ?? exec, project.repo, project.baseBranch);
+      const found = project.local ? [ok("repository", `${project.repo} is kept on this machine, without GitHub`)] : await checkGithub(execFor?.(ownerOf(project.repo)) ?? exec, project.repo, project.baseBranch);
       return teams.length > 1 ? found.map((finding) => ({ ...finding, check: `${project.id}: ${finding.check}` })) : found;
     }),
   );

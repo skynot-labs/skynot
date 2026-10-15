@@ -299,7 +299,7 @@ describe("console api", () => {
 describe("what the studio reads from the state", () => {
   it("shows the finished runs with their outcome and tokens, each role's totals and the project's tokens", async () => {
     const before = await getState();
-    expect(before.project).toEqual({ id: "widgets", repo: "acme/widgets", name: null, description: null });
+    expect(before.project).toEqual({ id: "widgets", repo: "acme/widgets", local: false, name: null, description: null });
     expect(before.projects).toMatchObject([{ id: "widgets", name: null, description: null, paused: false }]);
     expect([before.runs, before.agents, before.costs.tokens]).toEqual([[], [], null]);
 

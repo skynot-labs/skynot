@@ -49,6 +49,17 @@ describe("project catalog", () => {
     expect(parseProjectFile("typo", `${projectYaml()}verfy_commands: []\n`)).toMatchObject({ ok: false, error: expect.stringContaining("typo") });
     expect(parseProjectFile("fresh", projectYaml("OWNER/REPO"))).toMatchObject({ ok: false, error: expect.stringContaining("placeholder") });
   });
+
+  it("reads a project kept on this machine, whose key is its id, and refuses one that names both a repository and local, or neither", () => {
+    const local = projectYaml().replace("repo: acme/widgets", "local: true");
+
+    expect(parseProjectFile("listo", local)).toMatchObject({ ok: true, value: { id: "listo", repo: "listo", local: true } });
+    expect(parseProjectFile("widgets", projectYaml())).toMatchObject({ ok: true, value: { repo: "acme/widgets" } });
+    expect((parseProjectFile("widgets", projectYaml()) as { value: object }).value).not.toHaveProperty("local");
+    expect(parseProjectFile("both", `${projectYaml()}local: true\n`)).toMatchObject({ ok: false, error: expect.stringContaining("local: true") });
+    expect(parseProjectFile("neither", projectYaml().replace("repo: acme/widgets\n", ""))).toMatchObject({ ok: false, error: expect.stringContaining("local: true") });
+    expect(parseProjectFile("off", projectYaml().replace("repo: acme/widgets", "local: false"))).toMatchObject({ ok: false });
+  });
 });
 
 describe("a project's name and description", () => {

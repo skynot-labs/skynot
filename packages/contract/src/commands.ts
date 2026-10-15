@@ -83,7 +83,7 @@ export const commands = {
 export type CommandName = keyof typeof commands;
 export type Command = { [Name in CommandName]: { name: Name; payload: z.input<(typeof commands)[Name]> } }[CommandName];
 
-// An office answers these only when its shop is simulated, which its state says in `simulated`.
+// An office answers these when its shop is simulated, which its state says in `simulated`, and for a project it keeps on its own machine (`local`).
 export const simulatedCommands: readonly CommandName[] = ["merge-pull-request"];
 
 export const commandPath = (name: CommandName): string => `/api/${simulatedCommands.includes(name) ? "dev" : "commands"}/${name}`;

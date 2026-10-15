@@ -118,6 +118,18 @@ describe("readiness of several projects", () => {
     expect(findings.some((finding) => finding.check === "widgets: github repository" && finding.level === "ok")).toBe(true);
   });
 
+  it("asks nothing of GitHub for a project kept on this machine, not even a login", async () => {
+    const asked: string[] = [];
+    const answer = world();
+    const exec: Exec = (command, args, options) => (asked.push(`${command} ${args.join(" ")}`), answer(command, args, options));
+
+    const findings = await checkShopReadiness({ exec, engines: { claude: loggedIn, codex: loggedIn }, teams: [{ project: { ...project("listo", "listo"), local: true }, team: team() }], dataDir });
+
+    expect(problems(findings)).toEqual([]);
+    expect(findings).toContainEqual(expect.objectContaining({ check: "repository", level: "ok" }));
+    expect(asked.filter((call) => call.startsWith("gh "))).toEqual([]);
+  });
+
   describe("as a GitHub App installed in several accounts", () => {
     const privateKey = generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs1", format: "pem" }).toString();
     const installed = (async (url: string | URL | Request) => {

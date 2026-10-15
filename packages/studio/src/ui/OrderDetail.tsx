@@ -88,7 +88,7 @@ export function OrderDetail({
     </button>
   );
   const unblock = unblocking(order);
-  const can = orderActions(order, simulated);
+  const can = orderActions(order, simulated || project.local);
   const lastAnswered = order.answered.at(-1);
   const answeredThroughManager = lastAnswered?.answeredBy
     ? { ...lastAnswered, answeredBy: lastAnswered.answeredBy }
@@ -334,7 +334,7 @@ export function OrderDetail({
           {can.discard && action("discard-order", "Discard", "danger")}
           {can.sign && action("sign-order", "Sign", "primary")}
           {can.stop && action("stop-order", "Stop", "danger")}
-          {can.merge && action("merge-pull-request", "Merge (simulated)")}
+          {can.merge && action("merge-pull-request", simulated ? "Merge (simulated)" : "Merge")}
         </div>
       )}
     </>

@@ -15,6 +15,7 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     name: state.project.name || nameOf(state.project.repo),
     description: state.project.description,
     repo: state.project.repo,
+    local: state.project.local ?? false,
     accent: accentAt(current),
     paused: state.projectPaused,
     reviewing: state.reviewing,

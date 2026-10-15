@@ -5,7 +5,9 @@ import {
   GitWorkspace,
   Implementer,
   IssueFiler,
+  LocalRepos,
   PullRequestReview,
+  type LocalMerge,
   type Board,
   type Vcs,
   type Workspace,
@@ -50,6 +52,7 @@ import { Schedule, ScheduleProjection } from "./schedule";
 import { createStanding } from "./standing";
 import { createTaskDesk } from "./task-desk";
 import { createWorkerDesk } from "./worker-desk";
+import { routeVcs } from "./vcs-router";
 import { createWorkerRunner, DEFAULT_WORKER } from "./worker-runner";
 
 export interface ShopConfig {
@@ -113,6 +116,8 @@ export interface Shop {
   watcher: MergeWatcher;
   intake: IntakeWatcher;
   schedule: Schedule;
+  // The director's merge of an order of a project on this machine; on GitHub it happens there.
+  mergeHere(orderId: string): Promise<LocalMerge>;
   cursor: LastSequence;
   repo: string;
   readiness: { findings(): readonly Finding[]; refresh(): Promise<void> };
@@ -149,8 +154,13 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   let findings: readonly Finding[] = [];
   const sandboxBroken = () => findings.some((finding) => finding.check === CODEX_SANDBOX && finding.level !== "ok");
   const scheduler = new RunScheduler(engines, log, policy.limits.max_parallel, (projectId) => control.pausedFor(projectId) !== null);
-  const vcs = config.vcs ?? new GhVcs(config.exec);
-  const workspace = config.workspace ?? new GitWorkspace({ root: join(dataDir, "workspaces"), ...(config.exec && { execute: config.exec }) });
+  const local = new LocalRepos(join(dataDir, "origins"));
+  const localRepos = new Set(projects.filter((project) => project.local).map((project) => project.repo));
+  for (const project of projects.filter((candidate) => candidate.local)) await local.ensure(project.repo, project.baseBranch);
+  const vcs = config.vcs ?? routeVcs((repo) => localRepos.has(repo), local, new GhVcs(config.exec));
+  const workspace =
+    config.workspace ??
+    new GitWorkspace({ root: join(dataDir, "workspaces"), ...(config.exec && { execute: config.exec }), localOrigin: (repo) => (localRepos.has(repo) ? local.origin(repo) : undefined) });
   const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
   const orderService = new OrderService(log, orders);
   const briefingService = new BriefingService(log, briefingChanges);
@@ -315,6 +325,13 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     watcher,
     intake,
     schedule,
+    async mergeHere(orderId) {
+      const order = orders.get(orderId);
+      if (order?.status !== "in_review" || order.pullRequest === null || !deskOf(order).project.local) return "not_open";
+      const merged = await local.merge(deskOf(order).project.repo, order.pullRequest);
+      if (merged === "merged") await watcher.poll();
+      return merged;
+    },
     cursor,
     repo: first.repo,
     reviewing: firstDesk.reviewer !== undefined,

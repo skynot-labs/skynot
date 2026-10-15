@@ -1,7 +1,7 @@
 import type { Command, Order } from "../contracts";
 
 // What the service would accept for this order right now, so the detail offers nothing it then refuses.
-export function orderActions(order: Order, simulated: boolean) {
+export function orderActions(order: Order, mergesHere: boolean) {
   const started = order.status === "on_bench" || order.status === "in_review";
   const stuck = started && !order.working && (order.blocked !== null || order.question !== null);
   return {
@@ -9,7 +9,7 @@ export function orderActions(order: Order, simulated: boolean) {
     sign: order.status === "awaiting_signature",
     stop: order.working,
     reassign: !order.working && ["signed", "on_bench", "in_review"].includes(order.status),
-    merge: simulated && order.status === "in_review" && !order.working,
+    merge: mergesHere && order.status === "in_review" && !order.working,
   };
 }
 

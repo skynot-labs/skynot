@@ -5,6 +5,7 @@ export { Implementer, type ImplementerDependencies } from "./application/impleme
 export { GitWorkspace, type GitWorkspaceOptions } from "./adapters/git-workspace";
 export { GhBoard } from "./adapters/gh-board";
 export { GhVcs } from "./adapters/gh-vcs";
+export { LocalRepos, type LocalMerge } from "./adapters/local-repos";
 export { GithubAppTokens, accountOf, asGithubApp, type GithubAppOptions } from "./adapters/github-app";
 export { FakeVcs, type FakeIssue, type FakePullRequest } from "./adapters/fake-vcs";
 export { FakeWorkspace } from "./adapters/fake-workspace";
