@@ -1,6 +1,9 @@
 import type { Decision } from "../manager";
 import type { Shop } from "./shop";
 
+// A delivered or discarded order keeps the last question its worker raised; nobody can answer it any more.
+const ASKING: readonly string[] = ["on_bench", "in_review"];
+
 // Everything that waits for the director's answer, whoever asked, in one list.
 export interface InboxItem {
   readonly id: string;
@@ -45,6 +48,7 @@ export function inboxOf(shop: Shop, projectId: string): InboxItem[] {
     }),
   );
   const questions = shop.orders.listFor(projectId).flatMap((order): InboxItem[] => {
+    if (!ASKING.includes(order.status)) return [];
     const { question, questionAt } = shop.activity.linksFor(order.id);
     return question === null ? [] : [{ id: `question:${order.id}`, kind: "worker_question", from: shop.activity.linksFor(order.id).worker ?? "developer", question, options: [], orderId: order.id, ticket: order.ticket, askedAt: questionAt ?? "" }];
   });
