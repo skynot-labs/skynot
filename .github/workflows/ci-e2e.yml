@@ -1,7 +1,9 @@
-name: CI · E2E
+name: CI · E2E Nightly
 
-# On demand: from the Actions tab, or `gh workflow run ci-e2e.yml --ref <branch>`.
+# Every night on main, and on demand: from the Actions tab, or `gh workflow run ci-e2e.yml --ref <branch>`.
 on:
+  schedule:
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 permissions: {}
