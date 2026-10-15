@@ -1092,6 +1092,7 @@ function Console({
             project={project}
             order={selectedOrder}
             simulated={snapshot.simulated}
+            readChanges={(orderId) => gateway.changes(orderId)}
             send={send}
             busy={busy}
           />

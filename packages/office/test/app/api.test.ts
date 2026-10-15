@@ -428,6 +428,23 @@ describe("an approval from a reviewer that could not read the repository", () =>
   });
 });
 
+describe("an order's changes", () => {
+  it("are the pull request's diff, cut when it is too long to read in a browser, and only while the order is in review", async () => {
+    const id = await fileAnOrder();
+    expect((await get(`/api/orders/${id}/changes`)).status).toBe(404);
+    await post("/api/commands/sign-order", { orderId: id });
+    await settle();
+
+    expect(await (await get(`/api/orders/${id}/changes`)).json()).toEqual({ orderId: id, diff: vcs.diff, cut: false });
+
+    vcs.diff = `diff --git a/big.txt b/big.txt\n${"+x\n".repeat(200_000)}`;
+    const cut = (await (await get(`/api/orders/${id}/changes`)).json()) as { diff: string; cut: boolean };
+    expect(cut.cut).toBe(true);
+    expect(cut.diff.length).toBe(300_000);
+    expect(cut.diff.startsWith("diff --git a/big.txt")).toBe(true);
+  });
+});
+
 describe("console preferences", () => {
   const set = (key: string, value: unknown) => post("/api/commands/set-preference", { key, value });
 
