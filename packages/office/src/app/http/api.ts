@@ -10,7 +10,7 @@ import { setPreference } from "../preferences";
 import { registrationProblem, type ProjectsFolder } from "../projects";
 import type { Shop } from "../shop";
 import { issueSession, pairingDesk, sessionIsValid, type OfficeAccess } from "./access";
-import { CONTRACT, MetaSchema, PairingSchema, SessionSchema, commands, type CommandName, type State } from "@skynot/contract";
+import { CONTRACT, MetaSchema, OrderChangesSchema, PairingSchema, SessionSchema, commands, type CommandName, type State } from "@skynot/contract";
 import { readState } from "./state";
 
 export interface ApiOptions {
@@ -100,6 +100,18 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     if (project && !shop.desk(project)) return context.json({ error: `no project ${project}` }, 404);
     const state: State = { ...readState(shop, project), simulated: Boolean(options.devTools) };
     return context.json(state);
+  });
+
+  api.get("/api/orders/:id/changes", async (context) => {
+    const orderId = context.req.param("id");
+    let changes: Awaited<ReturnType<Shop["changesOf"]>>;
+    try {
+      changes = await shop.changesOf(orderId);
+    } catch (error) {
+      return context.json({ error: `the changes could not be read: ${(error as Error).message}` }, 502);
+    }
+    if (!changes) return context.json({ error: `${orderId} has no pull request in review` }, 404);
+    return context.json(OrderChangesSchema.parse({ orderId, ...changes }));
   });
 
   api.get("/api/events", (context) => {
