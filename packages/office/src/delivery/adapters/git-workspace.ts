@@ -57,9 +57,13 @@ export class GitWorkspace implements Workspace {
     for (let index = 0; index < entries.length; index++) {
       const entry = entries[index]!;
       const status = entry.slice(0, 2).trim();
-      changes.push({ status, path: entry.slice(3) });
+      const path = entry.slice(3);
+      changes.push({ status, path });
       // a rename or copy is followed by the path it came from
-      if (/[RC]/.test(entry.slice(0, 2))) changes.push({ status: "R", path: entries[++index] ?? "" });
+      if (/[RC]/.test(entry.slice(0, 2))) {
+        const renamedTo = entry.slice(0, 2).includes("R") ? { renamedTo: path } : {};
+        changes.push({ status: "R", path: entries[++index] ?? "", ...renamedTo });
+      }
     }
     return changes;
   }

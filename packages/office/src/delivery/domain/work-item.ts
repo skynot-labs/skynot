@@ -16,6 +16,7 @@ export interface WorkItem {
 export interface FileChange {
   readonly path: string;
   readonly status: string;
+  readonly renamedTo?: string;
 }
 
 export const issueTitle = (item: WorkItem): string => `${item.id} ${item.title}`;
@@ -136,5 +137,6 @@ export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, 
 const TEST_PATH = /(^|\/)(test|tests|__tests__)\/|\.(test|spec)\./;
 
 export function deletedTest(changes: readonly FileChange[]): string | undefined {
-  return changes.find((change) => change.status.includes("D") && TEST_PATH.test(change.path))?.path;
+  const gone = (change: FileChange) => change.status.includes("D") || (change.renamedTo !== undefined && !TEST_PATH.test(change.renamedTo));
+  return changes.find((change) => gone(change) && TEST_PATH.test(change.path))?.path;
 }

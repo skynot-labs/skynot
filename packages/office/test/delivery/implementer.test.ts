@@ -168,6 +168,34 @@ describe("implementer", () => {
     expect(vcs.pullRequests).toEqual([]);
   });
 
+  it("blocks when the worker moves a test out of the tests with git mv", async () => {
+    const movesTestAway: WorkerStep = async (dir) => {
+      await addFiles(dir, { "src/feature.txt": "x" });
+      await git(dir, "mv", "test/app.test.txt", "src/moved.txt");
+      return ok("moved a flaky test aside");
+    };
+    const { implementer, vcs } = await setup([movesTestAway]);
+
+    const outcome = await implementer.implement(item, "acme/widgets", 7);
+
+    expect(outcome).toMatchObject({ ok: false, error: "it deletes the test test/app.test.txt" });
+    expect(vcs.pullRequests).toEqual([]);
+  });
+
+  it("lets the worker rename a test within the tests", async () => {
+    const renamesTest: WorkerStep = async (dir) => {
+      await addFiles(dir, { "src/feature.txt": "x" });
+      await git(dir, "mv", "test/app.test.txt", "test/feature.test.txt");
+      return ok("renamed the test after the feature");
+    };
+    const { implementer, vcs } = await setup([renamesTest]);
+
+    const outcome = await implementer.implement(item, "acme/widgets", 7);
+
+    expect(outcome.ok).toBe(true);
+    expect(vcs.pullRequests).toHaveLength(1);
+  });
+
   it("gives the worker the failed verification output and accepts the repaired attempt", async () => {
     const { implementer, vcs, prompts } = await setup([
       writes({ "src/other.txt": "wrong file" }),
