@@ -38,6 +38,15 @@ describe("a repository kept on this machine", () => {
     expect((await git(repos.origin("listo"), "ls-tree", "main")).trim()).toBe("");
   });
 
+  it("can start with files at the root of its first commit", async () => {
+    await repos.ensure("fresh", "main", { "SPEC.md": "# Listo\n" });
+
+    expect(await git(repos.origin("fresh"), "show", "main:SPEC.md")).toBe("# Listo\n");
+    expect((await git(repos.origin("fresh"), "log", "--format=%s", "main")).trim()).toBe("Start the project with SPEC.md");
+    expect(await repos.exists("fresh")).toBe(true);
+    expect(await repos.exists("never")).toBe(false);
+  });
+
   it("numbers issues and pull requests in one sequence, as GitHub does, with no address to link", async () => {
     const issue = await repos.createIssue("listo");
     const pull = await repos.openPullRequest("listo", { head: "taller/wo-0001", base: "main", title: "WO-0001: Add todos", body: "Closes #1" });

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,6 +12,7 @@ import { projectsFolder, readProjects } from "../../src/app/projects";
 import type { readState } from "../../src/app/http/state";
 import { YamlProjectRegistry, type Project } from "../../src/projects";
 import type { Team } from "../../src/team";
+import { git } from "../delivery/git-fixture";
 import { examplePolicy } from "../governance/fixtures";
 import { validSpec } from "../orders/fixtures";
 
@@ -603,6 +604,52 @@ describe("registering and describing a project from the console", () => {
     expect([second.status, ((await second.json()) as { error: string }).error]).toEqual([409, expect.stringContaining("acme/cms already belongs to the project cms")]);
     expect((await post("register-project", { ...cms, id: "pages", repo: "acme/pages" })).status).toBe(201);
     expect((await readProjects(policy(), false, dir)).map((listed) => listed.id)).toEqual(["blog", "cms", "pages", "shop"]);
+  });
+
+  describe("on this machine", () => {
+    const listo = { id: "listo", local: true, baseBranch: "main", verifyCommands: ["true"] };
+    const origin = () => path.join(dataDir, "origins", "listo.git");
+    const spec = { name: "SPEC.md", text: "# Listo\n\nA todo app people pay for.\n" };
+
+    it("writes a project kept on this machine, and starts its repository with the spec as the first commit", async () => {
+      const { dir, post } = await openManaged();
+
+      const response = await post("register-project", { ...listo, spec });
+
+      expect(response.status).toBe(201);
+      expect((await readProjects(policy(), false, dir)).find((listed) => listed.id === "listo")).toMatchObject({ repo: "listo", local: true, verifyCommands: ["true"] });
+      expect(await git(origin(), "show", "main:SPEC.md")).toBe(spec.text);
+    });
+
+    it("starts the repository empty without a spec, and refuses an id whose repository is already there", async () => {
+      const { shop, dir, post } = await openManaged();
+
+      expect((await post("register-project", listo)).status).toBe(201);
+      expect((await git(origin(), "ls-tree", "main")).trim()).toBe("");
+
+      await shop.origins.start("pages", "main", { "NOTES.md": "left from before\n" });
+      const taken = await post("register-project", { ...listo, id: "pages", spec });
+      expect([taken.status, ((await taken.json()) as { error: string }).error]).toEqual([409, expect.stringContaining("pages.git already exists")]);
+      expect((await readProjects(policy(), false, dir)).map((listed) => listed.id)).not.toContain("pages");
+    });
+
+    it("refuses a spec that is not a text file or too large, a spec for a GitHub repository, and both or neither of repo and local, writing nothing", async () => {
+      const { dir, post } = await openManaged();
+      const refused = [
+        { ...listo, spec: { name: "logo.png", text: "x" } },
+        { ...listo, spec: { name: "SPEC.md", text: "binary\u0000junk" } },
+        { ...listo, spec: { name: "SPEC.md", text: "x".repeat(200_001) } },
+        { ...listo, spec: { name: "../SPEC.md", text: "x" } },
+        { ...cms, spec },
+        { ...listo, repo: "acme/listo" },
+        { id: "listo", baseBranch: "main", verifyCommands: ["true"] },
+      ];
+
+      for (const body of refused) expect((await post("register-project", body)).status).toBe(400);
+
+      expect((await readProjects(policy(), false, dir)).map((listed) => listed.id)).toEqual(["blog", "shop"]);
+      await expect(stat(origin())).rejects.toThrow();
+    });
   });
 
   it("refuses a project that would take the first project's place at the next start", async () => {

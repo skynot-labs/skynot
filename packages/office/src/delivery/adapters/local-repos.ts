@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { exec, run, type Exec } from "../../kernel/process";
 import type { ChecksState, IssueRef, NewPullRequest, PullRequestState, Ticket, Vcs } from "../domain";
@@ -39,17 +39,31 @@ export class LocalRepos implements Vcs {
     return join(this.root, `${repo}.git`);
   }
 
-  async ensure(repo: string, baseBranch: string): Promise<void> {
-    const origin = this.origin(repo);
-    const exists = await this.git(origin, "rev-parse", "--verify", `refs/heads/${baseBranch}`).then(
+  async exists(repo: string): Promise<boolean> {
+    return access(this.origin(repo)).then(
       () => true,
       () => false,
     );
-    if (exists) return;
+  }
+
+  // `files` sit at the root of the first commit, named without folders; a repository already started is left as it is.
+  async ensure(repo: string, baseBranch: string, files: Readonly<Record<string, string>> = {}): Promise<void> {
+    const origin = this.origin(repo);
+    const started = await this.git(origin, "rev-parse", "--verify", `refs/heads/${baseBranch}`).then(
+      () => true,
+      () => false,
+    );
+    if (started) return;
     await mkdir(origin, { recursive: true });
     await this.git(origin, "init", "--quiet", "--bare", "--initial-branch", baseBranch);
-    const emptyTree = (await run(this.execute, "git", ["mktree"], { cwd: origin, input: "" })).trim();
-    const first = (await this.git(origin, "commit-tree", emptyTree, "-m", "Start the project")).trim();
+    const entries: string[] = [];
+    for (const [name, content] of Object.entries(files)) {
+      const blob = (await run(this.execute, "git", ["hash-object", "-w", "--stdin"], { cwd: origin, input: content })).trim();
+      entries.push(`100644 blob ${blob}\t${name}\n`);
+    }
+    const tree = (await run(this.execute, "git", ["mktree"], { cwd: origin, input: entries.join("") })).trim();
+    const names = Object.keys(files);
+    const first = (await this.git(origin, "commit-tree", tree, "-m", names.length ? `Start the project with ${names.join(", ")}` : "Start the project")).trim();
     await this.git(origin, "update-ref", `refs/heads/${baseBranch}`, first);
   }
 
