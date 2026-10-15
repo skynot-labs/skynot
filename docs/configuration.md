@@ -40,12 +40,14 @@ picked up at the next start.
 
 ### A project without GitHub
 
-`local: true` in place of `repo` starts a project from nothing, on the office's machine. At its first start
-the office creates `<data>/origins/<id>.git`, a bare repository with one empty commit on `base_branch`, and
-the shop works on it as it would on GitHub: an order's pull request is its branch there, the reviewer reads
-the branch against the base, and you merge from the order in the studio, which squashes it onto the base.
-There are no checks, no issues to take work from and no board. To read or run the work, clone that path; to
-publish it, add a GitHub remote to your clone and push ([ADR 0003](adr/0003-projects-on-this-machine.md)).
+`local: true` in place of `repo` starts a project from nothing, on the office's machine; **Register a
+project** in the studio does the same with **On this machine**, and can take a spec (a `.md` or `.txt` file)
+as the repository's first commit. The office keeps the repository in `<data>/origins/<id>.git`, a bare
+repository started on `base_branch`, and the shop works on it as it would on GitHub: an order's pull request
+is its branch there, the reviewer reads the branch against the base, and you merge from the order in the
+studio, which squashes it onto the base. There are no checks, no issues to take work from and no board. To
+read or run the work, clone that path; to publish it, add a GitHub remote to your clone and push
+([ADR 0003](adr/0003-projects-on-this-machine.md)).
 
 A project started empty needs a `setup_command` and `verify_commands` that work before any code exists, such
 as `true`. Once an order gives the project something to run, the Manager proposes new commands; when you sign

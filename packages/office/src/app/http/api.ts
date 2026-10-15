@@ -29,12 +29,12 @@ type OrderCommandName = { [Name in CommandName]: Payload<Name> extends { orderId
 const NOT_MANAGED = "projects are not managed from the console in this mode";
 const invalid = (error: z.ZodError): string => `invalid request: ${error.issues.map((issue) => `${issue.path.join(".") || "body"}: ${issue.message}`).join("; ")}`;
 
-function toProjectFile({ repo, baseBranch, verifyCommands, setupCommand, protectedPaths, name, description }: Payload<"register-project">): ProjectFile {
+function toProjectFile({ repo, local, baseBranch, verifyCommands, setupCommand, protectedPaths, name, description }: Payload<"register-project">): ProjectFile {
   return {
     version: 1,
     ...(name && { name }),
     ...(description && { description }),
-    repo,
+    ...(repo ? { repo } : { local }),
     base_branch: baseBranch,
     setup_command: setupCommand ?? null,
     verify_commands: verifyCommands,
@@ -253,7 +253,8 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
 
     let problem: string | null;
     try {
-      problem = registrationProblem(body.data, [...shop.desks.map((desk) => desk.project), ...registered], await folder(), policyRepos);
+      problem = registrationProblem({ id: body.data.id, repo: body.data.repo ?? body.data.id }, [...shop.desks.map((desk) => desk.project), ...registered], await folder(), policyRepos);
+      if (!problem && body.data.local && (await shop.origins.taken(body.data.id))) problem = `${shop.origins.path(body.data.id)} already exists: choose another id, or move that repository away first.`;
     } catch (error) {
       problem = (error as Error).message;
     }
@@ -261,6 +262,10 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
 
     const result = await registry.register(body.data.id, toProjectFile(body.data));
     if (!result.ok) return context.json({ error: result.error }, 409);
+    if (body.data.local) {
+      const { spec, id, baseBranch } = body.data;
+      await shop.origins.start(id, baseBranch, spec ? { [spec.name]: spec.text } : {});
+    }
     registered.push(result.value);
     await shop.log.record([{ type: "projects.registered", payload: { projectId: result.value.id } }]);
     return context.json({ id: result.value.id, restartRequired: true }, 201);

@@ -202,6 +202,29 @@ test.describe.serial("the director's projects", () => {
     await expect(managerCard(page)).toContainText("Available", MANAGER_TURN);
   });
 
+  test("registers a project on this machine from a spec, and refuses a file that is not one", async ({ browser, baseURL }) => {
+    await visitInFreshBrowser(browser, baseURL, async (page) => {
+      await page.goto("/");
+      await sidebar(page).getByRole("button", { name: "Register a project" }).click();
+      const form = dialog(page);
+      await form.getByLabel("ID", { exact: true }).fill("listo");
+      await form.getByLabel("On this machine, from nothing").check();
+      await expect(form.getByLabel("REPOSITORY")).toHaveCount(0);
+      await expect(form.getByLabel(/^VERIFY COMMANDS/)).toHaveValue("true");
+
+      const spec = form.getByLabel(/^SPEC/);
+      await spec.setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: Buffer.from("not a spec") });
+      await expect(form.getByRole("alert")).toHaveText("A spec is a .md, .markdown or .txt file.");
+      await expect(form.getByRole("button", { name: "Register the project" })).toBeDisabled();
+
+      await spec.setInputFiles({ name: "SPEC.md", mimeType: "text/markdown", buffer: Buffer.from("# Listo\n\nA todo app people pay for.\n") });
+      await expect(form.getByRole("alert")).toHaveCount(0);
+      await form.getByRole("button", { name: "Register the project" }).click();
+
+      await expect(form.getByRole("status")).toContainText("listo was written to the projects folder.");
+    });
+  });
+
   test("registers a project for the next restart and refuses a repository already served", async ({ browser, baseURL }) => {
     const errors = await visitInFreshBrowser(browser, baseURL, async (page) => {
       await page.goto("/");

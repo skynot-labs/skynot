@@ -123,6 +123,8 @@ export interface Shop {
   schedule: Schedule;
   // The director's merge of an order of a project on this machine; on GitHub it happens there.
   mergeHere(orderId: string): Promise<LocalMerge>;
+  // The bare repositories of the projects kept on this machine.
+  origins: { path(repo: string): string; taken(repo: string): Promise<boolean>; start(repo: string, baseBranch: string, files?: Readonly<Record<string, string>>): Promise<void> };
   cursor: LastSequence;
   repo: string;
   readiness: { findings(): readonly Finding[]; refresh(): Promise<void> };
@@ -343,6 +345,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     watcher,
     intake,
     schedule,
+    origins: { path: (repo) => local.origin(repo), taken: (repo) => local.exists(repo), start: (repo, baseBranch, files) => local.ensure(repo, baseBranch, files) },
     async mergeHere(orderId) {
       const order = orders.get(orderId);
       if (order?.status !== "in_review" || order.pullRequest === null || !deskOf(order).project.local) return "not_open";

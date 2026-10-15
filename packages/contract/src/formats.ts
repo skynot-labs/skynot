@@ -2,6 +2,9 @@ export const PROJECT_ID = /^[a-z][a-z0-9-]{1,39}$/;
 export const MAX_PROJECT_NAME = 60;
 export const MAX_PROJECT_DESCRIPTION = 280;
 export const REPOSITORY = /^[\w.-]+\/[\w.-]+$/;
+// A spec that starts a project on the office's machine: a text file at the root of its repository.
+export const SPEC_FILE = /^[\w-][\w.-]*\.(md|markdown|txt)$/;
+export const MAX_SPEC = 200_000;
 
 export const ORDER_ID = /^WO-\d{4}$/;
 export const RUN_ID = /^run_[0-9a-f-]+$/;
