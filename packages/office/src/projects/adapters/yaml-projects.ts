@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { z } from "zod";
 import { isMap, isScalar, parse, parseDocument, stringify } from "yaml";
 import { err, ok, type Result } from "../../kernel";
-import { PROJECT_ID, ProjectFileSchema, toProject, type BriefingStore, type Project, type ProjectCatalog, type ProjectFile, type ProjectProfile, type ProjectRegistry } from "../domain";
+import { PROJECT_ID, ProjectFileSchema, toProject, type BriefingStore, type Project, type ProjectCatalog, type ProjectCommands, type ProjectFile, type ProjectProfile, type ProjectRegistry } from "../domain";
 
 const PLACEHOLDER_REPO = "OWNER/REPO";
 
@@ -119,6 +119,22 @@ export class YamlProjectRegistry implements ProjectRegistry {
     if (project.ok && edited !== source) await writeFile(file, edited);
     return project;
   }
+}
+
+// The two keys change in place; every other line of the director's file, comments included, stays.
+export async function writeProjectCommands(dir: string, id: string, commands: ProjectCommands): Promise<Result<Project, string>> {
+  const file = join(dir, id, "project.yaml");
+  const source = PROJECT_ID.test(id) ? await readFile(file, "utf8").catch(() => null) : null;
+  if (source === null) return err(`Project ${id} has no ${file}: a project that comes from policy.yaml or from the demo keeps its commands there. Give it a folder in ${dir}/ first.`);
+  const document = parseDocument(source);
+  document.set("setup_command", commands.setupCommand);
+  const verify = document.createNode([...commands.verifyCommands], { flow: true });
+  document.set("verify_commands", verify);
+  const edited = document.toString({ lineWidth: 0 });
+  const project = parseProjectFile(id, edited);
+  if (!project.ok) return project;
+  await writeFile(file, edited);
+  return project;
 }
 
 export class FileBriefingStore implements BriefingStore {

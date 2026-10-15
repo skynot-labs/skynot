@@ -102,6 +102,19 @@ export interface BriefingDesk {
 
 export const NO_BRIEFING_DESK: BriefingDesk = { propose: async () => err("the briefing cannot be changed here") };
 
+export interface ProjectCommandsView {
+  readonly setup: string | null;
+  readonly verify: readonly string[];
+}
+
+// How the shop sets the project up and checks a change, and the Manager's way to propose new commands.
+export interface CommandsDesk {
+  current(): ProjectCommandsView | null;
+  propose(proposal: ProjectCommandsView & { reason: string }): Promise<Result<{ text: string }, string>>;
+}
+
+export const NO_COMMANDS_DESK: CommandsDesk = { current: () => null, propose: async () => err("the project's commands cannot be changed here") };
+
 export interface WaitingWorker {
   readonly orderId: string;
   readonly question: string;

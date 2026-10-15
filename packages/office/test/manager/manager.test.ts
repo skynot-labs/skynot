@@ -5,7 +5,7 @@ import { createOrderDesk } from "../../src/app/order-desk";
 import { FakeEngine, RunScheduler } from "../../src/execution";
 import { err, fixedClock, ok, type Clock, type Result } from "../../src/kernel";
 import { attachProjection, EventLog, InMemoryEventStore } from "../../src/kernel/events";
-import { ChatProjection, ManagerService, SYSTEM_PROMPT, buildPrompt, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type ModelRunner, type Relay, type TeamDesk, type TeamProposal, type WorkerDesk } from "../../src/manager";
+import { ChatProjection, ManagerService, SYSTEM_PROMPT, buildPrompt, createAnswerSchema, type AdvisorBench, type AdvisorReply, type AdvisorRequest, type CommandsDesk, type ModelRunner, type Relay, type TeamDesk, type TeamProposal, type WorkerDesk } from "../../src/manager";
 import { OrderService, OrdersProjection, WorkOrderSpecSchema } from "../../src/orders";
 import { validSpec } from "../orders/fixtures";
 
@@ -651,6 +651,40 @@ describe("refocus and briefing proposals", () => {
   it("states both rules in the prompt, with the limit of the briefing", () => {
     expect(SYSTEM_PROMPT).toContain("refocus");
     expect(SYSTEM_PROMPT).toContain("at most 1500 characters");
+  });
+});
+
+describe("proposing the commands a project is checked with", () => {
+  const commands = { setup: "npm ci", verify: ["npm test"], reason: "the first order added tests" };
+
+  it("accepts new commands only on their own, with at least one verify command", () => {
+    const schema = createAnswerSchema(WorkOrderSpecSchema);
+    const base = { message: "Time to run the tests.", question: null, options: [], orders: [], consult: [], team: null };
+
+    expect(schema.safeParse({ ...base, commands }).success).toBe(true);
+    expect(schema.safeParse({ ...base, commands: { ...commands, setup: null } }).success).toBe(true);
+    expect(schema.safeParse({ ...base, commands: { ...commands, verify: [] } }).success).toBe(false);
+    expect(schema.safeParse({ ...base, commands, orders: [validSpec()] }).success).toBe(false);
+    expect(schema.safeParse({ ...base, commands, question: "Which?" }).success).toBe(false);
+    expect(schema.safeParse({ ...base, commands, briefing: { text: "Marta reads only Spanish.", reason: "the director said so" } }).success).toBe(false);
+  });
+
+  it("shows the Manager the current commands and hands what it proposes to the desk", async () => {
+    const log = new EventLog(new InMemoryEventStore(), fixedClock(new Date("2026-10-15T12:00:00.000Z")));
+    const orders = new OrdersProjection();
+    const chat = new ChatProjection();
+    await attachProjection(log, orders);
+    await attachProjection(log, chat);
+    const proposed: unknown[] = [];
+    const desk: CommandsDesk = { current: () => ({ setup: null, verify: ["true"] }), propose: async (proposal) => (proposed.push(proposal), ok({ text: "New commands cmd_1." })) };
+    const { runner, prompts } = scriptedRunner([say("Now the tests can run on every change.", { commands })]);
+    const manager = new ManagerService({ log, chat, runner, desk: createOrderDesk(new OrderService(log, orders), orders), commands: desk });
+
+    await manager.handleMessage("WO-0001 is merged.");
+
+    expect(prompts[0]).toContain("## Project commands\nSetup: (none)\nVerify: true");
+    expect(proposed).toEqual([commands]);
+    expect(chat.messages().at(-1)?.text).toBe("Now the tests can run on every change.\n\nNew commands cmd_1.");
   });
 });
 

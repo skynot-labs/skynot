@@ -27,6 +27,7 @@ export function mapState(state: ShopState, accents: readonly string[] = config.a
     decisions: state.decisions,
     teamChanges: state.teamChanges,
     briefingChanges: state.briefingChanges,
+    commandsChanges: state.commandsChanges ?? [],
     briefing: state.briefing,
     hireable: state.hireable,
     activity: state.activity,

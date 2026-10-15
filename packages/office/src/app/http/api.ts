@@ -317,6 +317,8 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
   for (const [path, run] of [
     ["sign-briefing-change", (id: string) => shop.briefingService.sign(id)],
     ["discard-briefing-change", (id: string) => shop.briefingService.discard(id)],
+    ["sign-commands-change", (id: string) => shop.commandsService.sign(id)],
+    ["discard-commands-change", (id: string) => shop.commandsService.discard(id)],
   ] as const) {
     api.post(`/api/commands/${path}`, async (context) => {
       const body = commands[path].safeParse(await context.req.json().catch(() => null));

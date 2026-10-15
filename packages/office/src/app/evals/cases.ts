@@ -142,6 +142,24 @@ export const CASES: EvalCase[] = [
     },
   },
   {
+    name: "tests-that-exist-are-made-to-run",
+    seed: {
+      orders: [{ id: "WO-0001", title: "Set up the project and its first test", status: "delivered", plan: "WO-0001" }],
+      waiting: [],
+      commands: { setup: null, verify: ["true"] },
+      conversation: [],
+    },
+    message: "WO-0001 is merged.",
+    check: ({ commands, plans }) => {
+      const [proposal, ...others] = commands;
+      if (!proposal) return fail(`did not propose new commands${plans.length > 0 ? ", proposed a plan instead" : ""}`);
+      if (others.length > 0) return fail(`proposed commands ${commands.length} times`);
+      const verify = proposal.verify.join(" && ");
+      if (/^true$/.test(verify.trim())) return fail("kept verifying with true");
+      return /npm (run )?test|node --test/.test(verify) ? PASS : fail(`does not run the project's tests: ${quote(verify)}`);
+    },
+  },
+  {
     name: "what-waits-on-the-director-is-named",
     seed: readyToMerge(),
     message: "What is waiting on me right now?",

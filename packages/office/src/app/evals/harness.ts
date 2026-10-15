@@ -12,6 +12,7 @@ export interface EvalSeed {
   standing?: Standing;
   // What the Manager reported before this turn, oldest first.
   reports?: Array<{ title: string; text: string }>;
+  commands?: { setup: string | null; verify: string[] };
   conversation: Array<{ author: "director" | "manager"; text: string }>;
 }
 
@@ -21,6 +22,7 @@ export interface Observed {
   plans: WorkOrderSpec[][];
   relays: Relay[];
   briefings: string[];
+  commands: Array<{ setup: string | null; verify: readonly string[] }>;
   scheduled: TaskProposal[];
   // Answers the service refused before the one it acted on.
   rejected: string[];
@@ -82,7 +84,7 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
 
   const turn: StoredEvent[] = [];
   log.subscribe((event) => void turn.push(event));
-  const observed: Observed = { reply: "", question: null, plans: [], relays: [], briefings: [], scheduled: [], rejected: [] };
+  const observed: Observed = { reply: "", question: null, plans: [], relays: [], briefings: [], commands: [], scheduled: [], rejected: [] };
 
   const manager = new ManagerService({
     log,
@@ -108,6 +110,13 @@ export async function runCase(evalCase: EvalCase, setup: EvalSetup): Promise<Run
       async propose({ text }) {
         observed.briefings.push(text);
         return ok({ text: "(briefing change filed)" });
+      },
+    },
+    commands: {
+      current: () => seed.commands ?? { setup: "npm ci", verify: ["npm test"] },
+      async propose({ setup, verify }) {
+        observed.commands.push({ setup, verify });
+        return ok({ text: "(commands change filed)" });
       },
     },
     tasks: {
@@ -176,6 +185,7 @@ function describe(observed: Observed): string {
     ...observed.relays.map((relay) => `relay to ${relay.orderId} from ${relay.from}: ${relay.text}`),
     ...observed.plans.map((plan) => `plan: ${plan.map((order) => order.title).join("; ")}`),
     ...observed.briefings.map((text) => `briefing: ${text}`),
+    ...observed.commands.map((proposal) => `commands: setup ${proposal.setup ?? "(none)"}, verify ${proposal.verify.join(" && ")}`),
     ...observed.scheduled.map((task) => `scheduled: ${task.title} ${JSON.stringify(task.when)}`),
     ...observed.rejected.map((issues) => `rejected first: ${issues}`),
   ];
