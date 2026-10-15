@@ -64,6 +64,7 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
     instructions: instructions(desk),
     teamChanges: desk.roster.pending(),
     briefingChanges: shop.briefingChanges.pendingFor(project.id),
+    commandsChanges: shop.commandsChanges.pendingFor(project.id),
     briefing: shop.briefingChanges.signedFor(project.id),
     hireable: desk.roster.hireable(),
     schedule: scheduleOf(shop, project.id),
@@ -117,7 +118,7 @@ function summary(shop: Shop, desk: Shop["desks"][number]) {
   const awaiting = orders.filter((order) => order.status === "awaiting_signature").length;
   const questions = inboxOf(shop, desk.project.id).length;
   const { id, repo, name, description } = desk.project;
-  const changes = desk.roster.pending().length + shop.briefingChanges.pendingFor(id).length;
+  const changes = desk.roster.pending().length + shop.briefingChanges.pendingFor(id).length + shop.commandsChanges.pendingFor(id).length;
   return { id, repo, name, description, paused: shop.control.projectPaused(id) !== null, awaitingSignature: awaiting, changes, blocked, questions, needsYou: awaiting + changes + blocked + questions };
 }
 

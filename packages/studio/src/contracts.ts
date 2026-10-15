@@ -1,10 +1,11 @@
-import type { Activity, Answered, BriefingChange, Command, Decision, Finding, InboxItem, Message, Order, PauseState, Report, Run, ScheduledTask, Soul, State, TeamChange, TokenUsage } from "@skynot/contract";
+import type { Activity, Answered, BriefingChange, Command, CommandsChange, Decision, Finding, InboxItem, Message, Order, PauseState, Report, Run, ScheduledTask, Soul, State, TeamChange, TokenUsage } from "@skynot/contract";
 import type { Avatar } from "./avatars/model";
 
 export type {
   Activity,
   Answered,
   BriefingChange,
+  CommandsChange,
   Command,
   Decision,
   Finding,
@@ -62,6 +63,7 @@ export type Project = {
   decisions: Decision[];
   teamChanges: TeamChange[];
   briefingChanges: BriefingChange[];
+  commandsChanges: CommandsChange[];
   briefing: State["briefing"];
   hireable: State["hireable"];
   activity: readonly Activity[];

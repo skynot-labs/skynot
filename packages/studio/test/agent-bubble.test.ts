@@ -5,7 +5,7 @@ import { agentBubble, agentErrand } from "../src/studio/presentation";
 const order = (id: string, overrides: Partial<Order> = {}) =>
   ({ id, status: "on_bench", working: false, worker: null, blocked: null, question: null, pullRequest: null, issue: null, ready: false, ...overrides }) as Order;
 const agent = (id: string, kind: Agent["kind"], status: Agent["status"] = "idle") => ({ id, kind, status, orderId: null }) as Agent;
-const project = (overrides: Partial<Project> = {}) => ({ orders: [], activity: [], runs: [], inbox: [], teamChanges: [], briefingChanges: [], ...overrides }) as unknown as Project;
+const project = (overrides: Partial<Project> = {}) => ({ orders: [], activity: [], runs: [], inbox: [], teamChanges: [], briefingChanges: [], commandsChanges: [], ...overrides }) as unknown as Project;
 
 const developer = agent("developer", "worker");
 const manager = agent("manager", "manager");

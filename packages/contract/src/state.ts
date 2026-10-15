@@ -229,6 +229,18 @@ export const BriefingChangeSchema = z.object({
 });
 export type BriefingChange = z.infer<typeof BriefingChangeSchema>;
 
+// New commands to set the project up and check a change, proposed by the Manager.
+export const CommandsChangeSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  setupCommand: z.string().nullable(),
+  verifyCommands: z.array(z.string()),
+  reason: z.string(),
+  status: z.enum(["pending", "signed", "discarded"]),
+  proposedAt: timestamp,
+});
+export type CommandsChange = z.infer<typeof CommandsChangeSchema>;
+
 export const HireableSchema = z.object({ name: z.string(), description: z.string() });
 export type Hireable = z.infer<typeof HireableSchema>;
 
@@ -378,6 +390,8 @@ export const StateSchema = z.object({
   instructions: z.array(InstructionsSchema),
   teamChanges: z.array(TeamChangeSchema),
   briefingChanges: z.array(BriefingChangeSchema),
+  // Absent from an office that cannot change a project's commands.
+  commandsChanges: z.array(CommandsChangeSchema).optional(),
   briefing: z.string().nullable(),
   hireable: z.array(HireableSchema),
   paused: PauseStateSchema.nullable(),

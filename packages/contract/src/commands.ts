@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   BRIEFING_CHANGE_ID,
+  COMMANDS_CHANGE_ID,
   MAX_FOCUS,
   MAX_PROJECT_DESCRIPTION,
   MAX_PROJECT_NAME,
@@ -28,6 +29,7 @@ const oneOrder = z.object({ orderId });
 const oneProject = z.object({ project: projectId });
 const oneTeamChange = z.object({ changeId: z.string().regex(TEAM_CHANGE_ID) });
 const oneBriefingChange = z.object({ changeId: z.string().regex(BRIEFING_CHANGE_ID) });
+const oneCommandsChange = z.object({ changeId: z.string().regex(COMMANDS_CHANGE_ID) });
 
 export const commands = {
   "send-message": z.object({ text, project: projectId.optional() }),
@@ -76,6 +78,8 @@ export const commands = {
   "discard-team-change": oneTeamChange,
   "sign-briefing-change": oneBriefingChange,
   "discard-briefing-change": oneBriefingChange,
+  "sign-commands-change": oneCommandsChange,
+  "discard-commands-change": oneCommandsChange,
 
   "merge-pull-request": oneOrder,
 };

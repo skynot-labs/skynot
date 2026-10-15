@@ -33,7 +33,8 @@ export function agentBubble(project: Project, agent: Agent, unread = 0): Bubble 
       project.orders.filter((order) => order.status === "awaiting_signature")
         .length +
       project.teamChanges.length +
-      project.briefingChanges.length;
+      project.briefingChanges.length +
+      project.commandsChanges.length;
     if (toSign > 0)
       return {
         tone: "ask",
