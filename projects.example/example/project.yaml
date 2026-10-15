@@ -5,6 +5,7 @@ version: 1
 # description: What this project is and who it is for.
 
 # The repository this project works on, and how the shop checks the work before opening a pull request.
+# To start from nothing on this machine instead of GitHub, replace repo with `local: true`.
 repo: OWNER/REPO
 base_branch: main
 setup_command: npm ci

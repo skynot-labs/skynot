@@ -327,12 +327,14 @@ export function createApi(shop: Shop, options: ApiOptions): Hono {
     });
   }
 
-  if (options.devTools) {
-    const { mergePullRequest } = options.devTools;
+  if (options.devTools || shop.desks.some((desk) => desk.project.local)) {
     api.post("/api/dev/merge-pull-request", async (context) => {
       const body = commands["merge-pull-request"].safeParse(await context.req.json().catch(() => null));
       if (!body.success) return context.json({ error: "invalid request" }, 400);
-      return (await mergePullRequest(body.data.orderId)) ? context.json({ merged: true }) : context.json({ error: "no open pull request for that order" }, 404);
+      const merged = options.devTools ? ((await options.devTools.mergePullRequest(body.data.orderId)) ? "merged" : "not_open") : await shop.mergeHere(body.data.orderId);
+      if (merged === "merged") return context.json({ merged: true });
+      if (merged === "conflicts") return context.json({ error: "it conflicts with the base branch: ask for a follow-up to bring it up to date" }, 409);
+      return context.json({ error: "no open pull request for that order" }, 404);
     });
   }
 

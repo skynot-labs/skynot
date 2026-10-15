@@ -21,7 +21,7 @@ export function readState(shop: Shop, projectId?: string): Omit<State, "simulate
   const { project } = desk;
   const reviewing = desk.reviewer !== undefined;
   return {
-    project: { id: project.id, repo: project.repo, name: project.name, description: project.description },
+    project: { id: project.id, repo: project.repo, local: Boolean(project.local), name: project.name, description: project.description },
     projects: shop.desks.map((entry) => summary(shop, entry)),
     repo: project.repo,
     reviewing,

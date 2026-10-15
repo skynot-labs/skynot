@@ -642,7 +642,7 @@ describe("registering and describing a project from the console", () => {
     const response = await post("describe-project", { project: "shop", name: "The Shop", description: "Carts and checkout" });
 
     expect([response.status, await response.json()]).toEqual([200, { id: "shop", name: "The Shop", description: "Carts and checkout" }]);
-    expect((await state("shop")).project).toEqual({ id: "shop", repo: "acme/shop", name: "The Shop", description: "Carts and checkout" });
+    expect((await state("shop")).project).toEqual({ id: "shop", repo: "acme/shop", local: false, name: "The Shop", description: "Carts and checkout" });
     expect((await state("blog")).projects.map((entry) => [entry.id, entry.name])).toEqual([["blog", null], ["shop", "The Shop"]]);
     const source = await readFile(path.join(dir, "shop", "project.yaml"), "utf8");
     expect(source).toContain("name: The Shop\ndescription: Carts and checkout\n");
