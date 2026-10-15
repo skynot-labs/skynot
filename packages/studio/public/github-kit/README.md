@@ -23,7 +23,7 @@ Every page is a real `index.html` with relative links, scripts and assets, so th
 
 ## Publish on GitHub Pages
 
-[`.github/workflows/pages.yml`](workflows/pages.yml) builds the site and deploys `packages/studio/dist/github`. It runs on every push to `main` that touches the console, and can be started by hand from **Actions**.
+[`.github/workflows/site-pages.yml`](workflows/site-pages.yml) builds the site and deploys `packages/studio/dist/github`. It runs on every push to `main` that touches the console, and can be started by hand from **Actions**.
 
 Once, in the repository's **Settings → Pages**, choose **GitHub Actions** as the source.
 
@@ -36,7 +36,7 @@ A project site is served at `https://<owner>.github.io/<repository>/`; the organ
 - **Organization profile.** Copy `organization/profile/README.md` to `profile/README.md` in the organization's public `.github` repository. Upload `organization/avatar.png` as the organization's picture. See [customizing an organization's profile](https://docs.github.com/en/organizations/collaborating-with-groups-in-organizations/customizing-your-organizations-profile).
 - **GitHub App.** `app/LISTING.md` has the registration fields and permissions, `app/badge.png` the logo. `app/SETUP.md` is the [App guide](app/SETUP.md). GitHub renders the App's own listing page from the registration; the App page of this site is its homepage.
 - **Repository.** `repository/social.png` goes in the repository's **Settings → Social preview**.
-- **Workflow.** `workflows/pages.yml` is a copy of this repository's workflow.
+- **Workflow.** `workflows/site-pages.yml` is a copy of this repository's workflow.
 
 ## Where things live
 
