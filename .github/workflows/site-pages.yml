@@ -1,4 +1,4 @@
-name: Publish Skynot website
+name: Site · Pages
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - packages/contract/**
       - package.json
       - package-lock.json
-      - .github/workflows/pages.yml
+      - .github/workflows/site-pages.yml
   workflow_dispatch:
 
 permissions:

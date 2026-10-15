@@ -1,6 +1,6 @@
-name: e2e
+name: CI · E2E
 
-# On demand: from the Actions tab, or `gh workflow run e2e.yml --ref <branch>`.
+# On demand: from the Actions tab, or `gh workflow run ci-e2e.yml --ref <branch>`.
 on:
   workflow_dispatch:
 

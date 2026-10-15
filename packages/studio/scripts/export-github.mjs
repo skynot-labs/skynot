@@ -185,12 +185,12 @@ await output(
   resolve(kit, "README.md"),
   await doc("github-kit.md", {
     "github-app.md": "app/SETUP.md",
-    "../.github/workflows/pages.yml": "workflows/pages.yml",
+    "../.github/workflows/site-pages.yml": "workflows/site-pages.yml",
   }),
 );
 await output(
-  resolve(kit, "workflows/pages.yml"),
-  await readFile(resolve(repository, ".github/workflows/pages.yml"), "utf8"),
+  resolve(kit, "workflows/site-pages.yml"),
+  await readFile(resolve(repository, ".github/workflows/site-pages.yml"), "utf8"),
 );
 
 // PNGs are optional during initial SVG generation, but must match for a build.
