@@ -119,6 +119,26 @@ describe("the history of answered questions", () => {
     expect(answeredOf(shop, "blog").map((item) => item.id)).not.toContain("dec_open");
   });
 
+  it("drops a worker's question once its order is discarded or delivered", async () => {
+    const shop = await openShop();
+    const discarded = await proposeIn(shop, "blog");
+    const delivered = await proposeIn(shop, "blog");
+    await shop.log.record(
+      [discarded, delivered].flatMap((orderId) => [
+        { type: "orders.work_started", payload: { orderId, projectId: "blog" } },
+        { type: "delivery.question_raised", payload: { orderId, question: "Atom or RSS 2.0?", projectId: "blog" } },
+      ]),
+    );
+    expect(inboxOf(shop, "blog").map((item) => item.orderId)).toEqual([discarded, delivered]);
+
+    await shop.log.record([
+      { type: "orders.discarded", payload: { orderId: discarded, projectId: "blog" } },
+      { type: "orders.delivered", payload: { orderId: delivered, projectId: "blog" } },
+    ]);
+
+    expect(inboxOf(shop, "blog")).toEqual([]);
+  });
+
   it("tells the same history after a restart, from the log already on disk", async () => {
     const shop = await openShop();
     await answerEverythingInTheBlog(shop);
