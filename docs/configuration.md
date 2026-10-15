@@ -47,8 +47,15 @@ the branch against the base, and you merge from the order in the studio, which s
 There are no checks, no issues to take work from and no board. To read or run the work, clone that path; to
 publish it, add a GitHub remote to your clone and push ([ADR 0003](adr/0003-projects-on-this-machine.md)).
 
-Nothing installs a dependency yet, so a project started empty needs a `setup_command` and `verify_commands`
-that work before any code exists, such as `true`, until the first orders give it something to run.
+A project started empty needs a `setup_command` and `verify_commands` that work before any code exists, such
+as `true`, until the first orders give it something to run; change them in `project.yaml` once they do.
+
+### Dependencies
+
+A worker cannot install anything. An order lists the npm packages it adds, which you see on its card and sign
+with it; the office runs `npm install` for them in the worker's copy before the worker starts, creating
+`package.json` when there is none. A change that adds a package the order did not list is refused, as one that
+touches a protected path is ([ADR 0004](adr/0004-the-office-installs-what-an-order-declares.md)).
 
 ## `team.yaml`: who does the work
 

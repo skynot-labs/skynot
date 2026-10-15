@@ -102,6 +102,8 @@ export const OrderSchema = z.object({
   context: z.string().nullable(),
   approach: z.array(z.string()),
   likelyFiles: z.array(z.string()),
+  // What the office installs before the worker starts; absent from an office that cannot install.
+  dependencies: z.array(z.object({ name: z.string(), dev: z.boolean() })).optional(),
   risk: RiskSchema,
   criteria: z.array(CriterionSchema),
   outOfScope: z.array(z.string()),

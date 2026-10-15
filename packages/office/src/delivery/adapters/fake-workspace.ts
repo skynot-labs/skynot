@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { CommandOutcome, FileChange, Workspace } from "../domain";
@@ -20,6 +20,10 @@ export class FakeWorkspace implements Workspace {
 
   async changes(): Promise<FileChange[]> {
     return [{ status: "A", path: "src/feature.txt" }];
+  }
+
+  read(dir: string, path: string): Promise<string | null> {
+    return readFile(join(dir, path), "utf8").catch(() => null);
   }
 
   async commit(): Promise<void> {}

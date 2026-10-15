@@ -54,6 +54,8 @@ export interface Workspace {
   prepare(repo: string, baseBranch: string, branch: string): Promise<string>;
   prepareFollowUp(repo: string, baseBranch: string, branch: string): Promise<string>;
   changes(dir: string): Promise<FileChange[]>;
+  // null when the file is not there
+  read(dir: string, path: string): Promise<string | null>;
   commit(dir: string, message: string): Promise<void>;
   push(dir: string, branch: string): Promise<void>;
   drop(repo: string, dir: string): Promise<void>;
@@ -79,6 +81,8 @@ export interface CodeReviewer {
 export interface RepoRules {
   readonly baseBranch: string;
   readonly setupCommand: string | null;
+  // Followed by the names of the dependencies an order declares, and by --save-dev for the ones used only to build or test.
+  readonly installCommand: string;
   readonly verifyCommands: readonly string[];
   readonly protectedPaths: readonly string[];
 }

@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { TIMED_OUT, exec, run, type Exec } from "../../kernel/process";
 import type { CommandOutcome, FileChange, Workspace } from "../domain";
@@ -72,6 +72,10 @@ export class GitWorkspace implements Workspace {
       }
     }
     return changes;
+  }
+
+  read(dir: string, path: string): Promise<string | null> {
+    return readFile(join(dir, path), "utf8").catch(() => null);
   }
 
   async commit(dir: string, message: string): Promise<void> {

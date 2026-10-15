@@ -323,6 +323,7 @@ export function toWorkItem(order: WorkOrder, answers: readonly string[] = []): W
     outOfScope: spec.outOfScope,
     risk: spec.risk,
     likelyFiles: spec.likelyFiles,
+    ...(spec.dependencies?.length && { dependencies: spec.dependencies }),
     card: renderCard(order),
     ticket: order.ticket,
     ...(answers.length > 0 && { answers }),

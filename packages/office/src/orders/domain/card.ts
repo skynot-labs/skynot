@@ -56,6 +56,7 @@ export function renderCard(order: WorkOrder): string {
     `status   ${STATUS_LINE[order.status]}`,
     ...criteria.slice(0, MAX_CRITERIA_ON_CARD).flatMap((criterion) => wrap(criterion.statement, "[ ] ", "    ")),
     ...(hidden > 0 ? [`    +${hidden} more in the issue`] : []),
+    ...(order.spec.dependencies?.length ? wrap(order.spec.dependencies.map((dependency) => (dependency.dev ? `${dependency.name} (dev)` : dependency.name)).join(", "), "installs ", "         ") : []),
     `next     ${nextStep(order)}`,
   ].join("\n");
 }

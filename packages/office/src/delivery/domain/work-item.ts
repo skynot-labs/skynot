@@ -8,10 +8,18 @@ export interface WorkItem {
   readonly outOfScope: readonly string[];
   readonly risk: string;
   readonly likelyFiles: readonly string[];
+  readonly dependencies?: readonly Dependency[];
   readonly card: string;
   readonly answers?: readonly string[];
   readonly ticket?: number | null;
 }
+
+export interface Dependency {
+  readonly name: string;
+  readonly dev: boolean;
+}
+
+const listed = (dependencies: readonly Dependency[]): string => dependencies.map((dependency) => `${dependency.name}${dependency.dev ? " (dev)" : ""}`).join(", ");
 
 export interface FileChange {
   readonly path: string;
@@ -50,6 +58,7 @@ export function issueBody(item: WorkItem): string {
     "## Likely files",
     files,
     "",
+    ...(item.dependencies?.length ? ["## Dependencies", listed(item.dependencies), ""] : []),
     ...(item.ticket ? [`<sub>Taken from ticket #${item.ticket}.</sub>`, ""] : []),
     `<sub>Work order ${item.id}, written by the Manager and signed by the director.</sub>`,
   ].join("\n");
@@ -113,6 +122,9 @@ export function workerPrompt(item: WorkItem, issue: number, rules: WorkerRules, 
     `Acceptance criteria. Each one needs evidence:\n${criteria}`,
     `Out of scope:\n${outOfScope}`,
     `Likely files: ${item.likelyFiles.join(", ") || "not identified"}`,
+    item.dependencies?.length
+      ? `Dependencies: the service installed ${listed(item.dependencies)} before you started. Add no other dependency: the service refuses the change.`
+      : "Dependencies: add none. The service installs only what the order declares, and refuses a change that adds one.",
     workerStandingRules(rules),
     "Finish with a short report: for each acceptance criterion, the evidence (a test name, or a command and its result).",
   ];

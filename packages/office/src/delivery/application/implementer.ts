@@ -17,6 +17,7 @@ import {
 
 const COMMAND_TIMEOUT_MS = 600_000;
 const ALWAYS_ALLOWED = ["git status", "git diff *"];
+const DEPENDENCY_FIELDS = ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies"];
 const STOPPED = "stopped by the director";
 const ASKS = "the worker asks: ";
 
@@ -117,6 +118,10 @@ export class Implementer {
       if (signal?.aborted) return err(STOPPED);
       if (!setup.ok) return err(`setup failed: ${tail(setup.output)}`);
     }
+    const installFailed = await this.install(job);
+    if (signal?.aborted) return err(STOPPED);
+    if (installFailed) return err(installFailed);
+    const signedDependencies = await this.dependenciesIn(dir);
 
     let failure: string | undefined;
     let report = "";
@@ -138,7 +143,7 @@ export class Implementer {
       const question = askedQuestion(report);
       if (question) return err(`${ASKS}${question}`);
 
-      const refused = await this.refusal(job);
+      const refused = await this.refusal(job, signedDependencies);
       if (refused) return err(refused);
 
       failure = await this.verify(dir, repo, followUp !== undefined, signal);
@@ -146,7 +151,7 @@ export class Implementer {
       if (failure) continue;
 
       // the verify commands run the worker's code, which can write what the first look did not see
-      const refusedAfterVerify = await this.refusal(job);
+      const refusedAfterVerify = await this.refusal(job, signedDependencies);
       if (refusedAfterVerify) return err(refusedAfterVerify);
       break;
     }
@@ -154,7 +159,7 @@ export class Implementer {
     return ok(report);
   }
 
-  private async refusal({ item, repoName, dir, approved }: Job): Promise<string | undefined> {
+  private async refusal({ item, repoName, dir, approved }: Job, signedDependencies: ReadonlySet<string>): Promise<string | undefined> {
     const { rules, workspace, log } = this.deps;
     const changes = await workspace.changes(dir);
     if (changes.length === 0) return "the worker changed nothing";
@@ -164,7 +169,31 @@ export class Implementer {
       return `it touches ${touched.join(", ")}, which is protected`;
     }
     const removed = deletedTest(changes);
-    return removed ? `it deletes the test ${removed}` : undefined;
+    if (removed) return `it deletes the test ${removed}`;
+    const added = [...(await this.dependenciesIn(dir))].filter((name) => !signedDependencies.has(name));
+    return added.length > 0 ? `it adds ${added.join(", ")} to the dependencies, which the order did not declare` : undefined;
+  }
+
+  private async install({ item, repo, dir, signal }: Job): Promise<string | undefined> {
+    for (const dev of [false, true]) {
+      const names = (item.dependencies ?? []).filter((dependency) => dependency.dev === dev).map((dependency) => dependency.name);
+      if (names.length === 0) continue;
+      const installed = await this.deps.workspace.run(dir, [repo.installCommand, ...(dev ? ["--save-dev"] : []), ...names].join(" "), COMMAND_TIMEOUT_MS, signal);
+      if (!installed.ok) return `installing ${names.join(", ")} failed: ${tail(installed.output)}`;
+    }
+    return undefined;
+  }
+
+  private async dependenciesIn(dir: string): Promise<Set<string>> {
+    const source = await this.deps.workspace.read(dir, "package.json");
+    if (source === null) return new Set();
+    try {
+      const manifest = JSON.parse(source) as Record<string, unknown>;
+      return new Set(DEPENDENCY_FIELDS.flatMap((field) => Object.keys((manifest[field] as object | undefined) ?? {})));
+    } catch {
+      // a manifest the worker broke fails verification on its own
+      return new Set();
+    }
   }
 
   private async commitAndPush({ item, issue, branch, dir, signal }: Job): Promise<Result<void, string>> {
