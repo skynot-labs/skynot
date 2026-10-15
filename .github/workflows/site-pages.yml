@@ -46,9 +46,25 @@ jobs:
     permissions:
       pages: write
       id-token: write
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  smoke:
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        run: |
+          for page in "" organization/ app/; do
+            curl --fail --silent --show-error --output /dev/null \
+              --retry 5 --retry-delay 10 --retry-all-errors "${PAGE_URL}${page}"
+          done
