@@ -391,6 +391,19 @@ describe("who was asked", () => {
 
     expect(chat.messages().filter((message) => message.author === "manager").map((message) => message.consulted)).toEqual([["architect"], []]);
   });
+
+  it("does not give the next reply the advisors consulted for a scheduled task's report", async () => {
+    const bench: AdvisorBench = {
+      roster: () => [{ name: "architect", description: "code" }],
+      consult: async (requests: readonly AdvisorRequest[]): Promise<AdvisorReply[]> => requests.map((request) => ({ role: request.role, result: ok("Nothing is stuck.") })),
+    };
+    const { manager, chat } = await createManager([say("Checking.", { consult: [{ role: "architect", question: "Anything stuck?" }] }), say("Nothing is stuck."), say("Hello.")], bench);
+
+    await manager.handleTask({ id: "tsk_1", title: "Stuck orders", text: "Tell me which orders are stuck." });
+    await manager.handleMessage("Hi");
+
+    expect(chat.messages().filter((message) => message.author === "manager").map((message) => message.consulted)).toEqual([[]]);
+  });
 });
 
 describe("rejected answers", () => {
