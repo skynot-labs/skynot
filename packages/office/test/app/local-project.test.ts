@@ -103,6 +103,24 @@ describe("a project kept on this machine", () => {
     expect(order.pullRequestUrl ?? "").not.toContain("github.com");
   });
 
+  it("sends the studio an order's changes while it is in review, and nothing once it is merged", async () => {
+    await open();
+    const api = createApi(shop, { allowedHosts: [HOST] });
+    const changes = (orderId: string) => api.request(`/api/orders/${orderId}/changes`, { headers: { host: HOST } });
+    const id = await signedOrder("Add a feature file");
+
+    const response = await changes(id);
+    const body = (await response.json()) as { orderId: string; diff: string; cut: boolean };
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ orderId: id, cut: false });
+    expect(body.diff).toContain("+++ b/src/feature.txt");
+    expect(body.diff).toContain("+feature");
+
+    await shop.mergeHere(id);
+    expect((await changes(id)).status).toBe(404);
+  });
+
   it("refuses to merge an order that is not in review", async () => {
     await open();
     await shop.manager.handleMessage("Add a feature file");

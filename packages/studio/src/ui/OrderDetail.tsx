@@ -2,6 +2,7 @@ import type { JSX } from "preact";
 import { useRef, useState } from "preact/hooks";
 import type { MinutesBucket, Order, Project, Send } from "../contracts";
 import { Icon } from "./Icon";
+import { OrderChanges, type ReadChanges } from "./OrderChanges";
 import { RichLine } from "./RichText";
 import { orderStatus, usd } from "./format";
 import { orderActions, unblocking } from "./order-actions";
@@ -57,12 +58,14 @@ export function OrderDetail({
   simulated,
   send,
   busy,
+  readChanges,
 }: {
   project: Project;
   order: Order;
   simulated: boolean;
   send: Send;
   busy: boolean;
+  readChanges?: ReadChanges;
 }) {
   const orderId = order.id;
   const top = useRef<HTMLDivElement>(null);
@@ -328,6 +331,12 @@ export function OrderDetail({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {readChanges && order.status === "in_review" && order.pullRequest !== null && (
+        <section class="order-section">
+          <h4>CHANGES</h4>
+          <OrderChanges key={order.id} orderId={order.id} read={readChanges} />
         </section>
       )}
       <details class="order-raw">

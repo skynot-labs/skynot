@@ -229,6 +229,14 @@ export const BriefingChangeSchema = z.object({
 });
 export type BriefingChange = z.infer<typeof BriefingChangeSchema>;
 
+// What an order in review changes, as the reviewer read it; `cut` when it was too long to send whole.
+export const OrderChangesSchema = z.object({
+  orderId: z.string(),
+  diff: z.string(),
+  cut: z.boolean(),
+});
+export type OrderChanges = z.infer<typeof OrderChangesSchema>;
+
 // New commands to set the project up and check a change, proposed by the Manager.
 export const CommandsChangeSchema = z.object({
   id: z.string(),

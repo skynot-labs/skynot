@@ -123,6 +123,8 @@ export interface Shop {
   schedule: Schedule;
   // The director's merge of an order of a project on this machine; on GitHub it happens there.
   mergeHere(orderId: string): Promise<LocalMerge>;
+  // null when the order has no pull request in review.
+  changesOf(orderId: string): Promise<{ diff: string; cut: boolean } | null>;
   // The bare repositories of the projects kept on this machine.
   origins: { path(repo: string): string; taken(repo: string): Promise<boolean>; start(repo: string, baseBranch: string, files?: Readonly<Record<string, string>>): Promise<void> };
   cursor: LastSequence;
@@ -135,6 +137,8 @@ export interface Shop {
 }
 
 export const MANAGER_TIMEOUT_MS = 180_000;
+// Past this a diff is not worth reading in a browser; the pull request or a clone has the rest.
+const MAX_DIFF = 300_000;
 
 export async function createShop(config: ShopConfig): Promise<Shop> {
   const { policy, dataDir } = config;
@@ -346,6 +350,12 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     intake,
     schedule,
     origins: { path: (repo) => local.origin(repo), taken: (repo) => local.exists(repo), start: (repo, baseBranch, files) => local.ensure(repo, baseBranch, files) },
+    async changesOf(orderId) {
+      const order = orders.get(orderId);
+      if (order?.status !== "in_review" || order.pullRequest === null) return null;
+      const diff = await vcs.pullRequestDiff(deskOf(order).project.repo, order.pullRequest);
+      return diff.length > MAX_DIFF ? { diff: diff.slice(0, MAX_DIFF), cut: true } : { diff, cut: false };
+    },
     async mergeHere(orderId) {
       const order = orders.get(orderId);
       if (order?.status !== "in_review" || order.pullRequest === null || !deskOf(order).project.local) return "not_open";
