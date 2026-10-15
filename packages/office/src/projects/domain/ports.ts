@@ -1,4 +1,5 @@
 import type { Result } from "../../kernel";
+import type { ProjectCommands } from "./commands-change";
 import type { Project, ProjectFile } from "./project";
 
 export interface ProjectCatalog {
@@ -19,4 +20,9 @@ export interface ProjectProfile {
 export interface ProjectRegistry {
   register(id: string, file: ProjectFile): Promise<Result<Project, string>>;
   describe(id: string, profile: ProjectProfile): Promise<Result<Project, string>>;
+}
+
+// Where signed commands go: the project's file, so they hold after a restart, and the shop that is running.
+export interface ProjectCommandsWriter {
+  write(projectId: string, commands: ProjectCommands): Promise<Result<void, string>>;
 }

@@ -48,7 +48,8 @@ There are no checks, no issues to take work from and no board. To read or run th
 publish it, add a GitHub remote to your clone and push ([ADR 0003](adr/0003-projects-on-this-machine.md)).
 
 A project started empty needs a `setup_command` and `verify_commands` that work before any code exists, such
-as `true`, until the first orders give it something to run; change them in `project.yaml` once they do.
+as `true`. Once an order gives the project something to run, the Manager proposes new commands; when you sign
+them they apply from the next order on and are written to `project.yaml`, keeping the rest of the file.
 
 ### Dependencies
 

@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { commandPath } from "@skynot/contract";
@@ -131,6 +131,25 @@ describe("a project kept on this machine", () => {
     await pushToBaseByHand({ "src/feature.txt": "feature\n" });
     expect((await merge(id)).status).toBe(200);
     expect(shop.orders.get(id)?.status).toBe("delivered");
+  });
+});
+
+describe("the commands a project is checked with", () => {
+  it("are the ones the director signed from the next order on, without a restart, and project.yaml says the same", async () => {
+    const projectsDir = path.join(dataDir, "projects");
+    await mkdir(path.join(projectsDir, "listo"), { recursive: true });
+    await writeFile(path.join(projectsDir, "listo", "project.yaml"), 'version: 1\nlocal: true\nbase_branch: main\nsetup_command: null\nverify_commands: ["true"]\nprotected_paths: []\n');
+    shop = await createShop({ policy: examplePolicy(), dataDir, team, projects: [{ ...listo, verifyCommands: ["true"] }], projectsDir, engines: { claude: createMockManager(), codex: developerWriting("feature\n") }, exec: withoutGithub });
+
+    const proposed = await shop.commandsService.propose("listo", { setupCommand: null, verifyCommands: ["test -f src/missing.txt"] }, "the tests exist now");
+    if (!proposed.ok) throw new Error(proposed.error.message);
+    expect((await shop.commandsService.sign(proposed.value.id)).ok).toBe(true);
+
+    const id = await signedOrder("Add a feature file");
+
+    expect(shop.orders.get(id)?.status).not.toBe("in_review");
+    expect(shop.activity.linksFor(id).blocked).toContain("test -f src/missing.txt");
+    expect(await readFile(path.join(projectsDir, "listo", "project.yaml"), "utf8")).toContain("test -f src/missing.txt");
   });
 });
 

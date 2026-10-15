@@ -7,6 +7,7 @@ export const ORDER_ID = /^WO-\d{4}$/;
 export const RUN_ID = /^run_[0-9a-f-]+$/;
 export const TEAM_CHANGE_ID = /^chg_[0-9a-f-]+$/;
 export const BRIEFING_CHANGE_ID = /^brf_[0-9a-f-]+$/;
+export const COMMANDS_CHANGE_ID = /^cmd_[0-9a-f-]+$/;
 export const ROLE_NAME = /^[a-z][a-z0-9-]{1,23}$/;
 
 // A time of day on the office's own clock.

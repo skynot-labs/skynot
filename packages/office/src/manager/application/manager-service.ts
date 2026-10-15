@@ -3,6 +3,7 @@ import type { EventRecorder } from "../../kernel/events";
 import {
   NO_ADVISORS,
   NO_BRIEFING_DESK,
+  NO_COMMANDS_DESK,
   NO_TASK_DESK,
   NO_TEAM_DESK,
   NO_WORKER_DESK,
@@ -16,6 +17,7 @@ import {
   type AdvisorReply,
   type BriefingDesk,
   type BriefingSource,
+  type CommandsDesk,
   type DecisionId,
   type ManagerAnswer,
   type MessageId,
@@ -53,6 +55,7 @@ export interface ManagerDependencies {
   team?: TeamDesk;
   briefing?: BriefingSource;
   briefingDesk?: BriefingDesk;
+  commands?: CommandsDesk;
   workers?: WorkerDesk;
   standing?: StandingSource;
   reports?: ReportsProjection;
@@ -64,6 +67,7 @@ export class ManagerService {
   private readonly bench: AdvisorBench;
   private readonly teamDesk: TeamDesk;
   private readonly briefingDesk: BriefingDesk;
+  private readonly commandsDesk: CommandsDesk;
   private readonly workerDesk: WorkerDesk;
   private readonly taskDesk: TaskDesk;
 
@@ -71,6 +75,7 @@ export class ManagerService {
     this.bench = deps.advisors ?? NO_ADVISORS;
     this.teamDesk = deps.team ?? NO_TEAM_DESK;
     this.briefingDesk = deps.briefingDesk ?? NO_BRIEFING_DESK;
+    this.commandsDesk = deps.commands ?? NO_COMMANDS_DESK;
     this.workerDesk = deps.workers ?? NO_WORKER_DESK;
     this.taskDesk = deps.tasks ?? NO_TASK_DESK;
   }
@@ -135,6 +140,7 @@ export class ManagerService {
     const prompt = buildPrompt({
       briefing: await this.deps.briefing?.read().catch(() => null) ?? null,
       orders: desk.overview(),
+      commands: this.commandsDesk.current(),
       advisors: this.bench.roster(),
       hireable: this.teamDesk.hireable(),
       openQuestions: chat.openDecisions().map((decision) => decision.question),
@@ -227,6 +233,10 @@ export class ManagerService {
     }
     if (answer.briefing !== null) {
       const proposed = await this.briefingDesk.propose(answer.briefing);
+      return proposed.ok ? say(`${answer.message}\n\n${proposed.value.text}`) : say(`I could not propose that: ${proposed.error}`);
+    }
+    if (answer.commands !== null) {
+      const proposed = await this.commandsDesk.propose(answer.commands);
       return proposed.ok ? say(`${answer.message}\n\n${proposed.value.text}`) : say(`I could not propose that: ${proposed.error}`);
     }
     if (answer.team !== null) {

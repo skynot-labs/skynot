@@ -65,10 +65,12 @@ const BY_DIRECTOR: ReadonlySet<string> = new Set([
   "team.change_discarded",
   "projects.briefing_signed",
   "projects.briefing_discarded",
+  "projects.commands_signed",
+  "projects.commands_discarded",
   "projects.registered",
   "projects.described",
 ]);
-const BY_MANAGER: ReadonlySet<string> = new Set(["orders.proposed", "manager.answer_rejected", "manager.consulted", "team.change_proposed", "projects.briefing_proposed"]);
+const BY_MANAGER: ReadonlySet<string> = new Set(["orders.proposed", "manager.answer_rejected", "manager.consulted", "team.change_proposed", "projects.briefing_proposed", "projects.commands_proposed"]);
 
 const ANSWERED = { director: "the director answered", director_via_manager: "the director answered through the Manager", manager: "the Manager decided" } as const;
 
@@ -218,6 +220,12 @@ export class ActivityProjection implements Projection {
         return advice("the briefing was updated");
       case "projects.briefing_discarded":
         return advice("the proposal to change the briefing was discarded");
+      case "projects.commands_proposed":
+        return advice(`the Manager proposes to verify every change with ${(payload.verifyCommands as string[]).join(" && ")}: ${payload.reason}`);
+      case "projects.commands_signed":
+        return advice("the project's commands were changed");
+      case "projects.commands_discarded":
+        return advice("the proposal to change the project's commands was discarded");
       case "team.change_discarded":
         return advice(`the proposal to ${payload.action} ${payload.role} was discarded`);
       case "manager.answer_rejected":

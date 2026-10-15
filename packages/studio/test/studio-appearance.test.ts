@@ -61,6 +61,7 @@ const project: Project = {
   decisions: [],
   teamChanges: [],
   briefingChanges: [],
+  commandsChanges: [],
   briefing: null,
   hireable: [],
   activity: [],

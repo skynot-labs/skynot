@@ -3,6 +3,7 @@ import type { ComponentChildren } from "preact";
 import type {
   Answered,
   BriefingChange,
+  CommandsChange,
   Command,
   Decision,
   InboxItem,
@@ -358,6 +359,39 @@ export function BriefingChangeProposal({
   );
 }
 
+export function CommandsChangeProposal({
+  change,
+  send,
+  busy,
+  onSettled,
+}: {
+  change: CommandsChange;
+  send: Send;
+  busy: boolean;
+  onSettled?: () => void;
+}) {
+  const payload = { changeId: change.id };
+  return (
+    <Proposal
+      eyebrow="COMMANDS CHANGE"
+      title="New way to check the work"
+      signing={{ name: "sign-commands-change", payload }}
+      discarding={{ name: "discard-commands-change", payload }}
+      send={send}
+      busy={busy}
+      onSettled={onSettled}
+    >
+      <p>{change.reason}</p>
+      <pre class="proposal-briefing">
+        {[
+          `setup   ${change.setupCommand ?? "(nothing)"}`,
+          ...change.verifyCommands.map((command, index) => `${index === 0 ? "verify " : "       "} ${command}`),
+        ].join("\n")}
+      </pre>
+    </Proposal>
+  );
+}
+
 export function DecisionInbox({
   project,
   send,
@@ -384,7 +418,8 @@ export function DecisionInbox({
   const signatures =
     proposals.length +
     project.teamChanges.length +
-    project.briefingChanges.length;
+    project.briefingChanges.length +
+    project.commandsChanges.length;
   const blocked = project.orders.filter((order) => order.blocked !== null);
   const waiting = [
     ["questions", "to decide", project.inbox.length],
@@ -417,7 +452,8 @@ export function DecisionInbox({
     toSign,
     plans.length +
       project.teamChanges.length +
-      project.briefingChanges.length -
+      project.briefingChanges.length +
+      project.commandsChanges.length -
       1,
   );
   const askerName = (item: { from: string }) =>
@@ -606,12 +642,21 @@ export function DecisionInbox({
             onSettled={afterSigning}
           />
         ))}
+        {project.commandsChanges.map((change) => (
+          <CommandsChangeProposal
+            key={change.id}
+            change={change}
+            send={send}
+            busy={busy}
+            onSettled={afterSigning}
+          />
+        ))}
         {signatures === 0 && (
           <div class="inbox-empty">
             <Icon name="check" />
             <h3>Nothing to sign.</h3>
             <p>
-              Work orders, team changes and briefing changes that need your
+              Work orders, team, briefing and command changes that need your
               signature will land here.
             </p>
           </div>

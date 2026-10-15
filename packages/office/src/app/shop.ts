@@ -23,17 +23,18 @@ import {
   type RoleEngine,
 } from "../execution";
 import { ActionBudget, ActionCounts, type Policy } from "../governance";
-import { systemClock, type Clock } from "../kernel";
+import { ok, systemClock, type Clock } from "../kernel";
 import { attachProjection, EventLog, inProject, JsonlEventStore, LastSequence, type StoredEvent } from "../kernel/events";
 import { ChatProjection, ManagerService, ReportsProjection } from "../manager";
 import { OrderService, OrdersProjection, type WorkOrder } from "../orders";
-import { BriefingChanges, BriefingService, withSignedChanges, type BriefingStore, type Project } from "../projects";
+import { BriefingChanges, BriefingService, CommandsChanges, CommandsService, withSignedChanges, writeProjectCommands, type BriefingStore, type Project, type ProjectCommands } from "../projects";
 import { RosterProjection, TeamService, type RoleSetup, type Team } from "../team";
 import type { Exec } from "../kernel/process";
 import { CODEX_SANDBOX, type Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
 import { createBriefingDesk } from "./briefing-desk";
+import { createCommandsDesk } from "./commands-desk";
 import { BlockedNotice } from "./blocked-notice";
 import { CostGuard } from "./cost-guard";
 import { BoardMirror } from "./board-mirror";
@@ -42,7 +43,7 @@ import { createCodeReviewer } from "./code-reviewer";
 import { createDeliveryRules } from "./delivery-rules";
 import { createManagerRunner } from "./model-runner";
 import { MergeWatcher } from "./merge-watcher";
-import { projectsFromPolicy } from "./projects";
+import { PROJECTS_DIR, projectsFromPolicy } from "./projects";
 import { createOrderDesk } from "./order-desk";
 import { PreferencesProjection } from "./preferences";
 import { createTeamDesk } from "./team-desk";
@@ -73,6 +74,8 @@ export interface ShopConfig {
   briefing?: BriefingStore;
   // The board of a project, when it has one; by default the GitHub board its project.yaml names.
   boardOf?: (project: Project) => Board | undefined;
+  // Where each project's project.yaml lives, for the commands the director signs.
+  projectsDir?: string;
   readiness?: () => Promise<Finding[]>;
   reportError?: (error: unknown, event: StoredEvent) => void;
 }
@@ -112,6 +115,8 @@ export interface Shop {
   orderService: OrderService;
   briefingChanges: BriefingChanges;
   briefingService: BriefingService;
+  commandsChanges: CommandsChanges;
+  commandsService: CommandsService;
   flow: OrderFlow;
   watcher: MergeWatcher;
   intake: IntakeWatcher;
@@ -143,11 +148,12 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const counts = new ActionCounts();
   const taken = new IntakeProjection();
   const briefingChanges = new BriefingChanges();
+  const commandsChanges = new CommandsChanges();
   const cursor = new LastSequence();
   const control = new ShopControl(log);
   const preferences = new PreferencesProjection();
   const timings = new ScheduleProjection();
-  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges, preferences, timings]) await attachProjection(log, projection);
+  for (const projection of [orders, runs, activity, counts, cursor, control, taken, briefingChanges, commandsChanges, preferences, timings]) await attachProjection(log, projection);
 
   await closeOrphanedRuns(runs, log);
   const engines = config.engines ?? { claude: new ClaudeEngine(), codex: new CodexEngine() };
@@ -161,9 +167,18 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
   const workspace =
     config.workspace ??
     new GitWorkspace({ root: join(dataDir, "workspaces"), ...(config.exec && { execute: config.exec }), localOrigin: (repo) => (localRepos.has(repo) ? local.origin(repo) : undefined) });
-  const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects);
+  const signedCommands = new Map<string, ProjectCommands>();
+  const rules = createDeliveryRules(policy, new ActionBudget(policy, log, counts, clock), projects, signedCommands);
   const orderService = new OrderService(log, orders);
   const briefingService = new BriefingService(log, briefingChanges);
+  const commandsService = new CommandsService(log, commandsChanges, {
+    async write(projectId, commands) {
+      const written = await writeProjectCommands(config.projectsDir ?? PROJECTS_DIR, projectId, commands);
+      if (!written.ok) return written;
+      signedCommands.set(projectId, commands);
+      return ok(undefined);
+    },
+  });
   const briefing = config.briefing && withSignedChanges(config.briefing, briefingChanges, policy.memory.max_memory_chars);
 
   const desks = new Map<string, ProjectDesk>();
@@ -204,6 +219,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
         desk: createOrderDesk(orderService, orders, project.id),
         ...(briefing && { briefing: { read: () => briefing.read(project.id) } }),
         briefingDesk: createBriefingDesk(briefingService, project.id),
+        commands: createCommandsDesk(commandsService, project, signedCommands),
         team: createTeamDesk(teamService, roster),
         workers: createWorkerDesk({ flow: () => flow, orders, questionOf: (id) => activity.linksFor(id).question, projectId: project.id }),
         advisors: createAdvisorBench(scheduler, () => roster.members(), reading),
@@ -321,6 +337,8 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     orderService,
     briefingChanges,
     briefingService,
+    commandsChanges,
+    commandsService,
     flow,
     watcher,
     intake,

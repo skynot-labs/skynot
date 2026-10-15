@@ -11,6 +11,8 @@ export interface TeamChoices {
 }
 
 const MAX_BRIEFING = 1500;
+const MAX_COMMAND = 200;
+const MAX_VERIFY_COMMANDS = 5;
 // The prompt asks for 600. A model cannot count characters, and a slightly long answer is not worth a second run.
 const MAX_MESSAGE = 1200;
 const MAX_RELAY = 4000;
@@ -48,6 +50,14 @@ export function createAnswerSchema(
         })
         .nullable(),
       briefing: z.object({ text: z.string().trim().min(3).max(MAX_BRIEFING), reason: z.string().trim().min(3).max(300) }).nullable().default(null),
+      commands: z
+        .object({
+          setup: z.string().trim().min(1).max(MAX_COMMAND).nullable(),
+          verify: z.array(z.string().trim().min(1).max(MAX_COMMAND)).min(1).max(MAX_VERIFY_COMMANDS),
+          reason: z.string().trim().min(3).max(300),
+        })
+        .nullable()
+        .default(null),
       relay: z
         .object({ orderId: z.string().regex(/^WO-\d{4}$/), text: z.string().trim().min(1).max(MAX_RELAY), from: z.enum(["director", "manager"]) })
         .nullable()
@@ -100,8 +110,11 @@ export function createAnswerSchema(
       if (answer.briefing !== null && (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null)) {
         context.addIssue({ code: "custom", path: ["briefing"], message: "propose a briefing change on its own: leave question, orders, consult and team empty" });
       }
+      if (answer.commands !== null && (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null || answer.briefing !== null)) {
+        context.addIssue({ code: "custom", path: ["commands"], message: "propose new commands on their own: leave question, orders, consult, team and briefing empty" });
+      }
       if (answer.relay !== null) {
-        if (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null || answer.briefing !== null) {
+        if (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null || answer.briefing !== null || answer.commands !== null) {
           context.addIssue({ code: "custom", path: ["relay"], message: "pass an answer on to a worker on its own: leave question, orders, consult, team and briefing empty" });
         }
         const targets = [...relayTargets.waiting, ...relayTargets.inReview];
@@ -113,7 +126,7 @@ export function createAnswerSchema(
 
       if (answer.schedule !== null) {
         if (!maySchedule) context.addIssue({ code: "custom", path: ["schedule"], message: "only a message from the director can schedule a task: leave it null" });
-        if (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null || answer.briefing !== null || answer.relay !== null) {
+        if (answer.question !== null || proposes || answer.consult.length > 0 || answer.team !== null || answer.briefing !== null || answer.relay !== null || answer.commands !== null) {
           context.addIssue({ code: "custom", path: ["schedule"], message: "schedule a task on its own: leave question, orders, consult, team, briefing and relay empty" });
         }
       }
@@ -142,6 +155,7 @@ export type ManagerAnswer<Order = unknown> = {
   consult: Array<{ role: string; question: string }>;
   team: { action: "hire" | "dismiss" | "refocus"; role: string; reason: string; focus: string | null } | null;
   briefing: { text: string; reason: string } | null;
+  commands: { setup: string | null; verify: string[]; reason: string } | null;
   relay: { orderId: string; text: string; from: "director" | "manager" } | null;
   schedule: Pick<TaskProposal, "title" | "text" | "when"> | null;
 };
