@@ -142,7 +142,7 @@ Parts of a dev shop that were considered and left out, each with what would brin
 | Operations | Error tracking, uptime, incidents | A project in production |
 | Rate limits | Backing off when a subscription says no | The first occurrence |
 | Queue | Priorities and reordering | A queue deeper than `max_parallel` |
-| Merge | The shop merging by itself under a policy: low risk, approved by the reviewer, checks green, verified on the current base; never money, auth, a schema or a large diff | The director merging low-risk orders without reading them |
+| Merge on GitHub | The shop merging a low-risk order by itself on GitHub; it already does for a project kept on this machine that opts in ([ADR 0005](adr/0005-the-shop-merges-low-risk-orders-under-a-rule.md)) | The first GitHub project that asks for it |
 | Per-project daily cap | A cap read from `project.yaml` | One project spending another's day |
 
 ## Open questions

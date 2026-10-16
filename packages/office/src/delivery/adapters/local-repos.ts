@@ -92,6 +92,13 @@ export class LocalRepos implements Vcs {
     return (await this.mergedTree(repo, found)) === null;
   }
 
+  // True when the branch already holds the current tip of the base, so what was verified is what a merge leaves.
+  async builtOnBase(repo: string, number: number): Promise<boolean> {
+    const found = await this.pullRequest(repo, number);
+    const contains = await this.execute("git", ["merge-base", "--is-ancestor", `refs/heads/${found.base}`, `refs/heads/${found.head}`], { cwd: this.origin(repo) });
+    return contains.code === 0;
+  }
+
   async pullRequestDiff(repo: string, number: number): Promise<string> {
     const found = await this.pullRequest(repo, number);
     return this.git(this.origin(repo), "diff", `refs/heads/${found.base}...refs/heads/${found.head}`);

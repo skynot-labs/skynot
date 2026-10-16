@@ -50,6 +50,16 @@ describe("project catalog", () => {
     expect(parseProjectFile("fresh", projectYaml("OWNER/REPO"))).toMatchObject({ ok: false, error: expect.stringContaining("placeholder") });
   });
 
+  it("reads auto_merge for a project kept on this machine, and refuses it for one on GitHub", () => {
+    const local = projectYaml().replace("repo: acme/widgets", "local: true");
+
+    expect(parseProjectFile("listo", `${local}auto_merge: {}\n`)).toMatchObject({ ok: true, value: { autoMerge: { never: [] } } });
+    expect(parseProjectFile("listo", `${local}auto_merge: { max_changed_lines: 120, never: [docs/legal/] }\n`)).toMatchObject({ ok: true, value: { autoMerge: { maxChangedLines: 120, never: ["docs/legal/"] } } });
+    expect(parseProjectFile("listo", local)).toMatchObject({ ok: true, value: expect.not.objectContaining({ autoMerge: expect.anything() }) });
+    expect(parseProjectFile("widgets", `${projectYaml()}auto_merge: {}\n`)).toMatchObject({ ok: false, error: expect.stringContaining("auto_merge works only for a project kept on this machine") });
+    expect(parseProjectFile("listo", `${local}auto_merge: { max_changed_lines: 0 }\n`)).toMatchObject({ ok: false });
+  });
+
   it("reads a project kept on this machine, whose key is its id, and refuses one that names both a repository and local, or neither", () => {
     const local = projectYaml().replace("repo: acme/widgets", "local: true");
 

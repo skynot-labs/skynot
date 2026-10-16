@@ -152,6 +152,54 @@ describe("a project kept on this machine", () => {
   });
 });
 
+describe("an order merged on its own", () => {
+  const reviewed: Team = { ...team, roles: { ...team.roles, developer: { engine: "codex", model: "builder" }, code_reviewer: { engine: "codex", model: "checker" } } };
+  // The worker writes when it may write; the reviewer only reads, and approves.
+  const workerAndReviewer = () =>
+    new FakeEngine(async (request) => {
+      if (request.access !== "write") return { text: "", structured: { verdict: "approved", summary: "The file is there and nothing else changed.", findings: [] } };
+      await mkdir(path.join(request.cwd, "src"), { recursive: true });
+      await writeFile(path.join(request.cwd, "src/feature.txt"), "feature\n");
+      return { text: "Criterion 1: the file is there." };
+    });
+
+  async function openWith(project: Project) {
+    shop = await createShop({ policy: examplePolicy(), dataDir, team: reviewed, projects: [project], engines: { claude: createMockManager(), codex: workerAndReviewer() }, exec: withoutGithub });
+  }
+
+  it("is delivered without the director when the project opted in and the rule lets it through, and the chat says so", async () => {
+    await openWith({ ...listo, autoMerge: { never: [] } });
+
+    const id = await signedOrder("Add a feature file");
+    await shop.autoMerge.idle();
+
+    expect(shop.orders.get(id)?.status).toBe("delivered");
+    expect(await git(origin(), "show", "main:src/feature.txt")).toBe("feature\n");
+    expect(shop.chat.messages().at(-1)?.text).toBe(`${id} merged on its own: the reviewer approved it, its risk is low and it changes 1 line, nothing sensitive.`);
+    expect(calledGithub).toEqual([]);
+  });
+
+  it("waits for the director, with the reason in the log, while the verify commands check nothing", async () => {
+    await openWith({ ...listo, verifyCommands: ["true"], autoMerge: { never: [] } });
+
+    const id = await signedOrder("Add a feature file");
+    await shop.autoMerge.idle();
+
+    expect(shop.orders.get(id)?.status).toBe("in_review");
+    expect(shop.activity.recent(5, "listo").map((entry) => entry.text)).toContain("waits for the director to merge: the project's verify commands check nothing yet");
+  });
+
+  it("leaves an approved order to the director in a project that did not opt in", async () => {
+    await openWith(listo);
+
+    const id = await signedOrder("Add a feature file");
+    await shop.autoMerge.idle();
+
+    expect(shop.orders.get(id)?.status).toBe("in_review");
+    expect(shop.activity.recent(10, "listo").some((entry) => entry.text.startsWith("waits for the director to merge"))).toBe(false);
+  });
+});
+
 describe("the commands a project is checked with", () => {
   it("are the ones the director signed from the next order on, without a restart, and project.yaml says the same", async () => {
     const projectsDir = path.join(dataDir, "projects");
