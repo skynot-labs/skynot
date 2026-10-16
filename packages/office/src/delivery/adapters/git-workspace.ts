@@ -1,7 +1,10 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { TIMED_OUT, exec, run, type Exec } from "../../kernel/process";
 import type { CommandOutcome, FileChange, Workspace } from "../domain";
+
+// What the office installs is rebuilt by the setup command, never authored: it stays out of every commit.
+const INSTALLED = "node_modules/";
 
 const IDENTITY = {
   GIT_AUTHOR_NAME: "skynot worker",
@@ -80,6 +83,8 @@ export class GitWorkspace implements Workspace {
 
   async commit(dir: string, message: string): Promise<void> {
     await this.git(dir, "add", "-A");
+    // A branch committed before this rule carries them; taking them out of the index is how a follow-up clears it.
+    await this.git(dir, "rm", "-r", "-q", "--cached", "--ignore-unmatch", "--", `:(glob)**/${INSTALLED}**`);
     await this.git(dir, "commit", "-m", message);
   }
 
@@ -119,10 +124,18 @@ export class GitWorkspace implements Workspace {
       await mkdir(dirname(dir), { recursive: true });
       await this.cloneRepo(repo, dir);
     }
+    await this.exclude(dir, INSTALLED);
     await this.git(dir, "fetch", "--prune", "origin");
     await this.git(dir, "checkout", "--detach", "--force", `origin/${baseBranch}`);
     await this.git(dir, "clean", "-fdx");
     return dir;
+  }
+
+  // Worktrees share the reading copy's exclude file, so one line covers every order.
+  private async exclude(dir: string, pattern: string): Promise<void> {
+    const file = join(dir, ".git", "info", "exclude");
+    const current = await readFile(file, "utf8").catch(() => "");
+    if (!current.split("\n").includes(pattern)) await appendFile(file, `${current.endsWith("\n") || current === "" ? "" : "\n"}${pattern}\n`);
   }
 
   private async cutWorktree(repo: string, baseBranch: string, branch: string): Promise<string> {

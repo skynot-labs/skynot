@@ -50,6 +50,34 @@ describe("git workspace", () => {
       await git(upstream, "push", "origin", "main");
     }
 
+    it("never commits the modules installed in the worktree, even when the repository does not ignore them", async () => {
+      await pushBranch({ "src/feature.txt": "feature\n", "node_modules/zod/index.js": "x", "packages/core/node_modules/vitest/index.js": "y" });
+
+      const files = (await git(sandbox.origin, "ls-tree", "-r", "--name-only", "taller/wo-0001")).trim().split("\n");
+
+      expect(files).toContain("src/feature.txt");
+      expect(files.some((file) => file.includes("node_modules/"))).toBe(false);
+    });
+
+    it("takes out of a branch the modules an earlier commit put in it, at the next commit of a follow-up", async () => {
+      const upstream = path.join(sandbox.root, "polluted");
+      await git(sandbox.root, "clone", "--quiet", sandbox.origin, upstream);
+      await git(upstream, "checkout", "-q", "-b", "taller/wo-0001");
+      await addFiles(upstream, { "src/feature.txt": "feature\n", "node_modules/zod/index.js": "x" });
+      await git(upstream, "add", "-A");
+      await git(upstream, "commit", "-qm", "WO-0001: work with modules");
+      await git(upstream, "push", "-q", "origin", "taller/wo-0001");
+
+      const dir = await workspace.prepareFollowUp("acme/widgets", "main", "taller/wo-0001");
+      await addFiles(dir, { "src/fix.txt": "fix\n" });
+      await workspace.commit(dir, "WO-0001: follow-up");
+      await workspace.push(dir, "taller/wo-0001");
+
+      const files = (await git(sandbox.origin, "ls-tree", "-r", "--name-only", "taller/wo-0001")).trim().split("\n");
+      expect(files).toEqual(expect.arrayContaining(["src/feature.txt", "src/fix.txt"]));
+      expect(files.some((file) => file.includes("node_modules/"))).toBe(false);
+    });
+
     it("puts the branch's work on top of the new tip of the base branch", async () => {
       await pushBranch({ "src/feature.txt": "feature\n" });
       await moveMain({ "src/later.txt": "later\n" });
