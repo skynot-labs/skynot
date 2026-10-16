@@ -3,6 +3,8 @@ import type { EventLog, StoredEvent } from "../kernel/events";
 export interface ReviewNoticeDependencies {
   log: EventLog;
   say(text: string, orderId: string): Promise<void>;
+  // Where the director merges this order: on GitHub, or on its card for a project kept on this machine.
+  mergesHere(orderId: string): boolean;
   onError?: (error: unknown, event: StoredEvent) => void;
 }
 
@@ -20,7 +22,7 @@ export class ReviewNotice {
     const { orderId, round, verdict, summary } = event.payload as { orderId: string; round: number; verdict: string; summary: string };
     if (verdict !== "changes_requested" || round < 2) return;
     void this.deps
-      .say(`The reviewer still asks for changes on ${orderId} after ${round} rounds: ${summary} Send a follow-up from its card, or merge it anyway on GitHub.`, orderId)
+      .say(`The reviewer still asks for changes on ${orderId} after ${round} rounds: ${summary} Send a follow-up from its card, or merge it anyway ${this.deps.mergesHere(orderId) ? "from the same card" : "on GitHub"}.`, orderId)
       .catch((error) => this.deps.onError?.(error, event));
   }
 }

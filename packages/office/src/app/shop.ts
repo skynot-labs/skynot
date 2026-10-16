@@ -285,7 +285,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     ...(config.reportError && { onError: config.reportError }),
   }).start();
   const say = (text: string, orderId: string) => deskOfOrder(orderId).manager.tell(text, { orderId });
-  const stopReviewNotice = new ReviewNotice({ log, say, ...(config.reportError && { onError: config.reportError }) }).start();
+  const stopReviewNotice = new ReviewNotice({ log, say, mergesHere: (id) => deskOfOrder(id).project.local === true, ...(config.reportError && { onError: config.reportError }) }).start();
   const stopNotice = new BlockedNotice({
     log,
     say,
