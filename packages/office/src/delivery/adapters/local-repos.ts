@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { exec, run, type Exec } from "../../kernel/process";
 import type { ChecksState, IssueRef, NewPullRequest, PullRequestState, Ticket, Vcs } from "../domain";
@@ -167,8 +167,11 @@ export class LocalRepos implements Vcs {
     return source === null ? { next: 1, pullRequests: [] } : (JSON.parse(source) as Ledger);
   }
 
+  // Reads do not wait for the queue, so a write must never leave a half-written ledger behind.
   private async write(repo: string, ledger: Ledger): Promise<void> {
-    await writeFile(this.ledgerPath(repo), `${JSON.stringify(ledger, null, 2)}\n`);
+    const next = `${this.ledgerPath(repo)}.next`;
+    await writeFile(next, `${JSON.stringify(ledger, null, 2)}\n`);
+    await rename(next, this.ledgerPath(repo));
   }
 
   private ledgerPath(repo: string): string {

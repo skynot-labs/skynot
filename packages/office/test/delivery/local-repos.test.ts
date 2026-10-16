@@ -112,4 +112,16 @@ describe("a repository kept on this machine", () => {
     expect(await reopened.openPullRequest("listo", { head: "taller/wo-0002", base: "main", title: "Second", body: "" })).toEqual({ number: 2, url: "" });
     expect(ledger.pullRequests[0].comments).toEqual(["Looks right"]);
   });
+
+  it("answers about a pull request while a comment on it is being written", async () => {
+    const pull = await repos.openPullRequest("listo", { head: "taller/wo-0001", base: "main", title: "First", body: "" });
+    const writing = Promise.all(Array.from({ length: 50 }, (_, round) => repos.commentOnPullRequest("listo", pull.number, `Round ${round}: ${"x".repeat(50_000)}`)));
+    let written = false;
+    void writing.then(() => (written = true));
+
+    const states: string[] = [];
+    while (!written) states.push(await repos.pullRequestState("listo", pull.number));
+
+    expect(new Set(states)).toEqual(new Set(["open"]));
+  });
 });
