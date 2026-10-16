@@ -184,6 +184,10 @@ export class ActivityProjection implements Projection {
         return delivery(`review round ${payload.round}${payload.diffOnly ? ", from the diff alone" : ""}: ${payload.verdict === "approved" ? "approved" : "changes requested"}. ${payload.summary}`);
       case "delivery.review_failed":
         return delivery(`the review failed: ${payload.reason}`);
+      case "delivery.auto_merged":
+        return delivery(`merged on its own, ${payload.lines} ${payload.lines === 1 ? "line" : "lines"} changed`);
+      case "delivery.auto_merge_held":
+        return delivery(`waits for the director to merge: ${payload.reason}`);
       case "delivery.checks_changed":
         return delivery(`checks: ${payload.state}`);
       case "delivery.work_waiting":

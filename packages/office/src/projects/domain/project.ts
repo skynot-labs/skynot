@@ -9,6 +9,13 @@ export const ProjectFileSchema = z.strictObject({
   description: z.string().trim().max(MAX_PROJECT_DESCRIPTION, `a description has at most ${MAX_PROJECT_DESCRIPTION} characters`).optional(),
   repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/, "a repository is written owner/name").optional(),
   local: z.literal(true).optional(),
+  // Present when the shop may merge a low-risk order on its own (ADR 0005).
+  auto_merge: z
+    .strictObject({
+      max_changed_lines: z.number().int().positive().max(5000).optional(),
+      never: z.array(z.string().min(1)).optional(),
+    })
+    .optional(),
   base_branch: z.string().min(1),
   setup_command: z.string().min(1).nullable(),
   verify_commands: z.array(z.string().min(1)).min(1),
@@ -20,7 +27,9 @@ export const ProjectFileSchema = z.strictObject({
       columns: z.strictObject({ proposed: z.string(), in_progress: z.string(), in_review: z.string(), done: z.string() }).partial().optional(),
     })
     .optional(),
-}).refine((file) => (file.repo === undefined) !== (file.local === undefined), { message: "name a repository with repo: owner/name, or say local: true to keep it on this machine", path: ["repo"] });
+})
+  .refine((file) => (file.repo === undefined) !== (file.local === undefined), { message: "name a repository with repo: owner/name, or say local: true to keep it on this machine", path: ["repo"] })
+  .refine((file) => file.auto_merge === undefined || file.local === true, { message: "auto_merge works only for a project kept on this machine for now", path: ["auto_merge"] });
 
 export type ProjectFile = z.infer<typeof ProjectFileSchema>;
 
@@ -33,6 +42,7 @@ export interface Project {
   // owner/name on GitHub; for a project on this machine, its id, which no GitHub repository can match
   readonly repo: string;
   readonly local?: boolean;
+  readonly autoMerge?: { readonly maxChangedLines?: number; readonly never: readonly string[] };
   readonly baseBranch: string;
   readonly setupCommand: string | null;
   readonly verifyCommands: readonly string[];
@@ -65,6 +75,7 @@ export function toProject(id: string, file: ProjectFile): Project {
     description: file.description || null,
     repo: file.repo ?? id,
     ...(file.local && { local: true }),
+    ...(file.auto_merge && { autoMerge: { ...(file.auto_merge.max_changed_lines && { maxChangedLines: file.auto_merge.max_changed_lines }), never: file.auto_merge.never ?? [] } }),
     baseBranch: file.base_branch,
     setupCommand: file.setup_command,
     verifyCommands: file.verify_commands,

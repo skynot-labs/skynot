@@ -5,7 +5,8 @@ version: 1
 # description: What this project is and who it is for.
 
 # The repository this project works on, and how the shop checks the work before opening a pull request.
-# To start from nothing on this machine instead of GitHub, replace repo with `local: true`.
+# To start from nothing on this machine instead of GitHub, replace repo with `local: true`. Such a project may
+# also let the shop merge its low-risk orders on its own with `auto_merge: {}` (see docs/configuration.md).
 repo: OWNER/REPO
 base_branch: main
 setup_command: npm ci

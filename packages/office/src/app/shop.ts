@@ -33,6 +33,7 @@ import type { Exec } from "../kernel/process";
 import { CODEX_SANDBOX, type Finding } from "./readiness";
 import { ActivityProjection } from "./activity";
 import { createAdvisorBench } from "./advisor-bench";
+import { AutoMerge } from "./auto-merge";
 import { createBriefingDesk } from "./briefing-desk";
 import { createCommandsDesk } from "./commands-desk";
 import { BlockedNotice } from "./blocked-notice";
@@ -119,6 +120,7 @@ export interface Shop {
   commandsService: CommandsService;
   flow: OrderFlow;
   watcher: MergeWatcher;
+  autoMerge: AutoMerge;
   intake: IntakeWatcher;
   schedule: Schedule;
   // The director's merge of an order of a project on this machine; on GitHub it happens there.
@@ -323,6 +325,20 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     ...(config.reportError && { onError: (error: unknown) => config.reportError!(error, { type: "intake", payload: {} } as StoredEvent) }),
   });
   const watcher = new MergeWatcher({ log, vcs, orders, orderService, repoOf: (order) => deskOf(order).project.repo, flow, progressOf: (id) => activity.linksFor(id) });
+  const autoMerge = new AutoMerge({
+    log,
+    vcs,
+    findOrder: (id) => orders.get(id),
+    projectOf: (order) => deskOf(order).project,
+    verifyCommandsOf: (project) => signedCommands.get(project.id)?.verifyCommands ?? project.verifyCommands,
+    paused: (projectId) => control.pausedFor(projectId) !== null,
+    builtOnBase: (repo, pullRequest) => local.builtOnBase(repo, pullRequest),
+    merge: (repo, pullRequest) => local.merge(repo, pullRequest),
+    delivered: () => watcher.poll(),
+    say,
+    ...(config.reportError && { onError: config.reportError }),
+  });
+  const stopAutoMerge = autoMerge.start();
 
   return {
     desks: [...desks.values()],
@@ -347,6 +363,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
     commandsService,
     flow,
     watcher,
+    autoMerge,
     intake,
     schedule,
     origins: { path: (repo) => local.origin(repo), taken: (repo) => local.exists(repo), start: (repo, baseBranch, files) => local.ensure(repo, baseBranch, files) },
@@ -375,6 +392,7 @@ export async function createShop(config: ShopConfig): Promise<Shop> {
       stopReviewNotice();
       stopCostGuard();
       stopMirror();
+      stopAutoMerge();
       watcher.stop();
       intake.stop();
       schedule.stop();

@@ -53,6 +53,23 @@ A project started empty needs a `setup_command` and `verify_commands` that work 
 as `true`. Once an order gives the project something to run, the Manager proposes new commands; when you sign
 them they apply from the next order on and are written to `project.yaml`, keeping the rest of the file.
 
+### Merging on its own
+
+A project kept on this machine can let the shop merge a low-risk order without you, with `auto_merge` in its
+`project.yaml` (`auto_merge: {}` takes the defaults). When a review of an order is approved, the office merges it
+only if the reviewer read the repository and not only the diff, the order's risk is `low`, the verify commands
+check something (not only `true`), the branch was built on the current base and does not conflict, the diff
+changes at most `max_changed_lines` lines (300 unless set), and no changed path is protected, listed under
+`never`, or looks like authentication, payments, a migration or a schema. Otherwise the order waits for you
+as before, and the logbook says why. The chat tells you each order it merged
+([ADR 0005](adr/0005-the-shop-merges-low-risk-orders-under-a-rule.md)).
+
+```yaml
+auto_merge:
+  max_changed_lines: 200
+  never: ["docs/legal/"]
+```
+
 ### Dependencies
 
 A worker cannot install anything. An order lists the npm packages it adds, which you see on its card and sign
