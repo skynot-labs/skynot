@@ -13,12 +13,10 @@ team.yaml
 *.log
 .DS_Store
 
-.kwik-e/
 .agents/
 .mcp.json
 CLAUDE.local.md
 .claude/settings.local.json
-.claude/rules/kwik-e
 .claude/worktrees/
 
 .cursor/
